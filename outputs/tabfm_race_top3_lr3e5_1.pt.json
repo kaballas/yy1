@@ -452,9 +452,18 @@
   "query_races_per_step": 80,
   "steps_per_epoch": 48,
   "probe_race_ids": [
+    10146908,
+    10146909,
+    10146901,
+    10146907,
+    10146904,
     10146905,
+    10146903,
+    10146900,
     10150773,
     10150563,
+    10146906,
+    10146902,
     10146771,
     10168819,
     10172120,
@@ -462,22 +471,13 @@
     10176080,
     10176233,
     10176235,
-    10176072,
-    10176074,
-    10176363,
-    10190313,
-    10190312,
-    10190427,
-    10190377,
-    10190339,
-    10197631,
-    10197588
+    10176072
   ],
   "probe_every_steps": 10,
   "step_loss_window": 10,
   "requested_steps_per_epoch": 100,
   "auto_race_schedule": true,
-  "eligible_training_race_count": 3836,
+  "eligible_training_race_count": 3777,
   "max_grad_norm": 1.0,
   "learning_rate": 3e-05,
   "weight_decay": 0.0001,
@@ -576,9 +576,6 @@
     10763450,
     10763453,
     10763454,
-    10778132,
-    10778137,
-    10778138,
     10778948,
     10778949,
     10778950,
@@ -641,7 +638,8 @@
     10785919,
     10785921,
     10785922,
-    10785924
+    10785924,
+    10786130
   ],
   "skipped_invalid_validation_race_ids": [],
   "excluded_context_validation_race_ids": [
@@ -758,111 +756,120 @@
     10706275,
     10706349,
     10706836,
-    10724275
+    10724275,
+    10727928,
+    10728068,
+    10733590,
+    10737178,
+    10755166,
+    10760027,
+    10760113,
+    10760116,
+    10763236
   ],
   "zeroed_features": [],
-  "best_epoch": 0,
+  "best_epoch": 3,
   "best_metrics": {
-    "top3_recall": 0.2436472346786248,
-    "exact_top3_set_rate": 0.004484304932735426,
-    "contained_top4_rate": 0.026905829596412557,
-    "contained_top5_rate": 0.06278026905829596,
-    "contained_top6_rate": 0.13452914798206278,
-    "complete_races": 223,
-    "roc_auc": 0.5293958665469526,
-    "logloss": 0.6962901569195918,
-    "train_loss": null
+    "top3_recall": 0.29179030662710187,
+    "exact_top3_set_rate": 0.005934718100890208,
+    "contained_top4_rate": 0.050445103857566766,
+    "contained_top5_rate": 0.10089020771513353,
+    "contained_top6_rate": 0.17804154302670624,
+    "complete_races": 337,
+    "roc_auc": 0.5650062488056984,
+    "logloss": 0.5971423630432663,
+    "train_loss": 1.3530328273773193
   },
   "best_metrics_by_validation_cohort": {
     "combined": {
-      "top3_recall": 0.2436472346786248,
-      "exact_top3_set_rate": 0.004484304932735426,
-      "contained_top4_rate": 0.026905829596412557,
-      "contained_top5_rate": 0.06278026905829596,
-      "contained_top6_rate": 0.13452914798206278,
-      "complete_races": 223,
-      "roc_auc": 0.5293958665469526,
-      "logloss": 0.6962901569195918
+      "top3_recall": 0.29179030662710187,
+      "exact_top3_set_rate": 0.005934718100890208,
+      "contained_top4_rate": 0.050445103857566766,
+      "contained_top5_rate": 0.10089020771513353,
+      "contained_top6_rate": 0.17804154302670624,
+      "complete_races": 337,
+      "roc_auc": 0.5650062488056984,
+      "logloss": 0.5971423630432663
     },
     "chronological_representative": {
-      "top3_recall": 0.16666666666666666,
+      "top3_recall": 0.25925925925925924,
       "exact_top3_set_rate": 0.0,
-      "contained_top4_rate": 0.0,
-      "contained_top5_rate": 0.0,
-      "contained_top6_rate": 0.25,
-      "complete_races": 4,
-      "roc_auc": 0.5520833333333334,
-      "logloss": 0.6740697826441219
+      "contained_top4_rate": 0.1111111111111111,
+      "contained_top5_rate": 0.1111111111111111,
+      "contained_top6_rate": 0.3333333333333333,
+      "complete_races": 9,
+      "roc_auc": 0.5955165692007798,
+      "logloss": 0.5795424288616955
     },
     "legacy_combined": {
-      "top3_recall": 0.25882352941176473,
-      "exact_top3_set_rate": 0.0,
-      "contained_top4_rate": 0.011764705882352941,
-      "contained_top5_rate": 0.058823529411764705,
-      "contained_top6_rate": 0.16470588235294117,
-      "complete_races": 85,
-      "roc_auc": 0.44324324324324327,
-      "logloss": 0.7617215648589959
+      "top3_recall": 0.34385964912280703,
+      "exact_top3_set_rate": 0.005263157894736842,
+      "contained_top4_rate": 0.05789473684210526,
+      "contained_top5_rate": 0.12105263157894737,
+      "contained_top6_rate": 0.23157894736842105,
+      "complete_races": 190,
+      "roc_auc": 0.5779225550787964,
+      "logloss": 0.6143033055785626
     },
     "market_miss_stress": {
-      "top3_recall": 0.236318407960199,
-      "exact_top3_set_rate": 0.007462686567164179,
-      "contained_top4_rate": 0.03731343283582089,
-      "contained_top5_rate": 0.06716417910447761,
-      "contained_top6_rate": 0.11194029850746269,
-      "complete_races": 134,
-      "roc_auc": 0.5425803941187916,
-      "logloss": 0.6663198959715324
+      "top3_recall": 0.2222222222222222,
+      "exact_top3_set_rate": 0.007246376811594203,
+      "contained_top4_rate": 0.036231884057971016,
+      "contained_top5_rate": 0.07246376811594203,
+      "contained_top6_rate": 0.09420289855072464,
+      "complete_races": 138,
+      "roc_auc": 0.5329825389865191,
+      "logloss": 0.5789902055599377
     }
   },
   "market_baseline_metrics": {
-    "top3_recall": 0.0,
-    "exact_top3_set_rate": 0.0,
-    "contained_top4_rate": 0.0,
-    "contained_top5_rate": 0.0,
-    "contained_top6_rate": 0.09417040358744394,
-    "complete_races": 223
+    "top3_recall": 0.1434223541048467,
+    "exact_top3_set_rate": 0.01483679525222552,
+    "contained_top4_rate": 0.05637982195845697,
+    "contained_top5_rate": 0.09198813056379822,
+    "contained_top6_rate": 0.20474777448071216,
+    "complete_races": 337
   },
   "market_baseline_metrics_by_validation_cohort": {
     "combined": {
-      "top3_recall": 0.0,
-      "exact_top3_set_rate": 0.0,
-      "contained_top4_rate": 0.0,
-      "contained_top5_rate": 0.0,
-      "contained_top6_rate": 0.09417040358744394,
-      "complete_races": 223
+      "top3_recall": 0.1434223541048467,
+      "exact_top3_set_rate": 0.01483679525222552,
+      "contained_top4_rate": 0.05637982195845697,
+      "contained_top5_rate": 0.09198813056379822,
+      "contained_top6_rate": 0.20474777448071216,
+      "complete_races": 337
     },
     "chronological_representative": {
-      "top3_recall": 0.0,
+      "top3_recall": 0.2222222222222222,
       "exact_top3_set_rate": 0.0,
       "contained_top4_rate": 0.0,
       "contained_top5_rate": 0.0,
-      "contained_top6_rate": 0.25,
-      "complete_races": 4
+      "contained_top6_rate": 0.1111111111111111,
+      "complete_races": 9
     },
     "legacy_combined": {
-      "top3_recall": 0.0,
-      "exact_top3_set_rate": 0.0,
-      "contained_top4_rate": 0.0,
-      "contained_top5_rate": 0.0,
-      "contained_top6_rate": 0.12941176470588237,
-      "complete_races": 85
+      "top3_recall": 0.24385964912280703,
+      "exact_top3_set_rate": 0.02631578947368421,
+      "contained_top4_rate": 0.1,
+      "contained_top5_rate": 0.1631578947368421,
+      "contained_top6_rate": 0.3105263157894737,
+      "complete_races": 190
     },
     "market_miss_stress": {
       "top3_recall": 0.0,
       "exact_top3_set_rate": 0.0,
       "contained_top4_rate": 0.0,
       "contained_top5_rate": 0.0,
-      "contained_top6_rate": 0.06716417910447761,
-      "complete_races": 134
+      "contained_top6_rate": 0.06521739130434782,
+      "complete_races": 138
     }
   },
   "market_price_coverage": 1.0,
   "validation_cohort_source": "model_validation_races.validation_cohort_with_legacy_fallback",
   "validation_cohort_race_counts": {
-    "chronological_representative": 4,
-    "legacy_combined": 85,
-    "market_miss_stress": 134
+    "chronological_representative": 9,
+    "legacy_combined": 190,
+    "market_miss_stress": 138
   },
   "stress_top3_recall_max_drop": 0.5,
   "selection_metric": "representative_when_at_least_20_races_else_combined_top3_recall_with_two_runner_tolerance_then_contained_top5_exact_top3_contained_top4_with_stress_guardrail",
