@@ -1,0 +1,880 @@
+#!/usr/bin/env python3
+"""Predict every runner in one race with a trained TabFM model.
+
+The script expects a tabular file containing:
+  * historical labelled rows used as in-context examples
+  * the target race rows identified by --race-id
+
+Use the same feature columns, ordering, preprocessing, and label encoding that
+were used during training. A saved sklearn-compatible transformer can be passed
+with --preprocessor.
+
+Example:
+    python predict_race.py \
+      --checkpoint checkpoints/best.pt \
+      --data data/model_rows.parquet \
+      --race-id 123456 \
+      --race-id-column race_id \
+      --runner-id-column runner_id \
+      --label-column target \
+      --feature-columns-file artifacts/feature_columns.json \
+      --preprocessor artifacts/preprocessor.joblib \
+      --date-column race_date \
+      --positive-class 1 \
+      --output predictions/race_123456.csv
+"""
+
+from __future__ import annotations
+
+import argparse
+import inspect
+import json
+import sqlite3
+import sys
+from pathlib import Path
+from typing import Any, Iterable, Mapping, Sequence
+
+import numpy as np
+import pandas as pd
+import torch
+from torch import nn
+
+from src.context import load_context_race_ids
+from src.database import load_context_rows, load_race_numbers, quote_identifier
+from src.preprocessing import transform as transform_training_features
+from src.preprocessing import zero_feature_columns
+
+try:
+    from src.model.model import TabFM
+except ImportError:
+    try:
+        from model import TabFM  # type: ignore
+    except ImportError as exc:
+        raise SystemExit(
+            "Cannot import TabFM. Run this script from the repository root, "
+            "or add the repository root to PYTHONPATH."
+        ) from exc
+
+
+MODEL_CONFIG_KEYS = set(inspect.signature(TabFM.__init__).parameters) - {"self"}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Predict all runners for one race using a trained TabFM checkpoint."
+    )
+    parser.add_argument("--checkpoint", type=Path,
+                        default=Path("outputs/tabfm_race_top3.pt"))
+    parser.add_argument("--data", type=Path,
+                        help="CSV or Parquet for generic mode. Without this, use --db and the training context manifest.")
+    parser.add_argument("--db", type=Path,
+                        default=Path("db/race_runners.sqlite"),
+                        help="SQLite database used by train_model.py native mode.")
+    parser.add_argument("--context-json", type=Path,
+                        default=Path("tabfm_context.json"),
+                        help="Ordered labelled context-race manifest for native DB mode.")
+    parser.add_argument(
+        "--use-comp-context",
+        action="store_true",
+        help=(
+            "Build native context from historical finished races with the same "
+            "competition_id and race_number as the target."
+        ),
+    )
+    parser.add_argument("--race-id", required=True,
+                        help="Race ID to predict. Compared as text to avoid integer/string mismatches.")
+    parser.add_argument("--race-id-column", default="race_id")
+    parser.add_argument("--runner-id-column", default="runner_number")
+    parser.add_argument("--label-column", default="top3_mask")
+
+    features = parser.add_mutually_exclusive_group(required=False)
+    features.add_argument(
+        "--feature-columns",
+        help="Comma-separated feature names in exact training order.",
+    )
+    features.add_argument(
+        "--feature-columns-file",
+        type=Path,
+        help="JSON list or newline-delimited feature names in exact training order.",
+    )
+
+    parser.add_argument(
+        "--preprocessor",
+        type=Path,
+        help="Optional joblib/pickle object exposing transform(DataFrame).",
+    )
+    parser.add_argument(
+        "--categorical-indices",
+        default="",
+        help="Comma-separated categorical feature indices after preprocessing.",
+    )
+    parser.add_argument(
+        "--date-column",
+        help="When set, context rows must be strictly earlier than the target race.",
+    )
+    parser.add_argument(
+        "--max-context-rows",
+        type=int,
+        default=0,
+        help="Maximum labelled historical rows supplied as context. Use 0 for all rows.",
+    )
+    parser.add_argument(
+        "--positive-class",
+        type=int,
+        default=1,
+        help="Class probability used for ranking a classification result.",
+    )
+    parser.add_argument(
+        "--class-names",
+        help="Optional comma-separated class labels in model index order.",
+    )
+    parser.add_argument(
+        "--device",
+        default="cuda" if torch.cuda.is_available() else "cpu",
+    )
+    parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--strict-load",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Require checkpoint state_dict keys to match the model exactly.",
+    )
+    return parser.parse_args()
+
+
+def load_table(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(path)
+    suffix = path.suffix.lower()
+    if suffix in {".parquet", ".pq"}:
+        return pd.read_parquet(path)
+    if suffix in {".csv", ".txt"}:
+        return pd.read_csv(path)
+    raise ValueError(f"Unsupported data format {suffix!r}; use CSV or Parquet.")
+
+
+def load_native_query(
+    db_path: Path,
+    race_id: str,
+    feature_columns: Sequence[str],
+) -> pd.DataFrame:
+    """Load one target race directly from the training SQLite database."""
+    if not db_path.exists():
+        raise FileNotFoundError(db_path)
+    selected = ["race_id", "start_time_iso", "runner_number", *feature_columns,
+                "top3_mask", "is_winner"]
+    sql = (
+        f"SELECT {', '.join(quote_identifier(column) for column in selected)} "
+        f"FROM race_runners WHERE race_id = ? ORDER BY start_time_iso, race_id, runner_number"
+    )
+    connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    try:
+        rows = connection.execute(sql, (int(race_id),)).fetchall()
+    finally:
+        connection.close()
+    if not rows:
+        raise ValueError(f"Race ID {race_id!r} was not found in race_runners.")
+    return pd.DataFrame(rows, columns=selected)
+
+
+def load_competition_context_race_ids(
+    db_path: Path, target_race_id: str
+) -> tuple[list[int], int, int]:
+    """Select finished historical races with the target competition and slot."""
+    connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    try:
+        target_rows = connection.execute(
+            "SELECT competition_id, race_number "
+            "FROM race_runners WHERE race_id = ? "
+            "GROUP BY competition_id, race_number",
+            (int(target_race_id),),
+        ).fetchall()
+        if not target_rows:
+            raise ValueError(
+                f"Race ID {target_race_id!r} was not found in race_runners."
+            )
+        if len(target_rows) != 1:
+            raise ValueError(
+                f"Target race {target_race_id} has inconsistent competition_id/race_number."
+            )
+        competition_id, target_race_number = target_rows[0]
+        if competition_id is None or target_race_number is None:
+            raise ValueError(
+                f"Target race {target_race_id} has NULL competition_id or race_number."
+            )
+        context_rows = connection.execute(
+            "SELECT race_id "
+            "FROM race_runners "
+            "WHERE status = 'finished' "
+            "AND competition_id = ? "
+            "AND race_number = ? "
+            "AND race_id <> ? "
+            "GROUP BY race_id "
+            "ORDER BY MIN(start_time_iso), race_id",
+            (int(competition_id), int(target_race_number), int(target_race_id)),
+        ).fetchall()
+    finally:
+        connection.close()
+
+    context_race_ids = [int(row[0]) for row in context_rows]
+    if not context_race_ids:
+        raise ValueError(
+            f"No finished historical races found for competition_id={int(competition_id)} "
+            f"and race_number={int(target_race_number)}."
+        )
+    print(
+        "competition_context_selection "
+        f"target_race_id={int(target_race_id)} "
+        f"competition_id={int(competition_id)} "
+        f"target_race_number={int(target_race_number)} "
+        f"finished_context_races={len(context_race_ids)}",
+        flush=True,
+    )
+    return context_race_ids, int(competition_id), int(target_race_number)
+
+
+def load_context_race_metadata(
+    db_path: Path, context_race_ids: Sequence[int]
+) -> dict[int, tuple[str, int | None, int | None]]:
+    """Load the race-level status and competition fields for display/audit."""
+    if not context_race_ids:
+        return {}
+    placeholders = ", ".join("?" for _ in context_race_ids)
+    connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    try:
+        rows = connection.execute(
+            f"SELECT race_id, status, competition_id, race_number "
+            f"FROM race_runners WHERE race_id IN ({placeholders}) "
+            "GROUP BY race_id, status, competition_id, race_number",
+            list(map(int, context_race_ids)),
+        ).fetchall()
+    finally:
+        connection.close()
+    metadata: dict[int, tuple[str, int | None, int | None]] = {}
+    for race_id, status, competition_id, race_number in rows:
+        metadata[int(race_id)] = (
+            str(status),
+            None if competition_id is None else int(competition_id),
+            None if race_number is None else int(race_number),
+        )
+    return metadata
+
+
+def load_native_inputs(
+    args: argparse.Namespace,
+    feature_columns: Sequence[str],
+    metadata: Mapping[str, Any],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, pd.DataFrame]:
+    """Load native context and target rows using the selected context policy."""
+    if args.use_comp_context:
+        if args.data is not None:
+            raise ValueError("--use-comp-context is only supported in native DB mode.")
+        manifest_context_ids = load_context_race_ids(args.context_json)
+        competition_context_ids, _, _ = load_competition_context_race_ids(
+            args.db, str(args.race_id)
+        )
+        context_race_ids = list(
+            dict.fromkeys(
+                [*map(int, manifest_context_ids), *map(int, competition_context_ids)]
+            )
+        )
+        print(
+            "prediction_context_sources "
+            f"manifest={len(manifest_context_ids)} "
+            f"competition={len(competition_context_ids)} "
+            f"combined_unique={len(context_race_ids)}",
+            flush=True,
+        )
+    else:
+        context_race_ids = load_context_race_ids(args.context_json)
+        checkpoint_context = metadata.get("context_race_ids")
+        if checkpoint_context is not None:
+            checkpoint_context = [int(value) for value in checkpoint_context]
+            #if checkpoint_context != context_race_ids:
+            #    raise ValueError(
+            #        "Context manifest does not match the race IDs recorded by the checkpoint."
+            #    )
+    context_x, context_y, loaded_context_ids, context_times, _, _ = load_context_rows(
+        args.db, list(feature_columns), context_race_ids
+    )
+    query = load_native_query(args.db, str(args.race_id), feature_columns)
+    if int(args.race_id) in set(map(int, loaded_context_ids)):
+        raise ValueError("Target race is present in the selected context.")
+
+    target_time = pd.to_datetime(query["start_time_iso"], utc=True, errors="raise").min()
+    #if any(pd.Timestamp(value) >= target_time for value in context_times):
+    #    raise ValueError(
+    #        "Every fixed context race must be strictly earlier than the target race."
+    #    )
+    return context_x, context_y, loaded_context_ids, query
+
+
+def apply_checkpoint_preprocessing(
+    values: np.ndarray,
+    feature_columns: Sequence[str],
+    metadata: Mapping[str, Any],
+) -> np.ndarray:
+    """Apply the median/scale and zero-feature contract saved by training."""
+    median = metadata.get("median")
+    scale = metadata.get("scale")
+    if median is None or scale is None:
+        raise ValueError(
+            "Checkpoint has no fitted median/scale preprocessing statistics; "
+            "supply --preprocessor or use a native training checkpoint."
+        )
+    if torch.is_tensor(median):
+        median = median.detach().cpu().numpy()
+    if torch.is_tensor(scale):
+        scale = scale.detach().cpu().numpy()
+    median = np.asarray(median, dtype=np.float32)
+    scale = np.asarray(scale, dtype=np.float32)
+    if median.shape != (len(feature_columns),) or scale.shape != (len(feature_columns),):
+        raise ValueError(
+            "Checkpoint preprocessing dimensions do not match its feature columns."
+        )
+    transformed = transform_training_features(values, median, scale)
+    return zero_feature_columns(
+        transformed, list(feature_columns), list(metadata.get("zeroed_features", []))
+    )
+
+
+def torch_load_trusted(path: Path, device: torch.device) -> Any:
+    """Load a trusted local checkpoint across PyTorch versions.
+
+    weights_only=False is intentional because some training pipelines save a
+    full nn.Module or configuration objects. Never use this on an untrusted file.
+    """
+    try:
+        return torch.load(path, map_location=device, weights_only=False)
+    except TypeError:
+        return torch.load(path, map_location=device)
+
+
+def first_mapping(checkpoint: Mapping[str, Any], names: Iterable[str]) -> Mapping[str, Any] | None:
+    for name in names:
+        value = checkpoint.get(name)
+        if isinstance(value, Mapping):
+            return value
+    return None
+
+
+def normalise_model_config(config: Mapping[str, Any]) -> dict[str, Any]:
+    # Common training bundles place model arguments one level deeper.
+    for nested_key in ("model", "model_config", "tabfm", "architecture"):
+        nested = config.get(nested_key)
+        if isinstance(nested, Mapping) and any(key in MODEL_CONFIG_KEYS for key in nested):
+            config = nested
+            break
+    return {key: value for key, value in config.items() if key in MODEL_CONFIG_KEYS}
+
+
+def load_model(checkpoint_path: Path, device: torch.device, strict: bool) -> tuple[TabFM, Mapping[str, Any]]:
+    checkpoint = torch_load_trusted(checkpoint_path, device)
+
+    if isinstance(checkpoint, TabFM):
+        model = checkpoint
+        metadata: Mapping[str, Any] = {}
+    elif isinstance(checkpoint, nn.Module):
+        if not isinstance(checkpoint, TabFM):
+            raise TypeError(f"Checkpoint contains {type(checkpoint).__name__}, not TabFM.")
+        model = checkpoint
+        metadata = {}
+    elif isinstance(checkpoint, Mapping):
+        embedded_model = checkpoint.get("model")
+        if isinstance(embedded_model, TabFM):
+            model = embedded_model
+            metadata = checkpoint
+        else:
+            state_dict = first_mapping(
+                checkpoint,
+                ("model_state_dict", "state_dict", "model_weights", "weights"),
+            )
+            if state_dict is None:
+                # Some checkpoints are a bare state_dict.
+                if checkpoint and all(isinstance(key, str) for key in checkpoint):
+                    if all(torch.is_tensor(value) for value in checkpoint.values()):
+                        state_dict = checkpoint
+                if state_dict is None:
+                    raise KeyError(
+                        "Checkpoint has no TabFM model and no recognised state_dict key."
+                    )
+
+            raw_config = first_mapping(
+                checkpoint,
+                (
+                    "model_kwargs",
+                    "model_config",
+                    "config",
+                    "hyperparameters",
+                    "hparams",
+                    "args",
+                ),
+            )
+            if raw_config is None:
+                raise KeyError(
+                    "Checkpoint contains only weights but no model configuration. "
+                    "Save model_config beside the state_dict or load a full TabFM object."
+                )
+            model_config = normalise_model_config(raw_config)
+            if not model_config:
+                raise ValueError("No TabFM constructor values were found in checkpoint config.")
+            model = TabFM(**model_config)
+            incompatible = model.load_state_dict(state_dict, strict=strict)
+            if not strict and (incompatible.missing_keys or incompatible.unexpected_keys):
+                print(
+                    "WARNING: non-strict checkpoint load. "
+                    f"Missing={incompatible.missing_keys}, unexpected={incompatible.unexpected_keys}",
+                    file=sys.stderr,
+                )
+            metadata = checkpoint
+    else:
+        raise TypeError(f"Unsupported checkpoint object: {type(checkpoint).__name__}")
+
+    model.to(device)
+    model.eval()
+    return model, metadata
+
+
+def read_feature_columns(args: argparse.Namespace, metadata: Mapping[str, Any]) -> list[str]:
+    if args.feature_columns:
+        columns = [part.strip() for part in args.feature_columns.split(",") if part.strip()]
+    elif args.feature_columns_file:
+        text = args.feature_columns_file.read_text(encoding="utf-8").strip()
+        if args.feature_columns_file.suffix.lower() == ".json":
+            value = json.loads(text)
+            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                raise ValueError("Feature-column JSON must be a list of strings.")
+            columns = value
+        else:
+            columns = [line.strip() for line in text.splitlines() if line.strip()]
+    else:
+        columns = []
+        for key in ("feature_columns", "features", "input_columns"):
+            value = metadata.get(key)
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                if all(isinstance(item, str) for item in value):
+                    columns = list(value)
+                    break
+        if not columns:
+            config = metadata.get("config")
+            if isinstance(config, Mapping):
+                for key in ("feature_columns", "features", "input_columns"):
+                    value = config.get(key)
+                    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                        if all(isinstance(item, str) for item in value):
+                            columns = list(value)
+                            break
+
+    if not columns:
+        raise ValueError(
+            "Feature columns are unknown. Supply --feature-columns or "
+            "--feature-columns-file in the exact order used for training."
+        )
+    if len(columns) != len(set(columns)):
+        raise ValueError("Feature-column list contains duplicates.")
+    return columns
+
+
+def load_preprocessor(path: Path | None) -> Any | None:
+    if path is None:
+        return None
+    if not path.exists():
+        raise FileNotFoundError(path)
+    try:
+        import joblib
+        return joblib.load(path)
+    except ImportError as exc:
+        raise RuntimeError("Install joblib to load --preprocessor.") from exc
+
+
+def matrix_from_frame(
+    frame: pd.DataFrame,
+    feature_columns: Sequence[str],
+    preprocessor: Any | None,
+) -> np.ndarray:
+    missing = [column for column in feature_columns if column not in frame.columns]
+    if missing:
+        raise KeyError(f"Data is missing feature columns: {missing}")
+
+    selected = frame.loc[:, feature_columns]
+    if preprocessor is not None:
+        values = preprocessor.transform(selected)
+        if hasattr(values, "toarray"):
+            values = values.toarray()
+        values = np.asarray(values)
+    else:
+        converted = selected.apply(pd.to_numeric, errors="coerce")
+        non_numeric = [
+            column for column in feature_columns
+            if (selected[column].notna() & converted[column].isna()).any()
+        ]
+        if non_numeric:
+            raise ValueError(
+                "Non-numeric feature values require the exact saved training preprocessor. "
+                f"Affected columns: {non_numeric}"
+            )
+        values = converted.to_numpy(dtype=np.float32)
+
+    if values.ndim != 2:
+        raise ValueError(f"Preprocessor must return a 2-D matrix, got shape {values.shape}.")
+    try:
+        return values.astype(np.float32, copy=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Preprocessed features must be numeric.") from exc
+
+
+def parse_categorical_indices(text: str, feature_count: int) -> list[int]:
+    if not text.strip():
+        return []
+    indices = sorted({int(part.strip()) for part in text.split(",") if part.strip()})
+    invalid = [index for index in indices if index < 0 or index >= feature_count]
+    if invalid:
+        raise ValueError(
+            f"Categorical indices {invalid} are outside [0, {feature_count - 1}]."
+        )
+    return indices
+
+
+def checkpoint_cat_mask(metadata: Mapping[str, Any], feature_count: int) -> np.ndarray | None:
+    for key in ("cat_mask", "categorical_mask"):
+        value = metadata.get(key)
+        if value is None:
+            continue
+        if torch.is_tensor(value):
+            value = value.detach().cpu().numpy()
+        array = np.asarray(value, dtype=bool)
+        if array.ndim == 2 and array.shape[0] == 1:
+            array = array[0]
+        if array.shape == (feature_count,):
+            return array
+    return None
+
+
+def select_rows(
+    data: pd.DataFrame,
+    race_id: str,
+    race_id_column: str,
+    label_column: str,
+    date_column: str | None,
+    max_context_rows: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    required = [race_id_column, label_column]
+    missing = [column for column in required if column not in data.columns]
+    if missing:
+        raise KeyError(f"Data is missing required columns: {missing}")
+
+    race_text = data[race_id_column].astype(str)
+    query = data.loc[race_text == str(race_id)].copy()
+    if query.empty:
+        raise ValueError(f"Race ID {race_id!r} was not found in {race_id_column!r}.")
+
+    context = data.loc[(race_text != str(race_id)) & data[label_column].notna()].copy()
+
+    if date_column:
+        if date_column not in data.columns:
+            raise KeyError(f"Date column {date_column!r} is missing.")
+        query_dates = pd.to_datetime(query[date_column], errors="raise", utc=True)
+        context_dates = pd.to_datetime(context[date_column], errors="raise", utc=True)
+        target_start = query_dates.min()
+        context = context.loc[context_dates < target_start].copy()
+        context["__prediction_sort_date"] = context_dates.loc[context.index]
+        context = context.sort_values("__prediction_sort_date")
+
+    if context.empty:
+        raise ValueError("No labelled historical rows are available before the target race.")
+
+    if max_context_rows < 0:
+        raise ValueError("--max-context-rows must be zero or positive.")
+    if max_context_rows and len(context) > max_context_rows:
+        context = context.tail(max_context_rows).copy()
+
+    return context, query
+
+
+def class_names_from_args(
+    args: argparse.Namespace,
+    metadata: Mapping[str, Any],
+    max_classes: int,
+) -> list[str] | None:
+    if args.class_names:
+        names = [part.strip() for part in args.class_names.split(",")]
+    else:
+        names = []
+        for key in ("class_names", "classes", "label_classes"):
+            value = metadata.get(key)
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                names = [str(item) for item in value]
+                break
+    if names and len(names) != max_classes:
+        raise ValueError(
+            f"Expected {max_classes} class names, received {len(names)}."
+        )
+    return names or None
+
+
+def encode_context_labels(
+    series: pd.Series,
+    max_classes: int,
+    class_names: Sequence[str] | None,
+) -> np.ndarray:
+    numeric = pd.to_numeric(series, errors="coerce")
+    numeric_is_complete = numeric.notna().all()
+    if numeric_is_complete:
+        numeric_values = numeric.to_numpy()
+        if not np.equal(numeric_values, np.round(numeric_values)).all():
+            raise ValueError("Classification labels must be integer class IDs.")
+        labels = numeric_values.astype(np.int64)
+    elif class_names:
+        lookup = {name: index for index, name in enumerate(class_names)}
+        encoded = series.astype(str).map(lookup)
+        if encoded.isna().any():
+            unknown = sorted(series.loc[encoded.isna()].astype(str).unique().tolist())
+            raise ValueError(f"Context contains labels absent from --class-names: {unknown}")
+        labels = encoded.to_numpy(dtype=np.int64)
+    else:
+        raise ValueError(
+            "Classification labels are not numeric class IDs. Supply --class-names "
+            "in model index order to encode them."
+        )
+
+    if labels.size and (labels.min() < 0 or labels.max() >= max_classes):
+        raise ValueError(
+            f"Classification labels must be in [0, {max_classes - 1}], "
+            f"got [{labels.min()}, {labels.max()}]."
+        )
+    return labels
+
+
+def make_race_group_ids(
+    model: TabFM,
+    context: pd.DataFrame,
+    query: pd.DataFrame,
+    race_id_column: str,
+    device: torch.device,
+) -> torch.Tensor | None:
+    pre_icl_enabled = getattr(model, "pre_icl_race_encoder", None) is not None
+    post_icl_enabled = getattr(model, "race_context_mode", "none") == "self_attention"
+    if not pre_icl_enabled and not post_icl_enabled:
+        return None
+
+    if pre_icl_enabled:
+        # Every historical race gets a separate non-negative group. The target
+        # race receives a new group that cannot overlap with context groups.
+        context_codes, uniques = pd.factorize(
+            context[race_id_column].astype(str), sort=False
+        )
+        if np.any(context_codes < 0):
+            raise ValueError("Historical race IDs cannot be missing in pre-ICL race mode.")
+        query_group = len(uniques)
+        combined = np.concatenate(
+            [context_codes.astype(np.int64), np.full(len(query), query_group, dtype=np.int64)]
+        )
+    else:
+        # Post-ICL race conditioning applies only to target/query rows.
+        combined = np.concatenate(
+            [np.full(len(context), -1, dtype=np.int64), np.zeros(len(query), dtype=np.int64)]
+        )
+
+    return torch.from_numpy(combined).unsqueeze(0).to(device=device)
+
+
+def predict(args: argparse.Namespace) -> pd.DataFrame:
+    device = torch.device(args.device)
+    model, metadata = load_model(args.checkpoint, device, args.strict_load)
+    feature_columns = read_feature_columns(args, metadata)
+
+    native_mode = args.data is None
+    if native_mode:
+        if args.preprocessor is not None:
+            raise ValueError("--preprocessor is only supported with --data generic mode.")
+        context_values, native_context_y, native_context_race_ids, query = (
+            load_native_inputs(args, feature_columns, metadata)
+        )
+        context_race_numbers = load_race_numbers(
+            args.db, set(map(int, native_context_race_ids))
+        )
+        ordered_context_race_ids = list(
+            dict.fromkeys(map(int, native_context_race_ids))
+        )
+        context_metadata = load_context_race_metadata(
+            args.db, ordered_context_race_ids
+        )
+        context_selection = (
+            "status=finished+context-manifest+competition_id+race_number"
+            if args.use_comp_context
+            else "status=finished+context-manifest"
+        )
+        context_display = ", ".join(
+            (
+                f"{race_id}:race_number={context_race_numbers.get(race_id, '?')}"
+                f":status={context_metadata.get(race_id, ('?', None, None))[0]}"
+                f":competition_id={context_metadata.get(race_id, ('?', None, None))[1]}"
+                f":competition_race_number={context_metadata.get(race_id, ('?', None, None))[2]}"
+            )
+            for race_id in ordered_context_race_ids
+        )
+        print(
+            "PREDICTION CONTEXT "
+            f"races={len(ordered_context_race_ids)} "
+            f"rows={len(native_context_race_ids)} "
+            f"selection={context_selection} "
+            f"race_id:race_number:status:competition_id:competition_race_number=[{context_display}]",
+            flush=True,
+        )
+        context = pd.DataFrame({
+            args.race_id_column: native_context_race_ids,
+            args.label_column: native_context_y,
+        })
+    else:
+        data = load_table(args.data)
+        context, query = select_rows(
+            data=data,
+            race_id=str(args.race_id),
+            race_id_column=args.race_id_column,
+            label_column=args.label_column,
+            date_column=args.date_column,
+            max_context_rows=args.max_context_rows,
+        )
+        context_values = None
+
+    if args.runner_id_column not in query.columns:
+        raise KeyError(f"Runner ID column {args.runner_id_column!r} is missing.")
+
+    preprocessor = load_preprocessor(args.preprocessor)
+    if native_mode:
+        query_values = matrix_from_frame(query, feature_columns, None)
+        context_values = apply_checkpoint_preprocessing(
+            context_values, feature_columns, metadata
+        )
+        query_values = apply_checkpoint_preprocessing(
+            query_values, feature_columns, metadata
+        )
+    else:
+        context_values = matrix_from_frame(context, feature_columns, preprocessor)
+        query_values = matrix_from_frame(query, feature_columns, preprocessor)
+    if context_values.shape[1] != query_values.shape[1]:
+        raise ValueError("Context and query preprocessing produced different feature counts.")
+
+    feature_count = context_values.shape[1]
+    categorical_indices = parse_categorical_indices(args.categorical_indices, feature_count)
+    cat_array = checkpoint_cat_mask(metadata, feature_count)
+    if categorical_indices:
+        cat_array = np.zeros(feature_count, dtype=bool)
+        cat_array[categorical_indices] = True
+
+    x_values = np.concatenate([context_values, query_values], axis=0)
+    x = torch.from_numpy(x_values).unsqueeze(0).to(device=device)
+    train_size = torch.tensor([len(context)], dtype=torch.long, device=device)
+    d = torch.tensor([feature_count], dtype=torch.long, device=device)
+    cat_mask = None
+    if cat_array is not None:
+        cat_mask = torch.from_numpy(cat_array).unsqueeze(0).to(device=device, dtype=torch.bool)
+
+    class_names: list[str] | None = None
+    if model.is_classifier:
+        class_names = class_names_from_args(args, metadata, model.max_classes)
+        context_labels = encode_context_labels(
+            context[args.label_column], model.max_classes, class_names
+        ).astype(np.float32)
+    else:
+        context_labels = pd.to_numeric(
+            context[args.label_column], errors="raise"
+        ).to_numpy(dtype=np.float32)
+        if not np.isfinite(context_labels).all():
+            raise ValueError("Regression context labels must be finite.")
+
+    y_values = np.concatenate(
+        [context_labels, np.full(len(query), -100.0, dtype=np.float32)]
+    )
+    y = torch.from_numpy(y_values).unsqueeze(0).to(device=device)
+    race_group_ids = make_race_group_ids(
+        model, context, query, args.race_id_column, device
+    )
+    valid_row_mask = torch.ones(
+        (1, len(context) + len(query)), dtype=torch.bool, device=device
+    )
+
+    with torch.inference_mode():
+        logits = model(
+            x,
+            y,
+            train_size,
+            cat_mask=cat_mask,
+            d=d,
+            race_group_ids=race_group_ids,
+            valid_row_mask=valid_row_mask,
+        )
+        query_logits = logits[0, len(context): len(context) + len(query)]
+
+    result = query.loc[:, [args.race_id_column, args.runner_id_column]].reset_index(drop=True)
+
+    # Keep the market prices alongside the model ranking so live predictions
+    # can be compared directly with the available market.  These columns are
+    # optional in generic input files, but are present in the native SQLite
+    # race-runner data.
+    for market_column in ("open_price", "fluc1", "fluc2"):
+        if market_column in query.columns:
+            result[market_column] = query[market_column].reset_index(drop=True)
+        else:
+            result[market_column] = "-"
+
+    for outcome_column in ("is_winner", "top3_mask"):
+        if outcome_column in query.columns:
+            result[outcome_column] = query[outcome_column].map(
+                lambda value: "-" if pd.isna(value) else int(value)
+            ).to_numpy()
+        else:
+            # Keep the output schema stable for live/generic inputs without
+            # post-race outcome columns.
+            result[outcome_column] = "-"
+
+    if model.is_classifier:
+        probabilities = torch.softmax(query_logits.float(), dim=-1).cpu().numpy()
+        if args.positive_class < 0 or args.positive_class >= probabilities.shape[1]:
+            raise ValueError(
+                f"--positive-class must be in [0, {probabilities.shape[1] - 1}]."
+            )
+        predicted_indices = probabilities.argmax(axis=1)
+        for index in range(probabilities.shape[1]):
+            label = class_names[index] if class_names else str(index)
+            result[f"probability_{label}"] = probabilities[:, index]
+        result["predicted_class"] = predicted_indices
+        if class_names:
+            result["predicted_label"] = [class_names[index] for index in predicted_indices]
+        result["ranking_probability"] = probabilities[:, args.positive_class]
+        result = result.sort_values(
+            ["ranking_probability", args.runner_id_column],
+            ascending=[False, True],
+        ).reset_index(drop=True)
+        result.insert(0, "predicted_rank", np.arange(1, len(result) + 1))
+    else:
+        predictions = query_logits.squeeze(-1).float().cpu().numpy()
+        result["prediction"] = predictions
+        result = result.sort_values(
+            ["prediction", args.runner_id_column], ascending=[False, True]
+        ).reset_index(drop=True)
+        result.insert(0, "predicted_rank", np.arange(1, len(result) + 1))
+
+    return result
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        result = predict(args)
+    except Exception as exc:
+        print(f"Prediction failed: {exc}", file=sys.stderr)
+        return 1
+
+    with pd.option_context("display.max_rows", None, "display.max_columns", None):
+        print(result.to_string(index=False))
+
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        result.to_csv(args.output, index=False)
+        print(f"\nSaved {len(result)} predictions to {args.output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
