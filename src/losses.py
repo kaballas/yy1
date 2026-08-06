@@ -13,6 +13,7 @@ def grouped_race_losses(
     class_weights: torch.Tensor,
     pairwise_loss_weight: float = 0.0,
     cardinality_loss_weight: float = 0.0,
+    classification_loss_weight: float = 1.0,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Equal-per-race classification, ranking, and top-three cardinality loss."""
     row_losses = F.cross_entropy(
@@ -51,7 +52,7 @@ def grouped_race_losses(
     pairwise = torch.stack(pairwise_losses).mean()
     cardinality = torch.stack(cardinality_losses).mean()
     total = (
-        classification
+        classification_loss_weight * classification
         + pairwise_loss_weight * pairwise
         + cardinality_loss_weight * cardinality
     )

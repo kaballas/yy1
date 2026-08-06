@@ -10,6 +10,14 @@ def _validate_runtime_inputs(x, y, train_size, d=None, cat_mask=None):
   if x.ndim != 3:
     raise ValueError(f"x must have shape [batch, rows, features], got {tuple(x.shape)}.")
   batch_size, sequence_length, feature_count = x.shape
+  if x.is_complex():
+    raise ValueError(f"x must be real-valued, got {x.dtype}")
+  if torch.isinf(x).any():
+    raise ValueError("x must not contain positive or negative infinity")
+  if sequence_length == 0:
+    raise ValueError("x must contain at least one row")
+  if feature_count == 0:
+    raise ValueError("x must contain at least one feature")
   if y.ndim != 2 or y.shape != x.shape[:2]:
     raise ValueError(f"y must have shape {tuple(x.shape[:2])}, got {tuple(y.shape)}.")
   if train_size.shape != (batch_size,):

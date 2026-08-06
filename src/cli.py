@@ -4,6 +4,12 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+
+from src.constants import (
+    CONTEXT_RACES_PER_STEP_MAX,
+    CONTEXT_RACES_PER_STEP_MIN,
+    DEFAULT_CONTEXT_RACES_PER_STEP,
+)
 import torch
 from src.config import DEFAULT_CONTEXT, DEFAULT_DB, DEFAULT_FEATURES, DEFAULT_OUTPUT
 
@@ -96,7 +102,17 @@ def parse_args() -> argparse.Namespace:
         default=256,
         help="Deprecated compatibility option; complete-race batches have variable rows.",
     )
-    parser.add_argument("--context-races-per-step", type=int, default=20)
+    parser.add_argument(
+        "--context-races-per-step",
+        type=int,
+        default=DEFAULT_CONTEXT_RACES_PER_STEP,
+        help=(
+            "Random complete context races per optimizer step. The default "
+            f"({DEFAULT_CONTEXT_RACES_PER_STEP}) matches the live/validation "
+            f"context regime; keep this between {CONTEXT_RACES_PER_STEP_MIN} "
+            f"and {CONTEXT_RACES_PER_STEP_MAX} unless running a deliberate experiment."
+        ),
+    )
     parser.add_argument("--query-races-per-step", type=int, default=80)
     parser.add_argument(
         "--valid-frac",
@@ -160,9 +176,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Experimental representation-level race encoder before ICL; requires retraining.",
     )
-    parser.add_argument("--pairwise-loss-weight", type=float, default=0.0)
+    parser.add_argument(
+        "--classification-loss-weight", "--classification_loss_weight",
+        dest="classification_loss_weight", type=float, default=1.0,
+    )
+    parser.add_argument(
+        "--pairwise-loss-weight", "--pairwise_loss_weight",
+        dest="pairwise_loss_weight", type=float, default=0.0,
+    )
     parser.add_argument(
         "--attention-delta-pairwise-loss-weight",
+        "--attention_delta_pairwise_loss_weight",
+        dest="attention_delta_pairwise_loss_weight",
         type=float,
         default=0.0,
         help=(
@@ -170,7 +195,10 @@ def parse_args() -> argparse.Namespace:
             "delta, preventing the residual base logits from carrying the ranking."
         ),
     )
-    parser.add_argument("--cardinality-loss-weight", type=float, default=0.0)
+    parser.add_argument(
+        "--cardinality-loss-weight", "--cardinality_loss_weight",
+        dest="cardinality_loss_weight", type=float, default=0.0,
+    )
     parser.add_argument(
         "--stress-top3-recall-max-drop",
         type=float,

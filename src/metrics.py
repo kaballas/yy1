@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-from src.constants import (
-    CHECKPOINT_RECALL_TOLERANCE_RUNNERS,
-    MIN_CHECKPOINT_SELECTION_RACES,
-)
 
 
 def roc_auc(target: np.ndarray, probability: np.ndarray) -> float:
@@ -121,15 +117,13 @@ def pre_update_training_batch_metrics(
 
 def checkpoint_selection(
     race_metrics: dict[str, float | int], auc: float, logloss: float
-) -> tuple[float, float, float, float, float, float]:
-    """Prefer broad race-level capture; use smoother runner metrics as tie-breakers."""
+) -> tuple[float, float, float]:
+    """Return the ranking metric used for a chronological checkpoint cohort."""
+    del auc  # retained in the signature for compatibility; not a selection metric
     return (
         float(race_metrics["top3_recall"]),
-        auc,
-        -logloss,
-        float(race_metrics["exact_top3_set_rate"]),
-        float(race_metrics["contained_top4_rate"]),
         float(race_metrics["contained_top5_rate"]),
+        -logloss,
     )
 
 
@@ -171,75 +165,44 @@ def validation_metrics_by_cohort(
 def cohort_checkpoint_selection(
     metrics_by_cohort: dict[str, dict[str, float | int]],
 ) -> tuple[float, ...]:
-    """Select on representative races first, with stress metrics as tie-breakers."""
+    """Return the chronological ranking used for checkpoint selection.
+
+    The broad combined cohort may be dominated by legacy-labelled races, so it
+    is deliberately never used for model selection.  The market-miss cohort is
+    retained as a diagnostic/guardrail only.
+    """
     representative = metrics_by_cohort.get("chronological_representative")
-    primary = (
-        representative
-        if representative is not None
-        and int(representative.get("complete_races", MIN_CHECKPOINT_SELECTION_RACES))
-        >= MIN_CHECKPOINT_SELECTION_RACES
-        else metrics_by_cohort["combined"]
-    )
-    stress = metrics_by_cohort.get("market_miss_stress", metrics_by_cohort["combined"])
+    if representative is None:
+        raise ValueError(
+            "Checkpoint selection requires the chronological_representative cohort; "
+            "combined/legacy validation cannot be used as a fallback"
+        )
+    if int(representative.get("complete_races", 0)) < 1:
+        raise ValueError(
+            "Checkpoint selection requires at least one complete chronological race"
+        )
     return (
-        float(primary["top3_recall"]),
-        float(primary["contained_top5_rate"]),
-        -float(primary["logloss"]),
-        float(primary["exact_top3_set_rate"]),
-        float(primary["contained_top4_rate"]),
-        float(primary["roc_auc"]),
-        float(stress["top3_recall"]),
-        float(stress["contained_top5_rate"]),
-        -float(stress["logloss"]),
+        float(representative["top3_recall"]),
+        float(representative["contained_top5_rate"]),
+        -float(representative["logloss"]),
     )
 
 
 def checkpoint_selection_improves(
     candidate_metrics: dict[str, dict[str, float | int]],
     best_metrics: dict[str, dict[str, float | int]],
-    recall_tolerance_runners: int = CHECKPOINT_RECALL_TOLERANCE_RUNNERS,
+    recall_tolerance_runners: int = 2,
 ) -> bool:
-    """Select only checkpoints that improve discrete race-ranking outcomes.
+    """Return whether chronological ranking selection prefers the candidate.
 
-    A recall difference larger than ``recall_tolerance_runners`` remains the
-    primary decision. Within that tolerance, require improvement in contained
-    top five, exact top three, or contained top four. AUC and log loss remain
-    diagnostics and cannot reset early stopping without a race-ranking gain.
+    Selection is intentionally lexicographic: chronological top-three recall,
+    chronological contained-top-5, then chronological log-loss.  The legacy
+    combined cohort and market-miss cohort cannot affect this decision.
     """
+    del recall_tolerance_runners  # retained for compatibility with older callers
     candidate = cohort_checkpoint_selection(candidate_metrics)
     best = cohort_checkpoint_selection(best_metrics)
-    representative = candidate_metrics.get("chronological_representative")
-    primary = (
-        representative
-        if representative is not None
-        and int(representative.get("complete_races", MIN_CHECKPOINT_SELECTION_RACES))
-        >= MIN_CHECKPOINT_SELECTION_RACES
-        else candidate_metrics["combined"]
-    )
-    complete_races = int(primary["complete_races"])
-    if complete_races < 1:
-        raise ValueError("Checkpoint selection requires at least one complete race")
-    recall_tolerance = recall_tolerance_runners / (complete_races * 3)
-    recall_difference = candidate[0] - best[0]
-    # Recall is discrete (three targets per complete race), so any positive
-    # change is a real additional top-three capture and must not be hidden by
-    # the tolerance. The tolerance only prevents a one-or-two-runner decline
-    # from vetoing a stronger secondary race-ranking result.
-    if recall_difference > 0:
-        return True
-    if recall_difference < -recall_tolerance:
-        return False
-    candidate_ranking = (
-        candidate[1],  # contained_top5_rate
-        candidate[3],  # exact_top3_set_rate
-        candidate[4],  # contained_top4_rate
-    )
-    best_ranking = (
-        best[1],
-        best[3],
-        best[4],
-    )
-    return candidate_ranking > best_ranking
+    return candidate > best
 
 
 def stress_guardrail_passes(

@@ -11,7 +11,8 @@ from .validation import _validate_cache_depth
 class InducedSelfAttentionBlock(nn.Module):
   def __init__(self, d_model, nhead, dim_ff, num_inds, activation="swiglu"):
     super().__init__()
-    self.ind_vectors = nn.Parameter(torch.zeros(num_inds, d_model))
+    self.ind_vectors = nn.Parameter(torch.empty(num_inds, d_model))
+    nn.init.normal_(self.ind_vectors, std=d_model ** -0.5)
     self.mab1 = MultiheadAttentionBlock(d_model, nhead, dim_ff, activation)
     self.mab2 = MultiheadAttentionBlock(d_model, nhead, dim_ff, activation)
 

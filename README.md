@@ -17,3 +17,23 @@ python train_model.py \
   --seed 42 \
   --device cpu \
   --zero-features
+
+
+
+
+  python train_model.py \
+    --resume-model /home/theo/yy1/outputs/tabfm_race_top3_lr3e5_1.pt \
+    --output /home/theo/yy1/outputs/tabfm_race_top3_lr3e5_1.pt \
+    --epochs 20 \
+    --query-races-per-step 1 \
+    --context-races-per-step 96 \
+    --learning-rate 0.00003 \
+    --early-stopping-patience 2 \
+    --min-race-number 5 \
+    --race-context-mode self_attention \
+    --seed 42 \
+    --device cpu \
+    --classification_loss_weight 1.0 \
+    --pairwise_loss_weight 0.25 \
+    --attention_delta_pairwise_loss_weight 0.05 \
+    --cardinality_loss_weight 0.0

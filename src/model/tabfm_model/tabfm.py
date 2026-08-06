@@ -77,6 +77,10 @@ class TabFM(nn.Module):
       raise ValueError("race_context_mode must be 'none' or 'self_attention'")
     if race_context_mode == "self_attention" and not is_classifier:
       raise ValueError("race self-attention is currently classification-only")
+    if (encode_races_before_icl or race_context_mode == "self_attention") and not race_context_residual:
+      raise ValueError(
+          "race_context_residual=False is incompatible with zero-initialised "
+          "race projections")
     if race_context_dim % race_context_heads != 0:
       raise ValueError("race_context_dim must be divisible by race_context_heads")
     if race_context_layers < 1 or race_context_heads < 1:

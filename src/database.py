@@ -6,7 +6,6 @@ import sqlite3
 from pathlib import Path
 import numpy as np
 from src.constants import (
-    MIN_CHECKPOINT_SELECTION_RACES,
     TRAINING_ROWS_VIEW,
     VALIDATION_COHORTS,
     VALIDATION_ROWS_VIEW,
@@ -175,10 +174,9 @@ def print_race_selection_logic(db_path: Path, minimum_race_number: int | None) -
         "validation-context race IDs from validation targets; preserve all "
         "remaining races (no max-valid truncation). Cohorts come from "
         "model_validation_races.validation_cohort when present; an uncovered "
-        "race is labelled legacy_combined. Checkpoint selection uses "
-        "chronological_representative alone only when it contains at least "
-        f"{MIN_CHECKPOINT_SELECTION_RACES} complete races, otherwise combined "
-        "validation metrics are used.",
+        "race is labelled legacy_combined. Checkpoint selection requires the "
+        "chronological_representative cohort and never falls back to combined "
+        "legacy validation metrics.",
         flush=True,
     )
     print("\n")

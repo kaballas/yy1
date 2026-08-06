@@ -63,6 +63,10 @@ class RaceSetEncoder(nn.Module):
       raise ValueError("race_dim must be divisible by attention_heads")
     if attention_layers < 1 or attention_heads < 1:
       raise ValueError("race encoder layers and heads must be positive")
+    if not residual:
+      raise ValueError(
+          "race_context_residual=False is incompatible with zero-initialised "
+          "race projections")
     self.residual = residual
     if max_runners_per_race < 1:
       raise ValueError("max_runners_per_race must be positive")

@@ -10,6 +10,8 @@ import numpy as np
 import torch
 from src.checkpoint import resolve_resume_model_path
 from src.constants import (
+    CONTEXT_RACES_PER_STEP_MAX,
+    CONTEXT_RACES_PER_STEP_MIN,
     MIN_CHECKPOINT_SELECTION_RACES,
     TRAINING_ROWS_VIEW,
     VALIDATION_ROWS_VIEW,
@@ -72,6 +74,19 @@ def run_training(args: argparse.Namespace) -> int:
         raise SystemExit(
             "--context-races-per-step and --query-races-per-step must be positive"
         )
+    if not (
+        CONTEXT_RACES_PER_STEP_MIN
+        <= args.context_races_per_step
+        <= CONTEXT_RACES_PER_STEP_MAX
+    ):
+        print(
+            "WARNING context_policy_out_of_live_range "
+            f"requested_context_races_per_step={args.context_races_per_step} "
+            f"recommended_range=[{CONTEXT_RACES_PER_STEP_MIN},"
+            f"{CONTEXT_RACES_PER_STEP_MAX}] "
+            "live_validation_context_races=approximately_123",
+            flush=True,
+        )
     if args.probe_every_steps < 1:
         raise SystemExit("--probe-every-steps must be positive")
     if args.probe_races < 1:
@@ -92,11 +107,12 @@ def run_training(args: argparse.Namespace) -> int:
     if args.min_race_number is not None and args.min_race_number < 1:
         raise SystemExit("--min-race-number must be positive")
     if (
-        args.pairwise_loss_weight < 0
+        args.classification_loss_weight < 0
+        or args.pairwise_loss_weight < 0
         or args.attention_delta_pairwise_loss_weight < 0
         or args.cardinality_loss_weight < 0
     ):
-        raise SystemExit("Race-level loss weights must be non-negative")
+        raise SystemExit("Loss weights must be non-negative")
     if args.fine_tune_attention_head_only and args.fine_tune_scope not in (
         None, "attention_head_only"
     ):
@@ -521,11 +537,18 @@ def run_training(args: argparse.Namespace) -> int:
     representative_races = validation_cohort_race_counts.get(
         "chronological_representative", 0
     )
+    if representative_races < 1:
+        raise ValueError(
+            "Checkpoint selection requires at least one complete "
+            "chronological_representative race; combined legacy validation "
+            "cannot be used for selection"
+        )
     if representative_races < MIN_CHECKPOINT_SELECTION_RACES:
         print(
-            "WARNING checkpoint_selection_uses_combined "
+            "WARNING checkpoint_selection_chronological_cohort_small "
             f"chronological_representative_races={representative_races} "
-            f"minimum={MIN_CHECKPOINT_SELECTION_RACES}",
+            f"reference_minimum={MIN_CHECKPOINT_SELECTION_RACES}; "
+            "selection_remains_chronological_and_will_not_use_combined",
             flush=True,
         )
     if "legacy_combined" in validation_cohort_race_counts:
@@ -683,6 +706,7 @@ def run_training(args: argparse.Namespace) -> int:
             str(effective_context_races_per_step + effective_query_races_per_step),
         ),
         ("Batch rows", "Variable; --batch-rows 256 is deprecated"),
+        ("Classification loss weight", f"{args.classification_loss_weight:g}"),
         ("Pairwise loss weight", f"{args.pairwise_loss_weight:g}"),
         (
             "Attention-delta pairwise loss",
@@ -931,6 +955,7 @@ def run_training(args: argparse.Namespace) -> int:
                 loss_weights,
                 args.pairwise_loss_weight,
                 args.cardinality_loss_weight,
+                classification_loss_weight=args.classification_loss_weight,
             )
             if race_delta is not None:
                 attention_delta_pairwise_loss = grouped_pairwise_loss(
@@ -1177,10 +1202,10 @@ def run_training(args: argparse.Namespace) -> int:
             "validation_cohort_race_counts": validation_cohort_race_counts,
             "stress_top3_recall_max_drop": args.stress_top3_recall_max_drop,
             "selection_metric": (
-                "representative_when_at_least_20_races_else_combined_top3_recall_"
-                "with_two_runner_tolerance_then_contained_top5_exact_top3_"
-                "contained_top4_with_stress_guardrail"
+                "chronological_top3_recall_then_contained_top5_then_logloss_"
+                "with_market_miss_stress_guardrail"
             ),
+            "classification_loss_weight": args.classification_loss_weight,
             "label": "top3_mask",
             "race_context_mode": race_context_mode,
             "race_context_dim": race_context_dim,
@@ -1273,10 +1298,10 @@ def run_training(args: argparse.Namespace) -> int:
                 "validation_cohort_race_counts": validation_cohort_race_counts,
                 "stress_top3_recall_max_drop": args.stress_top3_recall_max_drop,
                 "selection_metric": (
-                    "representative_when_at_least_20_races_else_combined_top3_recall_"
-                    "with_two_runner_tolerance_then_contained_top5_exact_top3_"
-                    "contained_top4_with_stress_guardrail"
+                    "chronological_top3_recall_then_contained_top5_then_logloss_"
+                    "with_market_miss_stress_guardrail"
                 ),
+                "classification_loss_weight": args.classification_loss_weight,
                 "source_db": str(args.db.resolve()),
                 "feature_manifest": str(args.features_json.resolve()),
             "context_manifest": str(args.context_json.resolve()),

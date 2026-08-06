@@ -209,3 +209,30 @@ def test_decode_accepts_masked_padded_race_rows():
       query, cache, race_group_ids=groups, valid_row_mask=valid,
       feature_schema_hash="schema-v1", preprocessing_version="prep-v1")
   assert torch.equal(output[:, 2], torch.zeros_like(output[:, 2]))
+
+
+def test_scratch_inducing_vectors_are_distinct():
+  instance = model.TabFM(**_args())
+  vectors = instance.col_embedder.tf_col.blocks[0].ind_vectors
+  assert not torch.equal(vectors[0], vectors[1])
+
+
+@pytest.mark.parametrize("kwargs", [
+    dict(race_context_mode="self_attention"),
+    dict(encode_races_before_icl=True),
+])
+def test_non_residual_race_mode_is_rejected(kwargs):
+  with pytest.raises(ValueError, match="race_context_residual=False"):
+    model.TabFM(**_args(**kwargs, race_context_residual=False))
+
+
+@pytest.mark.parametrize("x", [
+    torch.tensor([[[complex(1.0, 1.0)]]]),
+    torch.tensor([[[float("inf")]]]),
+    torch.empty(1, 0, 1),
+    torch.empty(1, 1, 0),
+])
+def test_runtime_rejects_unsafe_or_empty_inputs(x):
+  instance = model.TabFM(**_args())
+  with pytest.raises(ValueError):
+    instance(x, torch.zeros(1, x.shape[1]), torch.tensor([0]))
