@@ -5,6 +5,31 @@ from __future__ import annotations
 import numpy as np
 
 
+def validate_complete_race_batch(
+    canonical_race_ids,
+    race_group_ids,
+    train_size,
+    valid_row_mask,
+    targets,
+    expected_race_row_counts: dict[int, int] | None = None,
+    require_one_winner: bool = True,
+) -> None:
+    """Validate canonical race integrity before local model group remapping."""
+    # Keep the canonical implementation in sampling.py for the sampler path;
+    # expose it here as part of the repository validation API as well.
+    from src.sampling import validate_complete_race_batch as _validate
+
+    _validate(
+        canonical_race_ids,
+        race_group_ids,
+        train_size,
+        valid_row_mask,
+        targets,
+        expected_race_row_counts=expected_race_row_counts,
+        require_one_winner=require_one_winner,
+    )
+
+
 def validation_flag_masks(
     race_ids: np.ndarray, validation_flags: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:

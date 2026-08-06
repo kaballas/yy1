@@ -236,3 +236,21 @@ def test_runtime_rejects_unsafe_or_empty_inputs(x):
   instance = model.TabFM(**_args())
   with pytest.raises(ValueError):
     instance(x, torch.zeros(1, x.shape[1]), torch.tensor([0]))
+
+
+def test_fresh_cell_embedder_uses_feature_values():
+  embedder = model.CellEmbedder(8, 3, feature_group_size=3, num_freq=4)
+  assert torch.any(embedder.fourier_frequencies != 0)
+  x1 = torch.zeros(1, 1, 2)
+  x2 = torch.ones(1, 1, 2)
+  y = torch.zeros(1, 1)
+  first = embedder(x1, y, torch.zeros(1, dtype=torch.long))
+  second = embedder(x2, y, torch.zeros(1, dtype=torch.long))
+  assert not torch.equal(first, second)
+
+
+def test_weights_version_is_cheaply_updated():
+  instance = model.TabFM(**_args())
+  before = instance._model_state_id()
+  instance.mark_weights_updated()
+  assert instance._model_state_id() != before

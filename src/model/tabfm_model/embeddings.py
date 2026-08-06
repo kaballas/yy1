@@ -54,8 +54,9 @@ class CellEmbedder(nn.Module):
     self.fgs = feature_group_size
     self.is_classifier = is_classifier
     in_dim = feature_group_size
-    self.register_buffer("fourier_frequencies", torch.zeros(in_dim, num_freq))
-    self.register_buffer("fourier_frequencies_cat", torch.zeros(in_dim, num_freq))
+    frequency_init = torch.randn(in_dim, num_freq)
+    self.fourier_frequencies = nn.Parameter(frequency_init.clone())
+    self.fourier_frequencies_cat = nn.Parameter(frequency_init.clone())
     self.in_linear = nn.Linear(num_freq * 2, embed_dim)
     self.in_linear_cat = nn.Linear(num_freq * 2, embed_dim)
     if is_classifier:  # classification: embedding lookup over class ids
@@ -159,6 +160,7 @@ class ColEmbedding(nn.Module):
     cc = self.col_chunk_size
 
     if cached_repr is not None:  # Decode: reuse cached induced-point hidden.
+      cached_repr = [hidden.to(dtype=src.dtype) for hidden in cached_repr]
       if cc is None or src.shape[0] <= cc:
         out = self._stage(src, None, cached_hidden=cached_repr)
       else:
@@ -232,4 +234,3 @@ class RowInteraction(nn.Module):
     if self.output_full:
       return out.reshape(b, t, hc, e)
     return out.reshape(b, t, -1)
-

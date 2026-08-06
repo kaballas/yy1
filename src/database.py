@@ -150,8 +150,8 @@ def print_race_selection_logic(db_path: Path, minimum_race_number: int | None) -
         flush=True,
     )
     print(
-        "training_race_post_sql_logic: exclude fixed validation-context race IDs; "
-        "exclude races with fewer than 3 runners or other than exactly 3 "
+        "training_race_post_sql_logic: exclude races with fewer than 3 runners "
+        "or other than exactly 3 "
         "top3_mask=1 rows; "
         + (
             f"require whole-race race_number >= {minimum_race_number}"
@@ -170,8 +170,7 @@ def print_race_selection_logic(db_path: Path, minimum_race_number: int | None) -
     print("\n")
     print(
         "validation_race_post_sql_logic: exclude races with fewer than 3 runners "
-        "or other than exactly 3 top3_mask=1 rows; exclude any fixed "
-        "validation-context race IDs from validation targets; preserve all "
+        "or other than exactly 3 top3_mask=1 rows; preserve all "
         "remaining races (no max-valid truncation). Cohorts come from "
         "model_validation_races.validation_cohort when present; an uncovered "
         "race is labelled legacy_combined. Checkpoint selection requires the "

@@ -27,6 +27,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import copy
 import inspect
 import json
 import sqlite3
@@ -39,10 +40,11 @@ import pandas as pd
 import torch
 from torch import nn
 
-from src.context import load_context_race_ids
-from src.database import load_context_rows, load_race_numbers, quote_identifier
+from src.constants import TRAINING_ROWS_VIEW
+from src.database import quote_identifier, require_training_rows_view
 from src.preprocessing import transform as transform_training_features
 from src.preprocessing import zero_feature_columns
+from src.metrics import probability_metrics
 
 try:
     from src.model.model import TabFM
@@ -63,25 +65,20 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Predict all runners for one race using a trained TabFM checkpoint."
     )
-    parser.add_argument("--checkpoint", type=Path,
-                        default=Path("outputs/tabfm_race_top3.pt"))
+    parser.add_argument(
+        "--checkpoint", type=Path, action="append",
+        help="Checkpoint to use. Repeat to select particular files instead of all models.",
+    )
+    parser.add_argument(
+        "--models-dir", type=Path, default=Path("outputs"),
+        help="Directory scanned for *.pt checkpoints when --checkpoint is omitted (default: outputs).",
+    )
     parser.add_argument("--data", type=Path,
-                        help="CSV or Parquet for generic mode. Without this, use --db and the training context manifest.")
+                        help="CSV or Parquet for generic mode. Without this, use --db and the training race context.")
     parser.add_argument("--db", type=Path,
                         default=Path("db/race_runners.sqlite"),
                         help="SQLite database used by train_model.py native mode.")
-    parser.add_argument("--context-json", type=Path,
-                        default=Path("tabfm_context.json"),
-                        help="Ordered labelled context-race manifest for native DB mode.")
-    parser.add_argument(
-        "--use-comp-context",
-        action="store_true",
-        help=(
-            "Build native context from historical finished races with the same "
-            "competition_id and race_number as the target."
-        ),
-    )
-    parser.add_argument("--race-id", required=True,
+    parser.add_argument("--race-id",
                         help="Race ID to predict. Compared as text to avoid integer/string mismatches.")
     parser.add_argument("--race-id-column", default="race_id")
     parser.add_argument("--runner-id-column", default="runner_number")
@@ -133,6 +130,14 @@ def parse_args() -> argparse.Namespace:
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--backtest", action="store_true",
+        help="Backtest every status='finished' race separately for every checkpoint.",
+    )
+    parser.add_argument(
+        "--backtest-max-races", type=int, default=0,
+        help="Optional chronological cap for --backtest; 0 means every finished race.",
+    )
     parser.add_argument(
         "--strict-load",
         action=argparse.BooleanOptionalAction,
@@ -260,53 +265,54 @@ def load_context_race_metadata(
     return metadata
 
 
-def load_native_inputs(
-    args: argparse.Namespace,
-    feature_columns: Sequence[str],
-    metadata: Mapping[str, Any],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, pd.DataFrame]:
-    """Load native context and target rows using the selected context policy."""
-    if args.use_comp_context:
-        if args.data is not None:
-            raise ValueError("--use-comp-context is only supported in native DB mode.")
-        manifest_context_ids = load_context_race_ids(args.context_json)
-        competition_context_ids, _, _ = load_competition_context_race_ids(
-            args.db, str(args.race_id)
-        )
-        context_race_ids = list(
-            dict.fromkeys(
-                [*map(int, manifest_context_ids), *map(int, competition_context_ids)]
-            )
-        )
-        print(
-            "prediction_context_sources "
-            f"manifest={len(manifest_context_ids)} "
-            f"competition={len(competition_context_ids)} "
-            f"combined_unique={len(context_race_ids)}",
-            flush=True,
-        )
-    else:
-        context_race_ids = load_context_race_ids(args.context_json)
-        checkpoint_context = metadata.get("context_race_ids")
-        if checkpoint_context is not None:
-            checkpoint_context = [int(value) for value in checkpoint_context]
-            #if checkpoint_context != context_race_ids:
-            #    raise ValueError(
-            #        "Context manifest does not match the race IDs recorded by the checkpoint."
-            #    )
-    context_x, context_y, loaded_context_ids, context_times, _, _ = load_context_rows(
-        args.db, list(feature_columns), context_race_ids
-    )
-    query = load_native_query(args.db, str(args.race_id), feature_columns)
-    if int(args.race_id) in set(map(int, loaded_context_ids)):
-        raise ValueError("Target race is present in the selected context.")
+def checkpoint_context_size(metadata: Mapping[str, Any]) -> int:
+    """Return the per-query context window saved by train_model.py."""
+    value = metadata.get("validation_context_races_per_prediction", metadata.get("context_races_per_step"))
+    if value is None:
+        raise ValueError("Checkpoint has no saved context-race window.")
+    size = int(value)
+    if size < 1:
+        raise ValueError(f"Checkpoint context-race window must be positive, got {size}.")
+    return size
 
+
+def load_training_context_for_target(
+    db_path: Path, target_race_id: str, feature_columns: Sequence[str], metadata: Mapping[str, Any]
+) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
+    """Use the exact chronological context policy used by training and validation."""
+    query = load_native_query(db_path, target_race_id, feature_columns)
     target_time = pd.to_datetime(query["start_time_iso"], utc=True, errors="raise").min()
-    #if any(pd.Timestamp(value) >= target_time for value in context_times):
-    #    raise ValueError(
-    #        "Every fixed context race must be strictly earlier than the target race."
-    #    )
-    return context_x, context_y, loaded_context_ids, query
+    context_size = checkpoint_context_size(metadata)
+    selected = ["race_id", "start_time_iso", "runner_number", "race_number", *feature_columns, "top3_mask"]
+    connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    try:
+        require_training_rows_view(connection)
+        sql = (
+            f"SELECT {', '.join(quote_identifier(column) for column in selected)} "
+            f"FROM {quote_identifier(TRAINING_ROWS_VIEW)} "
+            "WHERE start_time_iso < ? AND race_id <> ? ORDER BY start_time_iso, race_id, runner_number"
+        )
+        frame = pd.read_sql_query(sql, connection, params=(target_time.isoformat(), int(target_race_id)))
+    finally:
+        connection.close()
+    minimum_race_number = metadata.get("optimizer_min_race_number")
+    if minimum_race_number is not None:
+        frame = frame.loc[frame["race_number"] >= int(minimum_race_number)].copy()
+    summary = frame.groupby("race_id", sort=False).agg(
+        start_time_iso=("start_time_iso", "min"), runners=("race_id", "size"), top3=("top3_mask", "sum")
+    )
+    summary = summary.loc[(summary["runners"] >= 3) & (summary["top3"] == 3)].sort_values("start_time_iso", kind="stable")
+    selected_ids = [int(value) for value in summary.tail(context_size).index]
+    if len(selected_ids) < context_size:
+        raise ValueError(
+            f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier training context races; "
+            f"checkpoint requires {context_size}."
+        )
+    context = frame.loc[frame["race_id"].isin(selected_ids)].copy()
+    order = {race_id: index for index, race_id in enumerate(selected_ids)}
+    context["__context_order"] = context["race_id"].map(order)
+    context = context.sort_values(["__context_order", "runner_number"], kind="stable").drop(columns="__context_order")
+    return context, query, selected_ids
 
 
 def apply_checkpoint_preprocessing(
@@ -678,53 +684,32 @@ def make_race_group_ids(
     return torch.from_numpy(combined).unsqueeze(0).to(device=device)
 
 
-def predict(args: argparse.Namespace) -> pd.DataFrame:
+def predict_one(
+    args: argparse.Namespace,
+    checkpoint: Path,
+    model: TabFM | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> pd.DataFrame:
     device = torch.device(args.device)
-    model, metadata = load_model(args.checkpoint, device, args.strict_load)
+    if model is None or metadata is None:
+        model, metadata = load_model(checkpoint, device, args.strict_load)
     feature_columns = read_feature_columns(args, metadata)
 
     native_mode = args.data is None
     if native_mode:
         if args.preprocessor is not None:
             raise ValueError("--preprocessor is only supported with --data generic mode.")
-        context_values, native_context_y, native_context_race_ids, query = (
-            load_native_inputs(args, feature_columns, metadata)
-        )
-        context_race_numbers = load_race_numbers(
-            args.db, set(map(int, native_context_race_ids))
-        )
-        ordered_context_race_ids = list(
-            dict.fromkeys(map(int, native_context_race_ids))
-        )
-        context_metadata = load_context_race_metadata(
-            args.db, ordered_context_race_ids
-        )
-        context_selection = (
-            "status=finished+context-manifest+competition_id+race_number"
-            if args.use_comp_context
-            else "status=finished+context-manifest"
-        )
-        context_display = ", ".join(
-            (
-                f"{race_id}:race_number={context_race_numbers.get(race_id, '?')}"
-                f":status={context_metadata.get(race_id, ('?', None, None))[0]}"
-                f":competition_id={context_metadata.get(race_id, ('?', None, None))[1]}"
-                f":competition_race_number={context_metadata.get(race_id, ('?', None, None))[2]}"
-            )
-            for race_id in ordered_context_race_ids
+        context, query, ordered_context_race_ids = load_training_context_for_target(
+            args.db, str(args.race_id), feature_columns, metadata
         )
         print(
             "PREDICTION CONTEXT "
-            f"races={len(ordered_context_race_ids)} "
-            f"rows={len(native_context_race_ids)} "
-            f"selection={context_selection} "
-            f"race_id:race_number:status:competition_id:competition_race_number=[{context_display}]",
+            f"checkpoint={checkpoint.name} strategy=most_recent_earlier_training_races "
+            f"races={len(ordered_context_race_ids)} rows={len(context)} "
+            f"race_ids={ordered_context_race_ids}",
             flush=True,
         )
-        context = pd.DataFrame({
-            args.race_id_column: native_context_race_ids,
-            args.label_column: native_context_y,
-        })
+        context_values = matrix_from_frame(context, feature_columns, None)
     else:
         data = load_table(args.data)
         context, query = select_rows(
@@ -858,21 +843,209 @@ def predict(args: argparse.Namespace) -> pd.DataFrame:
     return result
 
 
+def checkpoint_paths(args: argparse.Namespace) -> list[Path]:
+    """Return explicitly selected checkpoints or every .pt file in models-dir."""
+    paths = args.checkpoint or sorted(args.models_dir.glob("*.pt"))
+    paths = [path.resolve() for path in paths if path.is_file()]
+    if not paths:
+        raise ValueError(
+            f"No .pt checkpoints found in {args.models_dir} (or supplied with --checkpoint)."
+        )
+    return paths
+
+
+def checkpoint_column_name(path: Path, used: set[str]) -> str:
+    stem = "".join(char if char.isalnum() else "_" for char in path.stem).strip("_") or "model"
+    column = f"model_{stem}_score"
+    suffix = 2
+    while column in used:
+        column = f"model_{stem}_{suffix}_score"
+        suffix += 1
+    used.add(column)
+    return column
+
+
+def predict(args: argparse.Namespace) -> pd.DataFrame:
+    """Score the race with every requested checkpoint and average their scores."""
+    combined: pd.DataFrame | None = None
+    score_columns: list[str] = []
+    used_columns: set[str] = set()
+    skipped: list[tuple[Path, str]] = []
+    key_columns = [args.race_id_column, args.runner_id_column]
+    for path in checkpoint_paths(args):
+        print(f"PREDICTING checkpoint={path}", flush=True)
+        try:
+            result = predict_one(args, path)
+        except Exception as exc:
+            skipped.append((path, str(exc)))
+            print(
+                f"WARNING skipped_checkpoint={path.name} reason={exc}",
+                file=sys.stderr, flush=True,
+            )
+            continue
+        score_source = "ranking_probability" if "ranking_probability" in result else "prediction"
+        score_column = checkpoint_column_name(path, used_columns)
+        score_columns.append(score_column)
+        keep = [*key_columns, score_source]
+        model_scores = result.loc[:, keep].rename(columns={score_source: score_column})
+        if combined is None:
+            base_columns = [
+                column for column in result.columns
+                if column not in {"predicted_rank", "ranking_probability", "prediction", "predicted_class", "predicted_label"}
+                and not column.startswith("probability_")
+            ]
+            combined = result.loc[:, base_columns].copy()
+            combined = combined.merge(model_scores, on=key_columns, how="left", validate="one_to_one")
+        else:
+            combined = combined.merge(model_scores, on=key_columns, how="left", validate="one_to_one")
+    if combined is None:
+        details = "; ".join(f"{path.name}: {reason}" for path, reason in skipped)
+        raise ValueError(f"No checkpoint could score race {args.race_id}. {details}")
+    if skipped:
+        print(
+            f"PREDICTION SUMMARY compatible_models={len(score_columns)} "
+            f"skipped_models={len(skipped)}",
+            flush=True,
+        )
+    combined["ensemble_score"] = combined[score_columns].mean(axis=1)
+    combined = combined.sort_values(
+        ["ensemble_score", args.runner_id_column], ascending=[False, True]
+    ).reset_index(drop=True)
+    combined.insert(0, "predicted_rank", np.arange(1, len(combined) + 1))
+    return combined
+
+
+def print_model_rankings(result: pd.DataFrame, runner_id_column: str) -> None:
+    """Print an independently ranked runner table for every compatible model."""
+    score_columns = [
+        column for column in result.columns
+        if column.startswith("model_") and column.endswith("_score")
+    ]
+    display_columns = ["race_id", runner_id_column]
+    for market_column in ("open_price", "fluc1", "fluc2", "is_winner", "top3_mask"):
+        if market_column in result.columns:
+            display_columns.append(market_column)
+    for score_column in score_columns:
+        ranking = result.loc[:, [*display_columns, score_column]].sort_values(
+            [score_column, runner_id_column], ascending=[False, True]
+        ).reset_index(drop=True)
+        ranking.insert(0, "predicted_rank", np.arange(1, len(ranking) + 1))
+        print(f"\nMODEL RANKING checkpoint={score_column.removeprefix('model_').removesuffix('_score')}")
+        print(ranking.to_string(index=False))
+
+
+def finished_race_ids(db_path: Path, maximum: int) -> list[int]:
+    """Return all finished target races in chronological order."""
+    if maximum < 0:
+        raise ValueError("--backtest-max-races must be zero or positive.")
+    connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    try:
+        rows = connection.execute(
+            "SELECT race_id FROM race_runners WHERE status = 'finished' "
+            "GROUP BY race_id ORDER BY MIN(start_time_iso), race_id"
+        ).fetchall()
+    finally:
+        connection.close()
+    race_ids = [int(row[0]) for row in rows]
+    return race_ids if maximum == 0 else race_ids[:maximum]
+
+
+def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Backtest each checkpoint independently on every completed target race."""
+    if args.data is not None:
+        raise ValueError("--backtest requires native SQLite mode; omit --data.")
+    race_ids = finished_race_ids(args.db, args.backtest_max_races)
+    if not race_ids:
+        raise ValueError("No status='finished' races were found.")
+    print(f"BACKTEST targets={len(race_ids)} status=finished", flush=True)
+    all_predictions: list[pd.DataFrame] = []
+    metric_rows: list[dict[str, Any]] = []
+    device = torch.device(args.device)
+    for checkpoint in checkpoint_paths(args):
+        print(f"BACKTESTING checkpoint={checkpoint}", flush=True)
+        try:
+            model, metadata = load_model(checkpoint, device, args.strict_load)
+        except Exception as exc:
+            print(f"WARNING skipped_checkpoint={checkpoint.name} reason={exc}", file=sys.stderr)
+            continue
+        model_predictions: list[pd.DataFrame] = []
+        skipped = 0
+        for index, race_id in enumerate(race_ids, start=1):
+            race_args = copy.copy(args)
+            race_args.race_id = str(race_id)
+            try:
+                prediction = predict_one(race_args, checkpoint, model, metadata)
+            except ValueError as exc:
+                # Earliest races may not yet have enough historical context.
+                skipped += 1
+                continue
+            score_column = "ranking_probability" if "ranking_probability" in prediction else "prediction"
+            prediction = prediction.rename(columns={score_column: "model_score"})
+            prediction["checkpoint"] = checkpoint.name
+            model_predictions.append(prediction)
+            if index % 100 == 0 or index == len(race_ids):
+                print(
+                    f"BACKTEST PROGRESS checkpoint={checkpoint.name} "
+                    f"races={index}/{len(race_ids)} scored={len(model_predictions)} skipped={skipped}",
+                    flush=True,
+                )
+        if not model_predictions:
+            print(f"WARNING skipped_checkpoint={checkpoint.name} reason=no scoreable races", file=sys.stderr)
+            continue
+        model_frame = pd.concat(model_predictions, ignore_index=True)
+        labels = pd.to_numeric(model_frame["top3_mask"], errors="coerce")
+        valid = labels.isin([0, 1])
+        if valid.any():
+            metrics = probability_metrics(
+                labels.loc[valid].to_numpy(dtype=np.int64),
+                model_frame.loc[valid, "model_score"].to_numpy(dtype=np.float64),
+                model_frame.loc[valid, args.race_id_column].to_numpy(dtype=np.int64),
+            )
+        else:
+            metrics = {"complete_races": 0}
+        metric_rows.append({
+            "checkpoint": checkpoint.name,
+            "targets_requested": len(race_ids),
+            "targets_scored": int(model_frame[args.race_id_column].nunique()),
+            "targets_skipped": skipped,
+            **metrics,
+        })
+        all_predictions.append(model_frame)
+    if not all_predictions:
+        raise ValueError("No checkpoint produced any backtest predictions.")
+    return pd.concat(all_predictions, ignore_index=True), pd.DataFrame(metric_rows)
+
+
 def main() -> int:
     args = parse_args()
     try:
-        result = predict(args)
+        if args.backtest:
+            result, metrics = backtest(args)
+        else:
+            if not args.race_id:
+                raise ValueError("--race-id is required unless --backtest is used.")
+            result = predict(args)
+            metrics = None
     except Exception as exc:
         print(f"Prediction failed: {exc}", file=sys.stderr)
         return 1
 
     with pd.option_context("display.max_rows", None, "display.max_columns", None):
-        print(result.to_string(index=False))
+        if metrics is not None:
+            print("\nBACKTEST METRICS")
+            print(metrics.to_string(index=False))
+        else:
+            print(result.to_string(index=False))
+            print_model_rankings(result, args.runner_id_column)
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         result.to_csv(args.output, index=False)
         print(f"\nSaved {len(result)} predictions to {args.output}")
+        if metrics is not None:
+            metrics_path = args.output.with_name(f"{args.output.stem}_metrics.csv")
+            metrics.to_csv(metrics_path, index=False)
+            print(f"Saved {len(metrics)} model metric rows to {metrics_path}")
     return 0
 
 

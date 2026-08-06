@@ -5,11 +5,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.constants import (
-    CONTEXT_RACES_PER_STEP_MAX,
-    CONTEXT_RACES_PER_STEP_MIN,
-    DEFAULT_CONTEXT_RACES_PER_STEP,
-)
 import torch
 from src.config import DEFAULT_CONTEXT, DEFAULT_DB, DEFAULT_FEATURES, DEFAULT_OUTPUT
 
@@ -46,6 +41,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--allow-in-place-fine-tune",
+        action="store_true",
+        help=(
+            "Allow an explicit --resume-model path to also be --output. By default "
+            "this is rejected so the source checkpoint remains available for a "
+            "controlled comparison."
+        ),
+    )
+    parser.add_argument(
         "--fine-tune-attention-head-only",
         action="store_true",
         help=(
@@ -55,11 +59,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--fine-tune-scope",
-        choices=("full_model", "attention_head_only", "icl_and_race_head"),
+        choices=(
+            "full_model",
+            "attention_head_only",
+            "decoder_and_race_head",
+            "icl_and_race_head",
+        ),
         default=None,
         help=(
-            "Parameters to optimize. icl_and_race_head adapts the ICL runner "
-            "representation and race head while freezing lower feature encoders."
+            "Parameters to optimize: attention_head_only trains race_set_head "
+            "only; decoder_and_race_head trains icl_predictor.decoder and "
+            "race_set_head only; icl_and_race_head trains the complete "
+            "icl_predictor and race_set_head; full_model trains all parameters. "
+            "A resumed self-attention model defaults to icl_and_race_head."
         ),
     )
     parser.add_argument("--epochs", type=int, default=10)
@@ -94,7 +106,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--print-race-schedule",
         action="store_true",
-        help="Print race_id:race_number values for fixed and per-step context/query races.",
+        help="Print race_id:race_number values for chronological per-step context/query races.",
     )
     parser.add_argument(
         "--batch-rows",
@@ -105,12 +117,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--context-races-per-step",
         type=int,
-        default=DEFAULT_CONTEXT_RACES_PER_STEP,
+        default=None,
         help=(
-            "Random complete context races per optimizer step. The default "
-            f"({DEFAULT_CONTEXT_RACES_PER_STEP}) matches the live/validation "
-            f"context regime; keep this between {CONTEXT_RACES_PER_STEP_MIN} "
-            f"and {CONTEXT_RACES_PER_STEP_MAX} unless running a deliberate experiment."
+            "Most-recent strictly earlier complete context races for each query "
+            "race. The default is the number of races in --context-json and the "
+            "same per-query rule is used for training and validation."
         ),
     )
     parser.add_argument("--query-races-per-step", type=int, default=80)
@@ -143,6 +154,14 @@ def parse_args() -> argparse.Namespace:
             "fine-tuning a checkpoint."
         ),
     )
+    parser.add_argument(
+        "--allow-high-fine-tune-learning-rate",
+        action="store_true",
+        help=(
+            "Allow checkpoint fine-tuning above the 3e-5 safety ceiling. This is "
+            "an explicit destructive-update experiment and is disabled by default."
+        ),
+    )
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--max-grad-norm", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=42)
@@ -157,6 +176,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--early-stopping-patience", type=int, default=3)
+    parser.add_argument(
+        "--allow-small-cohort-early-stopping",
+        action="store_true",
+        help=(
+            "Allow patience-based early stopping when the chronological "
+            "checkpoint-selection cohort is smaller than the safety minimum."
+        ),
+    )
     parser.add_argument(
         "--race-context-mode", choices=("none", "self_attention"), default=None,
         help="Target-race interaction mode; resumed models inherit this when omitted.",
@@ -179,6 +206,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--classification-loss-weight", "--classification_loss_weight",
         dest="classification_loss_weight", type=float, default=1.0,
+    )
+    parser.add_argument(
+        "--auxiliary-row-loss-weight", "--auxiliary_row_loss_weight",
+        dest="auxiliary_row_loss_weight", type=float, default=0.0,
+        help="Optional row-level query loss added to the primary race winner loss.",
     )
     parser.add_argument(
         "--pairwise-loss-weight", "--pairwise_loss_weight",

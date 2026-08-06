@@ -54,9 +54,12 @@ class MultiheadAttention(nn.Module):
       if key is not None or value is not None:
         raise ValueError("key/value must be None when cached_kv is provided.")
       cached_k, cached_v = cached_kv
-      # Cached K/V may be int8-quantized; dequantize to compute dtype before use.
-      k = cached_k.dequantize(q.dtype) if isinstance(cached_k, QuantizedTensor) else cached_k
-      v = cached_v.dequantize(q.dtype) if isinstance(cached_v, QuantizedTensor) else cached_v
+      # Cached K/V may be int8-quantized; always convert to the current query
+      # dtype so ordinary AMP caches behave like quantized caches.
+      k = (cached_k.dequantize(q.dtype) if isinstance(cached_k, QuantizedTensor)
+           else cached_k.to(dtype=q.dtype))
+      v = (cached_v.dequantize(q.dtype) if isinstance(cached_v, QuantizedTensor)
+           else cached_v.to(dtype=q.dtype))
     else:
       if key is None or value is None:
         raise ValueError("key/value must not be None when cached_kv is absent.")

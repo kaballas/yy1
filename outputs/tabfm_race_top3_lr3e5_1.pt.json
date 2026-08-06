@@ -182,8 +182,8 @@
   "race_context_heads": 2,
   "race_context_ff_dim": 64,
   "race_context_residual": true,
-  "pairwise_loss_weight": 1.0,
-  "attention_delta_pairwise_loss_weight": 0.5,
+  "pairwise_loss_weight": 0.25,
+  "attention_delta_pairwise_loss_weight": 0.05,
   "cardinality_loss_weight": 0.0,
   "output_semantics": "race_conditioned_uncalibrated_top3_score",
   "partition_source": "separate_training_validation_views",
@@ -447,10 +447,10 @@
     10248283
   ],
   "context_sampling": "random_complete_races_per_step",
-  "context_races_per_step": 10,
-  "requested_context_races_per_step": 10,
-  "query_races_per_step": 80,
-  "steps_per_epoch": 13,
+  "context_races_per_step": 96,
+  "requested_context_races_per_step": 96,
+  "query_races_per_step": 1,
+  "steps_per_epoch": 100,
   "probe_race_ids": [
     10146908,
     10146909,
@@ -476,7 +476,7 @@
   "probe_every_steps": 10,
   "step_loss_window": 10,
   "requested_steps_per_epoch": 100,
-  "auto_race_schedule": true,
+  "auto_race_schedule": false,
   "eligible_training_race_count": 1000,
   "max_grad_norm": 1.0,
   "learning_rate": 3e-05,
@@ -780,7 +780,7 @@
     10763236
   ],
   "zeroed_features": [],
-  "best_epoch": 2,
+  "best_epoch": 0,
   "best_metrics": {
     "top3_recall": 0.47124117053481335,
     "exact_top3_set_rate": 0.04978136562394887,
@@ -790,7 +790,7 @@
     "complete_races": 5946,
     "roc_auc": 0.6893119525211543,
     "logloss": 0.5830267746865705,
-    "train_loss": 1.3575883186780489
+    "train_loss": null
   },
   "best_metrics_by_validation_cohort": {
     "combined": {
@@ -884,7 +884,8 @@
     "market_miss_stress": 138
   },
   "stress_top3_recall_max_drop": 0.5,
-  "selection_metric": "representative_when_at_least_20_races_else_combined_top3_recall_with_two_runner_tolerance_then_contained_top5_exact_top3_contained_top4_with_stress_guardrail",
+  "selection_metric": "chronological_top3_recall_then_contained_top5_then_logloss_with_market_miss_stress_guardrail",
+  "classification_loss_weight": 1.0,
   "source_db": "/home/theo/yy1/db/race_runners.sqlite",
   "feature_manifest": "/home/theo/yy1/tabfm_features.json",
   "context_manifest": "/home/theo/yy1/tabfm_context.json",
@@ -892,6 +893,6 @@
   "split_manifest_sha256": null,
   "base_model": "/home/theo/yy1/outputs/tabfm_race_top3_lr3e5_1.pt",
   "training_mode": "fine_tune_explicit_resume",
-  "source_best_epoch": 1,
+  "source_best_epoch": 2,
   "output": "/home/theo/yy1/outputs/tabfm_race_top3_lr3e5_1.pt"
 }

@@ -1,9 +1,6 @@
 """Top-level TabFM orchestration module."""
 
-import hashlib
-
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from .cache import ICLearningCache, QuantizedTensor, detach_cache
@@ -73,6 +70,7 @@ class TabFM(nn.Module):
     self.checkpoint_id = checkpoint_id
     self.feature_schema_hash = feature_schema_hash
     self.preprocessing_version = preprocessing_version
+    self.weights_version = 0
     if race_context_mode not in {"none", "self_attention"}:
       raise ValueError("race_context_mode must be 'none' or 'self_attention'")
     if race_context_mode == "self_attention" and not is_classifier:
@@ -214,13 +212,16 @@ class TabFM(nn.Module):
     }
 
   def _model_state_id(self):
-    digest = hashlib.sha256()
-    for name, tensor in self.state_dict().items():
-      digest.update(name.encode("utf-8"))
-      digest.update(str(tensor.dtype).encode("ascii"))
-      digest.update(str(tuple(tensor.shape)).encode("ascii"))
-      digest.update(tensor.detach().to(device="cpu").contiguous().view(torch.uint8).numpy().tobytes())
-    return digest.hexdigest()
+    return f"{self.checkpoint_id or 'runtime'}:weights-{self.weights_version}"
+
+  def mark_weights_updated(self):
+    """Invalidate existing activation caches after an optimizer update."""
+    self.weights_version += 1
+
+  def load_state_dict(self, *args, **kwargs):
+    result = super().load_state_dict(*args, **kwargs)
+    self.mark_weights_updated()
+    return result
 
   def _cache_compatibility_metadata(self, feature_schema_hash,
                                     preprocessing_version):
@@ -272,6 +273,9 @@ class TabFM(nn.Module):
         raise ValueError(
             f"cache architecture field {name}={cached_architecture.get(name)!r} "
             f"does not match current model value {expected!r}.")
+    cached_dtypes = metadata.get("cache_dtypes")
+    if not isinstance(cached_dtypes, dict):
+      raise ValueError("cache is missing activation dtype metadata.")
     batch_size, _, feature_count = x.shape
     if metadata.get("batch_size") != batch_size:
       raise ValueError(f"Cache batch size {metadata.get('batch_size')} does not match decode batch size {batch_size}.")
@@ -307,8 +311,10 @@ class TabFM(nn.Module):
           raise ValueError(f"{name} layer {index} has shape {tuple(hidden.shape)}, expected {expected_shape} for batch times feature-column structure.")
         if hidden.device != x.device:
           raise ValueError(f"{name} layer {index} is on {hidden.device}, but decode x is on {x.device}.")
-        if hidden.dtype != self.cls_tokens.dtype:
-          raise ValueError(f"{name} layer {index} has dtype {hidden.dtype}, expected {self.cls_tokens.dtype}.")
+        if str(hidden.dtype) != cached_dtypes.get(name):
+          raise ValueError(
+              f"{name} layer {index} has dtype {hidden.dtype}, expected recorded cache dtype "
+              f"{cached_dtypes.get(name)}.")
 
     icl = cache["icl"]
     if not isinstance(icl, ICLearningCache):
@@ -336,16 +342,17 @@ class TabFM(nn.Module):
         raise ValueError(f"ICL cache layer {index} tensors must be on decode device {x.device}.")
       for name, tensor in (("K", pair[0]), ("V", pair[1])):
         if isinstance(tensor, QuantizedTensor):
-          if tensor.data.dtype != torch.int8 or tensor.scale.dtype != self.cls_tokens.dtype:
+          if tensor.data.dtype != torch.int8 or str(tensor.scale.dtype) != cached_dtypes.get("icl"):
             raise ValueError(
-                f"ICL cache layer {index} {name} quantized dtype does not match the model dtype.")
-        elif tensor.dtype != self.cls_tokens.dtype:
+                f"ICL cache layer {index} {name} quantized dtype does not match recorded cache dtype.")
+        elif str(tensor.dtype) != cached_dtypes.get("icl"):
           raise ValueError(
-              f"ICL cache layer {index} {name} has dtype {tensor.dtype}, expected {self.cls_tokens.dtype}.")
+              f"ICL cache layer {index} {name} has dtype {tensor.dtype}, expected recorded cache dtype "
+              f"{cached_dtypes.get('icl')}.")
 
     # A cache captures activations under the weights present at prefill time.
-    # Rebuild it after changing or loading model weights; cache compatibility
-    # metadata cannot detect arbitrary weight changes.
+    # Call mark_weights_updated() after optimizer updates and load_state_dict()
+    # invalidates caches automatically.
 
   def forward(self, x, y, train_size, cat_mask=None, d=None, race_group_ids=None,
               return_race_delta=False, valid_row_mask=None):
@@ -354,6 +361,15 @@ class TabFM(nn.Module):
     # NaN is already imputed in the shared preprocessing, so nan_to_num is a
     # no-op in the normal flow, but it keeps the model robust + JAX-faithful.
     _validate_runtime_inputs(x, y, train_size, d=d, cat_mask=cat_mask)
+    if valid_row_mask is not None:
+      if (valid_row_mask.shape != x.shape[:2]
+          or valid_row_mask.dtype != torch.bool
+          or valid_row_mask.device != x.device):
+        raise ValueError(
+            "valid_row_mask must be a bool tensor matching x batch and row dimensions")
+      positions = torch.arange(x.shape[1], device=x.device)[None, :]
+      if torch.any((positions < train_size[:, None]) & ~valid_row_mask):
+        raise ValueError("valid_row_mask cannot mask context rows")
     if self.strict_input_validation and not torch.isfinite(x).all():
       raise ValueError("x must contain only finite values when strict_input_validation is enabled.")
     self._validate_targets(y, train_size, require_padding_after_context=False)
@@ -391,7 +407,10 @@ class TabFM(nn.Module):
     if self.race_context_mode == "none":
       if return_race_delta:
         raise ValueError("return_race_delta requires race_context_mode=self_attention")
-      return self.icl_predictor(reps, y, train_size)
+      out = self.icl_predictor(reps, y, train_size)
+      if valid_row_mask is not None:
+        out = torch.where(valid_row_mask[..., None], out, torch.zeros_like(out))
+      return out
     base_logits, hidden = self.icl_predictor(
         reps, y, train_size, return_hidden=True
     )
@@ -399,8 +418,17 @@ class TabFM(nn.Module):
     if self.encode_races_before_icl:
       positions = torch.arange(x.shape[1], device=x.device)[None, :]
       post_groups = torch.where(positions < train_size[:, None], -1, race_group_ids)
-    return self._race_condition(base_logits, hidden, post_groups,
-                                return_race_delta=return_race_delta)
+    out = self._race_condition(base_logits, hidden, post_groups,
+                               return_race_delta=return_race_delta)
+    if valid_row_mask is not None:
+      if return_race_delta:
+        conditioned, delta = out
+        mask = valid_row_mask[..., None]
+        out = (torch.where(mask, conditioned, torch.zeros_like(conditioned)),
+               torch.where(mask, delta, torch.zeros_like(delta)))
+      else:
+        out = torch.where(valid_row_mask[..., None], out, torch.zeros_like(out))
+    return out
 
   def prefill(self, x, y, cat_mask=None, d=None, race_group_ids=None,
               train_size=None, valid_context_mask=None,
@@ -409,11 +437,10 @@ class TabFM(nn.Module):
 
     x is [B, T, H] context rows and y is [B, T] context labels; cat_mask is an
     optional [B, H] categorical-feature mask and d an optional [B] active-
-    feature count. Pads the sequence to a multiple of 128 with the -100
-    sentinel. Classification may derive train_size from y; regression requires
+    feature count. Classification may derive train_size from y; regression requires
     explicit train_size or valid_context_mask. The method runs the full
     pipeline while collecting the col-embedder induced-point reprs and the ICL
-    encoder per-layer K/V, and unpads the logits to the original length. cache
+    encoder per-layer K/V. cache
     is a dict with keys 'col1', 'col2' (per-block induced-point reprs) and
     'icl' (an ICLearningCache).
     """
@@ -421,6 +448,7 @@ class TabFM(nn.Module):
       raise ValueError(f"x must have shape [batch, rows, features], got {tuple(x.shape)}.")
     if y.ndim != 2 or y.shape != x.shape[:2]:
       raise ValueError(f"y must have shape {tuple(x.shape[:2])}, got {tuple(y.shape)}.")
+    t_orig = x.shape[1]
     if train_size is not None and valid_context_mask is not None:
       raise ValueError("prefill accepts either train_size or valid_context_mask, not both")
     if train_size is not None:
@@ -455,16 +483,6 @@ class TabFM(nn.Module):
     x = torch.nan_to_num(x, nan=-100.0).to(self.cls_tokens.dtype)
     y = y.to(self.cls_tokens.dtype)
 
-    t_orig = x.shape[1]
-    block_size = 128
-    pad_len = ((t_orig - 1) // block_size + 1) * block_size - t_orig
-    if pad_len > 0:
-      x = F.pad(x, (0, 0, 0, pad_len), value=-100.0)
-      y = F.pad(y, (0, pad_len), value=-100.0)
-      is_valid = F.pad(is_valid, (0, pad_len), value=False)
-      if race_group_ids is not None:
-        race_group_ids = F.pad(race_group_ids, (0, pad_len), value=-1)
-
     cell = self.cell_embedder(
         x, y, train_size, cat_mask, d=d,
         inject_context_labels=not self.encode_races_before_icl,
@@ -492,6 +510,11 @@ class TabFM(nn.Module):
             "d": None if d is None else tuple(int(v) for v in d.detach().cpu()),
             "cat_mask": (None if cat_mask is None else
                          cat_mask.detach().to(device="cpu", dtype=torch.bool).clone()),
+            "cache_dtypes": {
+                "col1": str(cache_col1[0].dtype),
+                "col2": str(cache_col2[0].dtype),
+                "icl": str(cache_icl.layer_caches[0][0].dtype),
+            },
             "pre_icl_race_context": self.pre_icl_race_encoder is not None,
             "label_injection_mode": "icl_only" if self.pre_icl_race_encoder is not None else "cell_and_icl",
             "architecture": self._cache_architecture_metadata(),
@@ -505,10 +528,10 @@ class TabFM(nn.Module):
     """Generates predictions for test rows using a cache from prefill.
 
     x is [B, T, H] test rows and cache is the dict returned by prefill;
-    cat_mask and d are as in prefill. Pads to a multiple of 128, re-runs the
+    cat_mask and d are as in prefill. Re-runs the
     row-independent cell embedder and row interactors on the test rows, reuses
     the cached col-embedder reprs and ICL per-layer K/V instead of recomputing
-    them from the context, and unpads to the original test length. Optional
+    them from the context. Optional
     valid_row_mask marks padded batch rows; those output rows are zeroed.
     Returns [B, T, K_or_1] logits.
     """
@@ -539,14 +562,6 @@ class TabFM(nn.Module):
       decode_train_size = torch.zeros(b, dtype=torch.long, device=x.device)
       self._validate_race_groups(x, decode_train_size, race_group_ids,
                                  valid_row_mask=valid_row_mask)
-
-    block_size = 128
-    pad_len = ((t_orig - 1) // block_size + 1) * block_size - t_orig
-    if pad_len > 0:
-      x = F.pad(x, (0, 0, 0, pad_len), value=-100.0)
-      valid_row_mask = F.pad(valid_row_mask, (0, pad_len), value=False)
-      if race_group_ids is not None:
-        race_group_ids = F.pad(race_group_ids, (0, pad_len), value=-1)
 
     # y carries no information for test rows in decode (unlabeled); use the
     # -100 sentinel throughout, matching JAX.

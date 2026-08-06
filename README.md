@@ -1,39 +1,78 @@
+# TabFM race-model fine-tuning
+
+Activate the PyTorch environment used by this checkout:
+
+```bash
+cd /home/theo/perplex/x7/x9/live
+source ../.venv/bin/activate
+cd /home/theo/yy1
+```
+
+## Recommended fine-tune
+
+Keep the source checkpoint unchanged, use the checkpoint-safe learning rate,
+average each optimizer update across multiple complete query races, and cover
+the eligible training pool once per epoch:
+
+```bash
 python train_model.py \
-  --resume-model /home/theo/yy1/outputs/tabfm_race_top3.pt \
-  --output /home/theo/yy1/outputs/tabfm_race_top3.pt \
-  --fine-tune-scope full_model \
-  --epochs 50 \
-  --steps-per-epoch 50 \
-  --context-races-per-step 4 \
-  --query-races-per-step 50 \
-  --learning-rate 2e-6 \
-  --early-stopping-patience 8 \
-  --min-race-number 6 \
+  --resume-model /home/theo/yy1/outputs/base.pt \
+  --output /home/theo/yy1/outputs/1_base.pt \
+  --epochs 8 \
+  --auto-race-schedule \
+  --query-races-per-step 10 \
+  --learning-rate 0.00003 \
+  --early-stopping-patience 4 \
+  --fine-tune-scope icl_and_race_head \
+  --min-race-number 3 \
   --race-context-mode self_attention \
-  --pairwise-loss-weight 1.0 \
-  --attention-delta-pairwise-loss-weight 0.5 \
-  --cardinality-loss-weight 0 \
-  --stress-top3-recall-max-drop 0.02 \
   --seed 42 \
   --device cpu \
-  --zero-features
+  --classification_loss_weight 1.0 \
+  --pairwise_loss_weight 0.25 \
+  --attention_delta_pairwise_loss_weight 0.05 \
+  --cardinality_loss_weight 0.0
+```
+
+Training and validation both use the same context contract: every query race
+gets its own sequence containing the most recent strictly earlier complete
+training races. The number of context races defaults to the race count in
+`tabfm_context.json`.
+
+The command intentionally omits `--allow-small-cohort-early-stopping`. Until
+the `chronological_representative` cohort contains at least 20 complete races,
+all requested epochs run and checkpoint selection still retains the best
+chronological epoch.
+
+Fine-tuning above `3e-5` is rejected unless
+`--allow-high-fine-tune-learning-rate` is explicitly supplied. Explicitly
+using the same path for `--resume-model` and `--output` is also rejected unless
+`--allow-in-place-fine-tune` is supplied.
 
 
 
 
-  python train_model.py \
-    --resume-model /home/theo/yy1/outputs/tabfm_race_top3_lr3e5_1.pt \
-    --output /home/theo/yy1/outputs/tabfm_race_top3_lr3e5_1.pt \
-    --epochs 20 \
-    --query-races-per-step 1 \
-    --context-races-per-step 96 \
-    --learning-rate 0.00003 \
-    --early-stopping-patience 2 \
-    --min-race-number 5 \
-    --race-context-mode self_attention \
-    --seed 42 \
-    --device cpu \
-    --classification_loss_weight 1.0 \
-    --pairwise_loss_weight 0.25 \
-    --attention_delta_pairwise_loss_weight 0.05 \
-    --cardinality_loss_weight 0.0
+python train_model.py \
+  --output /home/theo/yy1/outputs/base.pt \
+  --epochs 2 \
+  --auto-race-schedule \
+  --query-races-per-step 10 \
+  --learning-rate 0.00003 \
+  --early-stopping-patience 4 \
+  --min-race-number 3 \
+  --race-context-mode self_attention \
+  --seed 42 \
+  --device cpu \
+  --classification_loss_weight 1.0 \
+  --pairwise_loss_weight 0.25 \
+  --attention_delta_pairwise_loss_weight 0.05 \
+  --cardinality_loss_weight 0.0
+
+
+
+
+"open_price",
+    "fluc1",
+    "fluc2",
+    
+

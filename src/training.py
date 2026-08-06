@@ -10,22 +10,30 @@ import numpy as np
 import torch
 from src.checkpoint import resolve_resume_model_path
 from src.constants import (
-    CONTEXT_RACES_PER_STEP_MAX,
-    CONTEXT_RACES_PER_STEP_MIN,
     MIN_CHECKPOINT_SELECTION_RACES,
     TRAINING_ROWS_VIEW,
     VALIDATION_ROWS_VIEW,
 )
-from src.context import context_race_id_changes, load_context_race_ids
-from src.database import (load_context_rows, load_market_fluc2, load_race_number_eligible_ids, load_race_numbers, load_rows, load_validation_cohorts, print_race_selection_logic, validate_feature_columns)
+from src.context import load_context_race_ids
+from src.database import (load_market_fluc2, load_race_number_eligible_ids, load_race_numbers, load_rows, load_validation_cohorts, print_race_selection_logic, validate_feature_columns)
 from src.dataset import load_feature_columns
-from src.losses import grouped_pairwise_loss, grouped_race_losses
+from src.losses import (
+    grouped_pairwise_loss,
+    grouped_race_losses,
+)
 from src.metrics import (checkpoint_selection_improves, cohort_checkpoint_selection, format_metric_line, pre_update_training_batch_metrics, probability_metrics, race_top3_metrics, select_fixed_probe_race_ids, stress_guardrail_passes, validation_metrics_by_cohort)
 from src.model import TabFM
-from src.prediction import market_rank_scores, predict
+from src.prediction import (
+    market_rank_scores,
+    predict_with_chronological_context,
+)
 from src.preprocessing import fit_preprocessor, transform, zero_feature_columns
 from src.progress import load_progress_race, print_progress_race
-from src.sampling import build_query_race_schedule, sample_race_batch
+from src.sampling import (
+    build_query_race_schedule,
+    eligible_query_race_ids,
+    sample_independent_race_batch,
+)
 from src.utilities import (
     initialize_fourier_frequencies,
     resolve_learning_rate,
@@ -33,59 +41,129 @@ from src.utilities import (
     resolve_training_schedule,
 )
 from tabfm_split.runtime import load_and_validate_runtime_manifest
-from src.validation import build_race_indices, exclude_invalid_races, validate_race_targets
+from src.validation import build_race_indices, exclude_invalid_races
+
+
+MAX_SAFE_FINE_TUNE_LEARNING_RATE = 3e-5
 
 
 def configure_trainable_parameters(
     model: TabFM, training_scope: str = "full_model", **legacy_kwargs: object
 ) -> tuple[list[torch.nn.Parameter], int, int]:
-    """Configure and return optimizer parameters plus trainable/total counts."""
+    """Configure optimizer parameters and return trainable and total counts."""
     if "attention_head_only" in legacy_kwargs:
         training_scope = (
             "attention_head_only" if legacy_kwargs["attention_head_only"] else "full_model"
         )
-    if training_scope not in {"full_model", "attention_head_only", "icl_and_race_head"}:
+    valid_scopes = {
+        "full_model",
+        "attention_head_only",
+        "decoder_and_race_head",
+        "icl_and_race_head",
+    }
+    if training_scope not in valid_scopes:
         raise ValueError(f"Unknown training scope: {training_scope}")
+
+    for parameter in model.parameters():
+        parameter.requires_grad_(training_scope == "full_model")
+
     if training_scope != "full_model":
         if model.race_set_head is None:
             raise ValueError(
-                "Partial race fine-tuning requires race_context_mode=self_attention"
+                f"--fine-tune-scope={training_scope} requires "
+                "race_context_mode=self_attention"
             )
-        for parameter in model.parameters():
-            parameter.requires_grad_(False)
         for parameter in model.race_set_head.parameters():
             parameter.requires_grad_(True)
-        if training_scope == "icl_and_race_head":
+        if training_scope == "decoder_and_race_head":
+            for parameter in model.icl_predictor.decoder.parameters():
+                parameter.requires_grad_(True)
+        elif training_scope == "icl_and_race_head":
             for parameter in model.icl_predictor.parameters():
                 parameter.requires_grad_(True)
+
     parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
     trainable_count = sum(parameter.numel() for parameter in parameters)
     total_count = sum(parameter.numel() for parameter in model.parameters())
     if not parameters:
         raise RuntimeError("No trainable model parameters are available")
+
+    if training_scope == "decoder_and_race_head":
+        names = trainable_parameter_names(model)
+        unexpected = [
+            name for name in names
+            if not (
+                name.startswith("icl_predictor.decoder.")
+                or name.startswith("race_set_head.")
+            )
+        ]
+        if unexpected:
+            raise RuntimeError(
+                "decoder_and_race_head unexpectedly enabled parameters: "
+                + ", ".join(unexpected)
+            )
+        if not any(name.startswith("icl_predictor.decoder.") for name in names):
+            raise RuntimeError("ICL decoder has no trainable parameters")
+        if not any(name.startswith("race_set_head.") for name in names):
+            raise RuntimeError("Race head has no trainable parameters")
     return parameters, trainable_count, total_count
+
+
+def trainable_parameter_names(model: torch.nn.Module) -> list[str]:
+    """Return names of parameters enabled for the current optimizer."""
+    return [
+        name
+        for name, parameter in model.named_parameters()
+        if parameter.requires_grad
+    ]
+
+
+def early_stopping_is_enabled(representative_races: int) -> bool:
+    """Enable patience-based stopping only for a sufficiently sized cohort."""
+    return representative_races >= MIN_CHECKPOINT_SELECTION_RACES
+
+
+def resolve_training_scope(
+    requested_scope: str | None,
+    attention_head_only: bool,
+    fine_tuning: bool,
+    source_race_mode: str,
+) -> str:
+    """Choose a conservative default while preserving explicit scope requests."""
+    if requested_scope is not None:
+        return requested_scope
+    if attention_head_only:
+        return "attention_head_only"
+    if fine_tuning and source_race_mode == "self_attention":
+        return "icl_and_race_head"
+    return "full_model"
+
+
+def validate_fine_tune_learning_rate(
+    learning_rate: float,
+    fine_tuning: bool,
+    allow_high_rate: bool,
+) -> None:
+    """Reject destructive checkpoint learning rates unless explicitly unlocked."""
+    if (
+        fine_tuning
+        and learning_rate > MAX_SAFE_FINE_TUNE_LEARNING_RATE
+        and not allow_high_rate
+    ):
+        raise ValueError(
+            f"Fine-tuning learning rate {learning_rate:g} exceeds the safe ceiling "
+            f"{MAX_SAFE_FINE_TUNE_LEARNING_RATE:g}. Use 3e-5 or lower, or pass "
+            "--allow-high-fine-tune-learning-rate for a deliberate experiment."
+        )
 
 
 def run_training(args: argparse.Namespace) -> int:
     """Execute the original training, evaluation, and checkpoint workflow."""
     if args.epochs < 1 or args.steps_per_epoch < 1:
         raise SystemExit("--epochs and --steps-per-epoch must be positive")
-    if args.context_races_per_step < 1 or args.query_races_per_step < 1:
+    if (args.context_races_per_step is not None and args.context_races_per_step < 1) or args.query_races_per_step < 1:
         raise SystemExit(
             "--context-races-per-step and --query-races-per-step must be positive"
-        )
-    if not (
-        CONTEXT_RACES_PER_STEP_MIN
-        <= args.context_races_per_step
-        <= CONTEXT_RACES_PER_STEP_MAX
-    ):
-        print(
-            "WARNING context_policy_out_of_live_range "
-            f"requested_context_races_per_step={args.context_races_per_step} "
-            f"recommended_range=[{CONTEXT_RACES_PER_STEP_MIN},"
-            f"{CONTEXT_RACES_PER_STEP_MAX}] "
-            "live_validation_context_races=approximately_123",
-            flush=True,
         )
     if args.probe_every_steps < 1:
         raise SystemExit("--probe-every-steps must be positive")
@@ -108,6 +186,7 @@ def run_training(args: argparse.Namespace) -> int:
         raise SystemExit("--min-race-number must be positive")
     if (
         args.classification_loss_weight < 0
+        or args.auxiliary_row_loss_weight < 0
         or args.pairwise_loss_weight < 0
         or args.attention_delta_pairwise_loss_weight < 0
         or args.cardinality_loss_weight < 0
@@ -120,9 +199,6 @@ def run_training(args: argparse.Namespace) -> int:
             "--fine-tune-attention-head-only conflicts with --fine-tune-scope="
             f"{args.fine_tune_scope}"
         )
-    training_scope = args.fine_tune_scope or (
-        "attention_head_only" if args.fine_tune_attention_head_only else "full_model"
-    )
     if not 0.0 <= args.stress_top3_recall_max_drop <= 1.0:
         raise SystemExit("--stress-top3-recall-max-drop must be between 0 and 1")
 
@@ -135,26 +211,48 @@ def run_training(args: argparse.Namespace) -> int:
     resume_model_path, auto_resumed_output = resolve_resume_model_path(
         args.output, args.resume_model, args.overwrite_existing
     )
+    if (
+        args.resume_model is not None
+        and resume_model_path is not None
+        and resume_model_path.resolve() == args.output.resolve()
+        and not args.allow_in_place_fine_tune
+    ):
+        raise ValueError(
+            "Explicit in-place fine-tuning would overwrite the source checkpoint. "
+            "Choose a different --output, or pass --allow-in-place-fine-tune for "
+            "a deliberate in-place run."
+        )
     resume_bundle = (
         torch.load(resume_model_path, map_location="cpu", weights_only=False)
         if resume_model_path is not None
         else None
     )
-    if training_scope != "full_model" and resume_bundle is None:
-        raise ValueError(
-            f"--fine-tune-scope={training_scope} requires an existing output or "
-            "--resume-model checkpoint; a frozen random backbone is invalid"
-        )
     learning_rate = resolve_learning_rate(
         args.learning_rate, fine_tuning=resume_bundle is not None
     )
-    
+    validate_fine_tune_learning_rate(
+        learning_rate,
+        resume_bundle is not None,
+        args.allow_high_fine_tune_learning_rate,
+    )
+
     if resume_bundle is not None and resume_bundle.get("label") != "top3_mask":
         raise ValueError(
             "Resume model was not trained with top3_mask and cannot be safely resumed"
         )
     source_model_kwargs = dict(resume_bundle.get("model_kwargs", {})) if resume_bundle else {}
     source_race_mode = source_model_kwargs.get("race_context_mode", "none")
+    training_scope = resolve_training_scope(
+        args.fine_tune_scope,
+        args.fine_tune_attention_head_only,
+        resume_bundle is not None,
+        source_race_mode,
+    )
+    if training_scope != "full_model" and resume_bundle is None:
+        raise ValueError(
+            f"--fine-tune-scope={training_scope} requires an existing output or "
+            "--resume-model checkpoint; a frozen random backbone is invalid"
+        )
     race_context_mode = args.race_context_mode or source_race_mode
     race_context_dim = (
         source_model_kwargs.get("race_context_dim", 32)
@@ -222,30 +320,27 @@ def run_training(args: argparse.Namespace) -> int:
     split_manifest = None
     if args.split_manifest is not None:
         split_manifest = load_and_validate_runtime_manifest(args.split_manifest, args.db)
-        expected_context = {int(value) for value in split_manifest["fixed_context_race_ids"]}
-        supplied_context = {int(value) for value in load_context_race_ids(args.context_json)}
-        if supplied_context != expected_context:
-            raise ValueError("context manifest does not match split-v2 fixed_context_race_ids")
     validation_context_race_ids = load_context_race_ids(args.context_json)
-    if resume_bundle is not None:
-        recorded_context_race_ids = resume_bundle.get(
-            "validation_context_race_ids", resume_bundle.get("context_race_ids")
+    requested_context_races_per_step = (
+        len(validation_context_race_ids)
+        if args.context_races_per_step is None
+        else args.context_races_per_step
+    )
+    if requested_context_races_per_step > len(validation_context_race_ids):
+        raise ValueError(
+            "Requested context window cannot exceed the context manifest size: "
+            f"requested={requested_context_races_per_step} "
+            f"available={len(validation_context_race_ids)}"
         )
-        if recorded_context_race_ids is None:
-            raise ValueError(
-                "Resume model has no recorded validation context and cannot be "
-                "safely resumed"
-            )
-        else:
-            added, removed = context_race_id_changes(
-                recorded_context_race_ids, validation_context_race_ids
-            )
-            if added or removed:
-                print(
-                    "fine_tune_context_transition "
-                    f"added_count={len(added)} added_preview={added[:10]} "
-                    f"removed_count={len(removed)} removed_preview={removed[:10]}"
-                )
+    print(
+        "context_regime "
+        f"requested_context_races={requested_context_races_per_step} "
+        "training_context=most_recent_earlier_training_races_per_query "
+        "validation_context=most_recent_earlier_training_races_per_query "
+        "manifest_role=default_window_size_only "
+        f"manifest_race_count={len(validation_context_race_ids)}",
+        flush=True,
+    )
     zero_features = (
         list(resume_bundle.get("zeroed_features", []))
         if resume_bundle is not None and args.zero_features is None
@@ -287,54 +382,11 @@ def run_training(args: argparse.Namespace) -> int:
         )
         train_mask = np.arange(len(race_ids)) < len(train_race_ids)
         valid_mask = ~train_mask
-    appended_context_fluc2 = np.empty(0, dtype=np.float32)
-    if not args.classroom_overfit_all_races:
-        (
-            context_x_all,
-            context_y_all,
-            context_race_ids_all,
-            context_times_all,
-            context_flags_all,
-            context_fluc2_all,
-        ) = load_context_rows(
-            args.db, feature_columns, validation_context_race_ids
-        )
-        context_append_mask = ~np.isin(context_race_ids_all, race_ids)
-        if np.any(context_append_mask):
-            append_count = int(np.sum(context_append_mask))
-            appended_race_count = len(
-                set(map(int, context_race_ids_all[context_append_mask]))
-            )
-            print(
-                "validation_context_rows_loaded_outside_partition_views "
-                f"races={appended_race_count} rows={append_count}",
-                flush=True,
-            )
-            x = np.concatenate((x, context_x_all[context_append_mask]), axis=0)
-            y = np.concatenate((y, context_y_all[context_append_mask]), axis=0)
-            race_ids = np.concatenate(
-                (race_ids, context_race_ids_all[context_append_mask]), axis=0
-            )
-            times = np.concatenate(
-                (times, context_times_all[context_append_mask]), axis=0
-            )
-            validation_flags = np.concatenate(
-                (validation_flags, context_flags_all[context_append_mask]), axis=0
-            )
-            train_mask = np.concatenate(
-                (train_mask, np.zeros(append_count, dtype=bool)), axis=0
-            )
-            valid_mask = np.concatenate(
-                (valid_mask, np.zeros(append_count, dtype=bool)), axis=0
-            )
-            appended_context_fluc2 = context_fluc2_all[context_append_mask]
     if args.fine_tune_race_id is not None:
         target_id = int(args.fine_tune_race_id)
         target_mask = race_ids == target_id
         if not np.any(target_mask):
             raise ValueError(f"fine-tune race {target_id} is not present in the database")
-        if target_id in validation_context_race_ids:
-            raise ValueError("fine-tune race cannot also be fixed context")
         # This is deliberately an experiment-only label leak: the requested
         # race is removed from validation and admitted as the sole query pool.
         train_mask[target_mask] = True
@@ -365,17 +417,7 @@ def run_training(args: argparse.Namespace) -> int:
     valid_mask, skipped_validation_race_ids = exclude_invalid_races(
         y, race_ids, valid_mask, "Validation set"
     )
-    context_validation_overlap = sorted(
-        set(map(int, race_ids[valid_mask])).intersection(validation_context_race_ids)
-    )
-    if context_validation_overlap and not args.classroom_overfit_all_races:
-        valid_mask &= ~np.isin(race_ids, context_validation_overlap)
-        print(
-            "validation_context_targets_excluded "
-            f"count={len(context_validation_overlap)} "
-            f"preview={context_validation_overlap[:10]}",
-            flush=True,
-        )
+    context_validation_overlap: list[int] = []
     ordered_valid_races = list(dict.fromkeys(race_ids[valid_mask].tolist()))
     if (
         args.max_valid_races is not None
@@ -402,7 +444,6 @@ def run_training(args: argparse.Namespace) -> int:
                 load_market_fluc2(
                     args.db, valid_race_ids_all, VALIDATION_ROWS_VIEW
                 ),
-                appended_context_fluc2,
             ),
             axis=0,
         )
@@ -410,47 +451,12 @@ def run_training(args: argparse.Namespace) -> int:
     valid_fluc2 = market_fluc2[valid_mask].copy()
     x = transform(x, median, scale)
     x = zero_feature_columns(x, feature_columns, zero_features)
-    context_mask = np.isin(race_ids, validation_context_race_ids)
-    resolved_context_races = set(int(race_id) for race_id in race_ids[context_mask])
-    missing_context_races = sorted(
-        set(validation_context_race_ids) - resolved_context_races
-    )
-    if missing_context_races:
-        raise ValueError(
-            f"Validation context races missing from {TRAINING_ROWS_VIEW}: "
-            + ", ".join(map(str, missing_context_races))
-        )
-    if split_manifest is not None:
-        if np.any(context_mask & (validation_flags == 1)):
-            raise ValueError("split-v2 fixed context contains validation-flagged races")
-        earliest_validation_time = min(times[valid_mask])
-        if np.any(context_mask & (times >= earliest_validation_time)):
-            raise ValueError("split-v2 fixed context is not before development races")
-    #if np.any(context_mask & (validation_flags == 1)):
-    #    raise ValueError(
-    #        "Fixed context races must have is_validation = 0 so their labels are "
-    #        "not included among validation targets"
-    #    )
-    #earliest_validation_time = min(times[valid_mask])
-    #if np.any(context_mask & (times >= earliest_validation_time)):
-    #    raise ValueError(
-    #        "Every fixed training-context race must occur before the earliest "
-    #        "selected validation race"
-    #    )
-    context_indices = np.flatnonzero(context_mask)
-    context_order = sorted(
-        context_indices,
-        key=lambda index: (times[index], int(race_ids[index]), int(index)),
-    )
-    context_x = x[context_order]
-    context_y = y[context_order]
-    context_race_ids_for_predict = race_ids[context_order]
-    if len(np.unique(context_y)) != 2:
-        raise ValueError(
-            "Fixed validation context must contain both top-three and "
-            "non-top-three runners"
-        )
-
+    race_time_by_id: dict[int, object] = {}
+    for race_id_value, race_time in zip(race_ids, times):
+        race_id = int(race_id_value)
+        previous = race_time_by_id.setdefault(race_id, race_time)
+        if previous != race_time:
+            raise ValueError(f"Race {race_id} has inconsistent start times")
     eligible_race_ids = load_race_number_eligible_ids(
         args.db, args.min_race_number
     )
@@ -460,16 +466,13 @@ def run_training(args: argparse.Namespace) -> int:
         else np.isin(race_ids, list(eligible_race_ids))
     )
     training_pool_mask = train_mask & optimizer_eligible_mask
-    if not args.classroom_overfit_all_races:
-        training_pool_mask &= ~context_mask
     training_pool_mask, skipped_training_race_ids = exclude_invalid_races(
         y, race_ids, training_pool_mask, "Training pool"
     )
-    validate_race_targets(y, race_ids, context_mask, "Validation context")
     training_race_indices = build_race_indices(race_ids, training_pool_mask)
     schedule_race_numbers = load_race_numbers(
         args.db,
-        set(training_race_indices).union(validation_context_race_ids),
+        set(training_race_indices),
     )
     effective_steps_per_epoch, scheduled_query_races_per_step = (
         resolve_training_schedule(
@@ -479,9 +482,7 @@ def run_training(args: argparse.Namespace) -> int:
             args.auto_race_schedule,
         )
     )
-    context_size_matching_validation = min(
-        args.context_races_per_step, len(validation_context_race_ids)
-    )
+    context_size_matching_validation = requested_context_races_per_step
     effective_context_races_per_step, effective_query_races_per_step = (
         resolve_races_per_step(
             len(training_race_indices),
@@ -489,19 +490,10 @@ def run_training(args: argparse.Namespace) -> int:
             scheduled_query_races_per_step,
         )
     )
-    if args.auto_race_schedule:
-        print(
-            "automatic_race_schedule "
-            f"eligible_training_races={len(training_race_indices)} "
-            f"steps_per_epoch={effective_steps_per_epoch} "
-            f"query_races_per_step={effective_query_races_per_step} "
-            f"query_slots={effective_steps_per_epoch * effective_query_races_per_step}",
-            flush=True,
-        )
-    if effective_context_races_per_step != args.context_races_per_step:
+    if effective_context_races_per_step != requested_context_races_per_step:
         print(
             "training_context_size_adjusted "
-            f"requested={args.context_races_per_step} "
+            f"requested={requested_context_races_per_step} "
             f"effective={effective_context_races_per_step} "
             f"validation_context_races={len(validation_context_race_ids)} "
             f"query_races={effective_query_races_per_step} "
@@ -511,6 +503,9 @@ def run_training(args: argparse.Namespace) -> int:
     train_y = y[training_pool_mask]
     valid_x, valid_y = x[valid_mask], y[valid_mask]
     valid_race_ids = race_ids[valid_mask]
+    validation_query_race_indices = build_race_indices(
+        valid_race_ids, np.ones(len(valid_race_ids), dtype=bool)
+    )
     fixed_probe_race_ids = select_fixed_probe_race_ids(
         valid_y, valid_race_ids, args.probe_races
     )
@@ -518,6 +513,10 @@ def run_training(args: argparse.Namespace) -> int:
     fixed_probe_x = valid_x[fixed_probe_mask]
     fixed_probe_y = valid_y[fixed_probe_mask]
     fixed_probe_row_race_ids = valid_race_ids[fixed_probe_mask]
+    fixed_probe_query_race_indices = build_race_indices(
+        fixed_probe_row_race_ids,
+        np.ones(len(fixed_probe_row_race_ids), dtype=bool),
+    )
     print(
         "FIXED_PROBE_SELECTION "
         f"races={len(fixed_probe_race_ids)} "
@@ -551,6 +550,24 @@ def run_training(args: argparse.Namespace) -> int:
             "selection_remains_chronological_and_will_not_use_combined",
             flush=True,
         )
+    early_stopping_enabled = (
+        early_stopping_is_enabled(representative_races)
+        or args.allow_small_cohort_early_stopping
+    )
+    if not early_stopping_enabled:
+        print(
+            "early_stopping_disabled reason=small_chronological_selection_cohort "
+            f"chronological_races={representative_races} "
+            f"required_races={MIN_CHECKPOINT_SELECTION_RACES}",
+            flush=True,
+        )
+    elif representative_races < MIN_CHECKPOINT_SELECTION_RACES:
+        print(
+            "early_stopping_enabled override=allow_small_cohort_early_stopping "
+            f"chronological_races={representative_races} "
+            f"required_races={MIN_CHECKPOINT_SELECTION_RACES}",
+            flush=True,
+        )
     if "legacy_combined" in validation_cohort_race_counts:
         legacy_races = validation_cohort_race_counts["legacy_combined"]
         print(
@@ -578,8 +595,6 @@ def run_training(args: argparse.Namespace) -> int:
     progress_x = zero_feature_columns(
         progress_x, feature_columns, zero_features
     )
-    context_rows = len(context_y)
-
     class_counts = np.bincount(train_y, minlength=2)
     if np.any(class_counts == 0):
         raise ValueError(
@@ -587,6 +602,47 @@ def run_training(args: argparse.Namespace) -> int:
         )
     class_weights = len(train_y) / (2.0 * class_counts)
     training_race_ids = set(training_race_indices)
+    chronological_query_race_ids = eligible_query_race_ids(
+        list(training_race_indices),
+        race_time_by_id,
+        effective_context_races_per_step,
+    )
+    excluded_early_query_races = len(training_race_ids) - len(
+        chronological_query_race_ids
+    )
+    print(
+        f"training_context_pool_races={len(training_race_ids)} "
+        f"chronological_query_eligible_races={len(chronological_query_race_ids)} "
+        f"excluded_early_query_races={excluded_early_query_races}",
+        flush=True,
+    )
+    if not chronological_query_race_ids:
+        raise ValueError("No training query races have enough earlier context races")
+    if effective_query_races_per_step > len(chronological_query_race_ids):
+        print(
+            "query_races_per_step_adjusted_for_chronology "
+            f"requested={effective_query_races_per_step} "
+            f"effective={len(chronological_query_race_ids)}",
+            flush=True,
+        )
+        effective_query_races_per_step = len(chronological_query_race_ids)
+    if args.auto_race_schedule:
+        effective_steps_per_epoch, effective_query_races_per_step = (
+            resolve_training_schedule(
+                len(chronological_query_race_ids),
+                args.steps_per_epoch,
+                effective_query_races_per_step,
+                True,
+            )
+        )
+        print(
+            "automatic_race_schedule "
+            f"chronological_query_eligible_races={len(chronological_query_race_ids)} "
+            f"steps_per_epoch={effective_steps_per_epoch} "
+            f"query_races_per_step={effective_query_races_per_step} "
+            f"query_slots={effective_steps_per_epoch * effective_query_races_per_step}",
+            flush=True,
+        )
     validation_race_id_set = set(int(race_id) for race_id in selected_valid_races)
     if progress_race_id in training_race_ids and not args.classroom_overfit_all_races:
         raise RuntimeError(
@@ -607,13 +663,11 @@ def run_training(args: argparse.Namespace) -> int:
         f"train_top3_rate={train_y.mean():.4f} valid_top3_rate={valid_y.mean():.4f} "
         f"all_non_top3_valid_accuracy={1.0 - valid_y.mean():.4f} "
         f"class_weights=[{class_weights[0]:.3f}, {class_weights[1]:.3f}] "
-        f"validation_context_races={len(validation_context_race_ids)} "
-        f"validation_context_rows={context_rows} "
-        f"context_races_per_step={effective_context_races_per_step} "
-        f"query_races_per_step={effective_query_races_per_step} "
+        "training_context=most_recent_earlier_training_races_per_query "
+        "validation_context=most_recent_earlier_training_races_per_query "
+        f"context_races_per_query={effective_context_races_per_step} "
+        f"independent_query_sequences_per_step={effective_query_races_per_step} "
         f"auto_race_schedule={args.auto_race_schedule} "
-        f"total_races_per_step="
-        f"{effective_context_races_per_step + effective_query_races_per_step} "
         f"min_race_number={args.min_race_number} "
         f"race_context_mode={race_context_mode} "
         f"pairwise_loss_weight={args.pairwise_loss_weight} "
@@ -662,6 +716,19 @@ def run_training(args: argparse.Namespace) -> int:
     optimizer_parameters, trainable_parameter_count, total_parameter_count = (
         configure_trainable_parameters(model, training_scope)
     )
+    trainable_names = trainable_parameter_names(model)
+    if training_scope == "decoder_and_race_head":
+        trainable_prefixes = ["icl_predictor.decoder", "race_set_head"]
+    elif training_scope == "attention_head_only":
+        trainable_prefixes = ["race_set_head"]
+    elif training_scope == "icl_and_race_head":
+        trainable_prefixes = ["icl_predictor", "race_set_head"]
+    else:
+        trainable_prefixes = sorted({name.split(".", 1)[0] for name in trainable_names})
+    print(
+        "trainable_module_prefixes=" + ",".join(trainable_prefixes),
+        flush=True,
+    )
     optimizer = torch.optim.AdamW(
         optimizer_parameters, lr=learning_rate, weight_decay=args.weight_decay
     )
@@ -696,16 +763,14 @@ def run_training(args: argparse.Namespace) -> int:
         ("Total parameters", f"{total_parameter_count:,}"),
         ("Device", str(device).upper()),
         ("Random seed", str(args.seed)),
-        ("Context races per step", str(effective_context_races_per_step)),
-        ("Query races per step", str(effective_query_races_per_step)),
+        ("Context races per query", str(effective_context_races_per_step)),
+        ("Query sequences per step", str(effective_query_races_per_step)),
+        ("Training context strategy", "Most recent strictly earlier per query"),
         ("Automatic race schedule", str(args.auto_race_schedule)),
         ("Print race schedule", str(args.print_race_schedule)),
         ("Eligible training races", f"{len(training_race_indices):,}"),
-        (
-            "Total races per step",
-            str(effective_context_races_per_step + effective_query_races_per_step),
-        ),
-        ("Batch rows", "Variable; --batch-rows 256 is deprecated"),
+        ("Batch layout", "One independently contextualised sequence per query"),
+        ("Batch rows", "Padded variable sequences; --batch-rows is deprecated"),
         ("Classification loss weight", f"{args.classification_loss_weight:g}"),
         ("Pairwise loss weight", f"{args.pairwise_loss_weight:g}"),
         (
@@ -765,18 +830,26 @@ def run_training(args: argparse.Namespace) -> int:
             flush=True,
         )
 
+    def predict_with_causal_context(
+        query_x: np.ndarray, query_race_indices: dict[int, np.ndarray],
+    ) -> np.ndarray:
+        return predict_with_chronological_context(
+            model,
+            x,
+            y,
+            training_race_indices,
+            race_time_by_id,
+            query_x,
+            query_race_indices,
+            effective_context_races_per_step,
+            device,
+        )
+
     def evaluate_fixed_probe(label: str, global_step: int) -> dict[str, float | int]:
         was_training = model.training
         model.eval()
-        probe_probability = predict(
-            model,
-            context_x,
-            context_y,
-            fixed_probe_x,
-            fixed_probe_row_race_ids,
-            context_rows,
-            device,
-            context_race_ids=context_race_ids_for_predict,
+        probe_probability = predict_with_causal_context(
+            fixed_probe_x, fixed_probe_query_race_indices
         )
         probe_metrics = probability_metrics(
             fixed_probe_y, probe_probability, fixed_probe_row_race_ids
@@ -808,9 +881,8 @@ def run_training(args: argparse.Namespace) -> int:
     step_loss_history: deque[float] = deque(maxlen=args.step_loss_window)
     if resume_bundle is not None:
         model.eval()
-        baseline_probability = predict(
-            model, context_x, context_y, valid_x, valid_race_ids, context_rows, device,
-            context_race_ids=context_race_ids_for_predict,
+        baseline_probability = predict_with_causal_context(
+            valid_x, validation_query_race_indices
         )
         baseline_metrics_by_cohort = validation_metrics_by_cohort(
             valid_y, baseline_probability, valid_race_ids, valid_cohorts
@@ -843,10 +915,12 @@ def run_training(args: argparse.Namespace) -> int:
         context_row_counts = []
         query_row_counts = []
         batch_row_counts = []
+        gradient_norms = []
+        clipped_gradient_steps = 0
         epoch_context_races: set[int] = set()
         epoch_query_races: set[int] = set()
         query_schedule = build_query_race_schedule(
-            list(training_race_indices),
+            chronological_query_race_ids,
             effective_steps_per_epoch,
             effective_query_races_per_step,
             rng,
@@ -872,33 +946,29 @@ def run_training(args: argparse.Namespace) -> int:
                 f"race_id:race_number=[{validation_display}]",
                 flush=True,
             )
-            fixed_context_display = ", ".join(
-                f"{race_id}:{schedule_race_numbers.get(int(race_id), '?')}"
-                for race_id in validation_context_race_ids
-            )
             print(
-                "FIXED VALIDATION CONTEXT "
-                f"races={len(validation_context_race_ids)} "
-                f"race_id:race_number=[{fixed_context_display}]",
+                "TRAINING AND VALIDATION CONTEXT "
+                "strategy=most_recent_earlier_training_races "
+                "layout=independent_sequence_per_query "
+                f"races_per_query={effective_context_races_per_step}",
                 flush=True,
             )
         for step_index in range(effective_steps_per_epoch):
             (
                 batch_x,
                 batch_y,
-                batch_context_rows,
+                batch_train_sizes,
                 batch_context_race_ids,
                 batch_query_race_ids,
-                query_row_race_ids,
                 batch_race_group_ids,
-            ) = sample_race_batch(
+                batch_valid_row_mask,
+            ) = sample_independent_race_batch(
                 x,
                 y,
                 training_race_indices,
                 effective_context_races_per_step,
-                effective_query_races_per_step,
-                rng,
                 query_schedule[step_index],
+                race_time_by_id,
                 group_context_races=model.encode_races_before_icl,
             )
             if args.print_race_schedule:
@@ -919,8 +989,6 @@ def run_training(args: argparse.Namespace) -> int:
                 )
             context_race_set = set(map(int, batch_context_race_ids))
             query_race_set = set(map(int, batch_query_race_ids))
-            if context_race_set & query_race_set:
-                raise RuntimeError("Context and query races overlap")
             if not context_race_set <= training_race_ids:
                 raise RuntimeError("A sampled context race is not a training race")
             if not query_race_set <= training_race_ids:
@@ -931,23 +999,33 @@ def run_training(args: argparse.Namespace) -> int:
             ):
                 raise RuntimeError("A validation race appeared in a training batch")
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            batch_train_sizes = batch_train_sizes.to(device)
             batch_race_group_ids = batch_race_group_ids.to(device)
+            batch_valid_row_mask = batch_valid_row_mask.to(device)
             optimizer.zero_grad(set_to_none=True)
             model_output = model(
                 batch_x,
                 batch_y,
-                torch.tensor([batch_context_rows], device=device),
+                batch_train_sizes,
                 race_group_ids=batch_race_group_ids,
                 return_race_delta=args.attention_delta_pairwise_loss_weight > 0,
+                valid_row_mask=batch_valid_row_mask,
             )
             if args.attention_delta_pairwise_loss_weight > 0:
                 logits, race_delta = model_output
             else:
                 logits = model_output
                 race_delta = None
-            query_logits = logits[0, batch_context_rows:, :2]
-            query_targets = batch_y[0, batch_context_rows:]
-            query_row_race_ids_tensor = torch.from_numpy(query_row_race_ids).to(device)
+            positions = torch.arange(logits.shape[1], device=logits.device).unsqueeze(0)
+            query_mask = positions >= batch_train_sizes.unsqueeze(1)
+            query_mask &= batch_valid_row_mask
+            query_mask &= batch_y != -100
+            query_mask &= batch_race_group_ids >= 0
+            if not torch.any(query_mask):
+                raise ValueError("Batch contains no valid query rows for loss calculation.")
+            query_logits = logits[query_mask][:, :2]
+            query_targets = batch_y[query_mask]
+            query_row_race_ids_tensor = batch_race_group_ids[query_mask]
             loss, classification_loss, pairwise_loss, cardinality_loss = grouped_race_losses(
                 query_logits,
                 query_targets,
@@ -959,7 +1037,7 @@ def run_training(args: argparse.Namespace) -> int:
             )
             if race_delta is not None:
                 attention_delta_pairwise_loss = grouped_pairwise_loss(
-                    race_delta[0, batch_context_rows:, :2],
+                    race_delta[query_mask][:, :2],
                     query_targets,
                     query_row_race_ids_tensor,
                 )
@@ -978,7 +1056,7 @@ def run_training(args: argparse.Namespace) -> int:
             step_race_metrics = pre_update_training_batch_metrics(
                 query_targets.detach().cpu().numpy(),
                 query_logits,
-                query_row_race_ids,
+                query_row_race_ids_tensor.detach().cpu().numpy(),
             )
             step_loss_history.append(step_loss)
             global_step = (epoch - 1) * effective_steps_per_epoch + step_index + 1
@@ -1007,7 +1085,13 @@ def run_training(args: argparse.Namespace) -> int:
                 raise FloatingPointError(
                     "Non-finite gradient norm encountered after backward pass"
                 )
+            gradient_norm_value = float(gradient_norm.detach())
+            gradient_norms.append(gradient_norm_value)
+            clipped_gradient_steps += int(gradient_norm_value > args.max_grad_norm)
             optimizer.step()
+            base_model = model.module if hasattr(model, "module") else model
+            if hasattr(base_model, "mark_weights_updated"):
+                base_model.mark_weights_updated()
             if global_step % args.probe_every_steps == 0:
                 evaluate_fixed_probe("after_update", global_step)
             losses.append(float(loss.detach()))
@@ -1017,16 +1101,22 @@ def run_training(args: argparse.Namespace) -> int:
                 float(attention_delta_pairwise_loss.detach())
             )
             cardinality_losses.append(float(cardinality_loss.detach()))
-            context_row_counts.append(batch_context_rows)
-            query_row_counts.append(batch_y.shape[1] - batch_context_rows)
-            batch_row_counts.append(batch_y.shape[1])
+            context_row_counts.extend(
+                map(float, batch_train_sizes.detach().cpu().numpy())
+            )
+            query_row_counts.extend(
+                map(
+                    float,
+                    query_mask.sum(dim=1).detach().cpu().numpy(),
+                )
+            )
+            batch_row_counts.append(int(batch_valid_row_mask.sum().item()))
             epoch_context_races.update(context_race_set)
             epoch_query_races.update(query_race_set)
 
         model.eval()
-        valid_prob = predict(
-            model, context_x, context_y, valid_x, valid_race_ids, context_rows, device,
-            context_race_ids=context_race_ids_for_predict,
+        valid_prob = predict_with_causal_context(
+            valid_x, validation_query_race_indices
         )
         metrics_by_cohort = validation_metrics_by_cohort(
             valid_y, valid_prob, valid_race_ids, valid_cohorts
@@ -1039,25 +1129,22 @@ def run_training(args: argparse.Namespace) -> int:
             f"attention_delta_pairwise_loss="
             f"{np.mean(attention_delta_pairwise_losses):.5f} "
             f"cardinality_loss={np.mean(cardinality_losses):.5f} "
-            f"avg_context_rows={np.mean(context_row_counts):.1f} "
-            f"avg_query_rows={np.mean(query_row_counts):.1f} "
-            f"batch_rows_min={min(batch_row_counts)} "
-            f"batch_rows_max={max(batch_row_counts)} "
+            f"avg_context_rows_per_query={np.mean(context_row_counts):.1f} "
+            f"avg_query_rows_per_race={np.mean(query_row_counts):.1f} "
+            f"valid_rows_per_step_min={min(batch_row_counts)} "
+            f"valid_rows_per_step_max={max(batch_row_counts)} "
+            f"avg_gradient_norm={np.mean(gradient_norms):.5f} "
+            f"max_gradient_norm={max(gradient_norms):.5f} "
+            f"gradient_clipped_steps={clipped_gradient_steps}/{len(gradient_norms)} "
             f"unique_context_races={len(epoch_context_races)} "
             f"unique_query_races={len(epoch_query_races)}",
             flush=True,
         )
         for cohort, metrics in metrics_by_cohort.items():
             print("  " + format_metric_line(cohort, metrics), flush=True)
-        progress_probability = predict(
-            model,
-            context_x,
-            context_y,
+        progress_probability = predict_with_causal_context(
             progress_x,
-            np.full(len(progress_x), progress_race_id, dtype=np.int64),
-            context_rows,
-            device,
-            context_race_ids=context_race_ids_for_predict,
+            {progress_race_id: np.arange(len(progress_x), dtype=np.int64)},
         )
         print_progress_race(progress_race_id, progress_rows, progress_probability)
         selection = cohort_checkpoint_selection(metrics_by_cohort)
@@ -1117,7 +1204,10 @@ def run_training(args: argparse.Namespace) -> int:
                 f"{args.early_stopping_patience} best_epoch={best_epoch}",
                 flush=True,
             )
-            if epochs_without_improvement >= args.early_stopping_patience:
+            if (
+                early_stopping_enabled
+                and epochs_without_improvement >= args.early_stopping_patience
+            ):
                 print(
                     f"EARLY STOP best_epoch={best_epoch} "
                     f"best_combined_top3_recall={best_metrics['top3_recall']:.4f} "
@@ -1166,12 +1256,17 @@ def run_training(args: argparse.Namespace) -> int:
             "experiment_only": args.classroom_overfit_all_races,
             "production_eligible": not args.classroom_overfit_all_races,
             "classroom_overfit_all_races": args.classroom_overfit_all_races,
-            "context_rows": context_rows,
-            "context_race_ids": validation_context_race_ids,
-            "validation_context_race_ids": validation_context_race_ids,
-            "context_sampling": "random_complete_races_per_step",
+            "context_rows": None,
+            "context_race_ids": [],
+            "validation_context_race_ids": [],
+            "context_sampling": "most_recent_earlier_training_races_per_query",
+            "training_query_layout": "independent_padded_sequence_per_query_race",
+            "validation_context_strategy": "most_recent_earlier_training_races",
+            "validation_context_races_per_prediction": effective_context_races_per_step,
+            "context_manifest_race_ids": validation_context_race_ids,
+            "context_manifest_role": "default_context_window_size_only",
             "context_races_per_step": effective_context_races_per_step,
-            "requested_context_races_per_step": args.context_races_per_step,
+            "requested_context_races_per_step": requested_context_races_per_step,
             "query_races_per_step": effective_query_races_per_step,
             "steps_per_epoch": effective_steps_per_epoch,
             "probe_race_ids": fixed_probe_race_ids.tolist(),
@@ -1201,6 +1296,9 @@ def run_training(args: argparse.Namespace) -> int:
             "validation_cohort_source": validation_cohort_source,
             "validation_cohort_race_counts": validation_cohort_race_counts,
             "stress_top3_recall_max_drop": args.stress_top3_recall_max_drop,
+            "allow_small_cohort_early_stopping": (
+                args.allow_small_cohort_early_stopping
+            ),
             "selection_metric": (
                 "chronological_top3_recall_then_contained_top5_then_logloss_"
                 "with_market_miss_stress_guardrail"
@@ -1218,7 +1316,7 @@ def run_training(args: argparse.Namespace) -> int:
                 args.attention_delta_pairwise_loss_weight
             ),
             "cardinality_loss_weight": args.cardinality_loss_weight,
-            "output_semantics": "race_conditioned_uncalibrated_top3_score",
+            "output_semantics": "race_conditioned_uncalibrated_binary_top3_probability",
             "source_db": str(args.db.resolve()),
             "feature_manifest": str(args.features_json.resolve()),
             "context_manifest": str(args.context_json.resolve()),
@@ -1254,7 +1352,7 @@ def run_training(args: argparse.Namespace) -> int:
                     args.attention_delta_pairwise_loss_weight
                 ),
                 "cardinality_loss_weight": args.cardinality_loss_weight,
-                "output_semantics": "race_conditioned_uncalibrated_top3_score",
+                "output_semantics": "race_conditioned_uncalibrated_binary_top3_probability",
                 "partition_source": partition_source,
                 "row_source": TRAINING_ROWS_VIEW,
                 "validation_row_source": VALIDATION_ROWS_VIEW,
@@ -1264,12 +1362,17 @@ def run_training(args: argparse.Namespace) -> int:
                 "experiment_only": args.classroom_overfit_all_races,
                 "production_eligible": not args.classroom_overfit_all_races,
                 "classroom_overfit_all_races": args.classroom_overfit_all_races,
-                "context_rows": context_rows,
-                "context_race_ids": validation_context_race_ids,
-                "validation_context_race_ids": validation_context_race_ids,
-                "context_sampling": "random_complete_races_per_step",
+                "context_rows": None,
+                "context_race_ids": [],
+                "validation_context_race_ids": [],
+                "validation_context_strategy": "most_recent_earlier_training_races",
+                "validation_context_races_per_prediction": effective_context_races_per_step,
+                "context_manifest_race_ids": validation_context_race_ids,
+                "context_sampling": "most_recent_earlier_training_races_per_query",
+                "training_query_layout": "independent_padded_sequence_per_query_race",
                 "context_races_per_step": effective_context_races_per_step,
-                "requested_context_races_per_step": args.context_races_per_step,
+                "requested_context_races_per_step": requested_context_races_per_step,
+                "context_manifest_role": "default_context_window_size_only",
                 "query_races_per_step": effective_query_races_per_step,
                 "steps_per_epoch": effective_steps_per_epoch,
                 "probe_race_ids": fixed_probe_race_ids.tolist(),
@@ -1297,6 +1400,9 @@ def run_training(args: argparse.Namespace) -> int:
                 "validation_cohort_source": validation_cohort_source,
                 "validation_cohort_race_counts": validation_cohort_race_counts,
                 "stress_top3_recall_max_drop": args.stress_top3_recall_max_drop,
+                "allow_small_cohort_early_stopping": (
+                    args.allow_small_cohort_early_stopping
+                ),
                 "selection_metric": (
                     "chronological_top3_recall_then_contained_top5_then_logloss_"
                     "with_market_miss_stress_guardrail"

@@ -41,7 +41,75 @@ def predict(
             combined_x, combined_y, train_size, race_group_ids=race_group_ids,
             valid_row_mask=valid_row_mask,
         )
-    return logits[0, context_rows:, :2].softmax(-1)[:, 1].cpu().numpy()
+    query_logits = logits[0, context_rows:, :2]
+    query_top3_probability = torch.softmax(query_logits, dim=-1)[:, 1]
+    if not torch.isfinite(query_top3_probability).all():
+        raise RuntimeError("Prediction produced non-finite top-three probabilities")
+    if torch.any((query_top3_probability < 0) | (query_top3_probability > 1)):
+        raise RuntimeError("Top-three probabilities must be in [0, 1]")
+    return query_top3_probability.cpu().numpy()
+
+
+def predict_with_chronological_context(
+    model: TabFM,
+    context_x: np.ndarray,
+    context_y: np.ndarray,
+    context_race_indices: dict[int, np.ndarray],
+    race_time_by_id: dict[int, object],
+    query_x: np.ndarray,
+    query_race_indices: dict[int, np.ndarray],
+    context_races_per_prediction: int,
+    device: torch.device,
+) -> np.ndarray:
+    """Predict complete races using only the most recent earlier context races."""
+    if context_races_per_prediction < 1:
+        raise ValueError("context_races_per_prediction must be positive")
+    if not query_race_indices:
+        raise ValueError("At least one query race is required")
+
+    ordered_context_races = sorted(
+        context_race_indices,
+        key=lambda race_id: (race_time_by_id[race_id], race_id),
+    )
+    result = np.empty(len(query_x), dtype=np.float32)
+    for query_race_id, query_indices in query_race_indices.items():
+        query_time = race_time_by_id[query_race_id]
+        eligible_context_races = [
+            race_id
+            for race_id in ordered_context_races
+            if race_time_by_id[race_id] < query_time
+        ]
+        if len(eligible_context_races) < context_races_per_prediction:
+            raise ValueError(
+                f"Query race {query_race_id} has only "
+                f"{len(eligible_context_races)} earlier context races; "
+                f"{context_races_per_prediction} are required"
+            )
+        selected_context_races = eligible_context_races[
+            -context_races_per_prediction:
+        ]
+        context_indices = np.concatenate(
+            [context_race_indices[race_id] for race_id in selected_context_races]
+        )
+        context_row_race_ids = np.concatenate(
+            [
+                np.full(
+                    len(context_race_indices[race_id]), race_id, dtype=np.int64
+                )
+                for race_id in selected_context_races
+            ]
+        )
+        result[query_indices] = predict(
+            model,
+            context_x[context_indices],
+            context_y[context_indices],
+            query_x[query_indices],
+            np.full(len(query_indices), query_race_id, dtype=np.int64),
+            len(context_indices),
+            device,
+            context_race_ids=context_row_race_ids,
+        )
+    return result
 
 
 def market_rank_scores(prices: np.ndarray) -> np.ndarray:
