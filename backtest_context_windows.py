@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import torch
 
+from src.config import DEFAULT_DB
 warnings.filterwarnings(
     "ignore",
     message="enable_nested_tensor is True, but self.use_nested_tensor is False.*",
@@ -40,7 +41,7 @@ from src.utilities import parse_iso_timestamp
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, required=True)
-    parser.add_argument("--db", type=Path, default=Path("db/race_runners.sqlite"))
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     target = parser.add_mutually_exclusive_group()
     target.add_argument(
         "--race-id", type=int,

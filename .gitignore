@@ -1,2 +1,4 @@
 db/race_runners.sqlite
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm

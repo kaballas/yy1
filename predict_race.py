@@ -42,6 +42,7 @@ import pandas as pd
 import torch
 from torch import nn
 
+from src.config import DEFAULT_DB
 from src.constants import TRAINING_ROWS_VIEW
 from src.database import quote_identifier, require_training_rows_view
 from src.preprocessing import transform as transform_training_features
@@ -78,7 +79,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data", type=Path,
                         help="CSV or Parquet for generic mode. Without this, use --db and the training race context.")
     parser.add_argument("--db", type=Path,
-                        default=Path("db/race_runners.sqlite"),
+                        default=DEFAULT_DB,
                         help="SQLite database used by train_model.py native mode.")
     parser.add_argument("--race-id",
                         help="Race ID to predict. Compared as text to avoid integer/string mismatches.")
