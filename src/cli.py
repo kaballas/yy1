@@ -6,7 +6,14 @@ import argparse
 from pathlib import Path
 
 import torch
-from src.config import DEFAULT_CONTEXT, DEFAULT_DB, DEFAULT_FEATURES, DEFAULT_OUTPUT
+from src.config import (
+    DEFAULT_CONTEXT,
+    DEFAULT_DB,
+    DEFAULT_FEATURES,
+    DEFAULT_OUTPUT,
+    DEFAULT_TRAINING_CSV,
+    DEFAULT_VALIDATION_CSV,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -18,6 +25,24 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument(
+        "--training-csv",
+        type=Path,
+        default=DEFAULT_TRAINING_CSV,
+        help=(
+            "CSV snapshot freshly exported from the training-row view before "
+            "training. Model records and the market baseline are reloaded from it."
+        ),
+    )
+    parser.add_argument(
+        "--validation-csv",
+        type=Path,
+        default=DEFAULT_VALIDATION_CSV,
+        help=(
+            "CSV snapshot freshly exported from the validation-row view before "
+            "training. Validation records and the market baseline are reloaded from it."
+        ),
+    )
     parser.add_argument(
         "--features-json", type=Path, default=None,
         help=(

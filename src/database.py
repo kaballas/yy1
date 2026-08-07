@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import os
 import sqlite3
 from pathlib import Path
 import numpy as np
@@ -219,6 +221,129 @@ def load_rows(
     )
     y = np.asarray([row[-1] for row in rows], dtype=np.int64)
     return x, y, race_ids, times, validation_flags
+
+
+def training_csv_columns(feature_columns: list[str]) -> list[str]:
+    """Return the stable, inspectable schema used by training CSV snapshots."""
+    return [
+        "race_id",
+        "start_time_iso",
+        "is_validation",
+        "runner_number",
+        *feature_columns,
+        "top3_mask",
+        "fluc2",
+    ]
+
+
+def export_rows_to_csv(
+    db_path: Path,
+    feature_columns: list[str],
+    view_name: str,
+    csv_path: Path,
+) -> int:
+    """Atomically export an ordered database view snapshot for model loading."""
+    columns = training_csv_columns(feature_columns)
+    selected_columns = ", ".join(quote_identifier(column) for column in columns)
+    sql = (
+        f"SELECT {selected_columns} FROM {quote_identifier(view_name)} "
+        "ORDER BY start_time_iso, race_id, runner_number"
+    )
+    print(f"{view_name}_csv_export_sql:\n{sql}", flush=True)
+    connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    try:
+        require_rows_view(connection, view_name)
+        rows = connection.execute(sql).fetchall()
+    finally:
+        connection.close()
+    if not rows:
+        raise RuntimeError(f"No completed rows found in {view_name}")
+
+    csv_path = csv_path.resolve()
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = csv_path.with_name(f".{csv_path.name}.tmp")
+    try:
+        with temporary_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(columns)
+            writer.writerows(rows)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, csv_path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
+    print(
+        f"csv_export view={view_name} path={csv_path} rows={len(rows):,}",
+        flush=True,
+    )
+    return len(rows)
+
+
+def load_rows_from_csv(
+    csv_path: Path,
+    feature_columns: list[str],
+) -> tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+]:
+    """Load all training arrays, including market prices, from a CSV snapshot."""
+    expected_columns = training_csv_columns(feature_columns)
+    with csv_path.resolve().open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.reader(handle)
+        header = next(reader, None)
+        if header != expected_columns:
+            raise ValueError(
+                f"CSV schema mismatch for {csv_path}: expected {expected_columns}, "
+                f"found {header}"
+            )
+        rows = list(reader)
+    if not rows:
+        raise RuntimeError(f"No records found in training CSV {csv_path}")
+    expected_width = len(expected_columns)
+    invalid_width = next(
+        (row_number for row_number, row in enumerate(rows, start=2)
+         if len(row) != expected_width),
+        None,
+    )
+    if invalid_width is not None:
+        raise ValueError(
+            f"CSV row {invalid_width} in {csv_path} does not have "
+            f"{expected_width} columns"
+        )
+
+    feature_start = 4
+    feature_end = feature_start + len(feature_columns)
+
+    def optional_float(value: str) -> float:
+        return np.nan if value == "" else float(value)
+
+    try:
+        race_ids = np.asarray([int(row[0]) for row in rows], dtype=np.int64)
+        times = np.asarray(
+            [parse_iso_timestamp(row[1]) for row in rows], dtype=object
+        )
+        validation_flags = np.asarray([int(row[2]) for row in rows], dtype=np.int8)
+        x = np.asarray(
+            [
+                [optional_float(value) for value in row[feature_start:feature_end]]
+                for row in rows
+            ],
+            dtype=np.float32,
+        )
+        y = np.asarray([int(row[feature_end]) for row in rows], dtype=np.int64)
+        market_fluc2 = np.asarray(
+            [optional_float(row[feature_end + 1]) for row in rows],
+            dtype=np.float32,
+        )
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"Invalid typed value in training CSV {csv_path}: {error}") from error
+    print(f"csv_load path={csv_path.resolve()} rows={len(rows):,}", flush=True)
+    return x, y, race_ids, times, validation_flags, market_fluc2
 
 
 def load_market_fluc2(

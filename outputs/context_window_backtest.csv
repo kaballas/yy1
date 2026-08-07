@@ -1,0 +1,2 @@
+model,context_source,target_scope,context_pool_races,validation_races_available,context_races,validation_races,skipped_early_validation_races,top3_recall,exact_top3_set_rate,contained_top4_rate,contained_top5_rate,contained_top6_rate,complete_races,roc_auc,logloss
+/home/theo/yy1/outputs/1.pt,all_finished,competition_id=999,8105,372,10,372,0,0.1971326164874552,0.005376344086021506,0.01881720430107527,0.03763440860215054,0.10483870967741936,372,0.48389865731273,0.7323162230585738

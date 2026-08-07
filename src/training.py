@@ -16,7 +16,15 @@ from src.constants import (
     VALIDATION_ROWS_VIEW,
 )
 from src.context import load_context_race_ids
-from src.database import (load_market_fluc2, load_race_number_eligible_ids, load_race_numbers, load_rows, load_validation_cohorts, print_race_selection_logic, validate_feature_columns)
+from src.database import (
+    export_rows_to_csv,
+    load_race_number_eligible_ids,
+    load_race_numbers,
+    load_rows_from_csv,
+    load_validation_cohorts,
+    print_race_selection_logic,
+    validate_feature_columns,
+)
 from src.dataset import load_feature_columns
 from src.losses import (
     grouped_pairwise_loss,
@@ -361,8 +369,35 @@ def run_training(args: argparse.Namespace) -> int:
         raise ValueError("--zero-features contains duplicates")
     validate_feature_columns(args.db, feature_columns)
     print_race_selection_logic(args.db, args.min_race_number)
-    train_x, train_y_all, train_race_ids, train_times, train_validation_flags = (
-        load_rows(args.db, feature_columns, TRAINING_ROWS_VIEW)
+    if args.training_csv.resolve() == args.validation_csv.resolve():
+        raise ValueError("--training-csv and --validation-csv must be different paths")
+    export_rows_to_csv(
+        args.db, feature_columns, TRAINING_ROWS_VIEW, args.training_csv
+    )
+    export_rows_to_csv(
+        args.db, feature_columns, VALIDATION_ROWS_VIEW, args.validation_csv
+    )
+    (
+        train_x,
+        train_y_all,
+        train_race_ids,
+        train_times,
+        train_validation_flags,
+        train_market_fluc2,
+    ) = load_rows_from_csv(args.training_csv, feature_columns)
+    (
+        valid_x_all,
+        valid_y_all,
+        valid_race_ids_all,
+        valid_times,
+        valid_flags,
+        valid_market_fluc2,
+    ) = load_rows_from_csv(args.validation_csv, feature_columns)
+    print(
+        "training_record_source "
+        f"training_csv={args.training_csv.resolve()} "
+        f"validation_csv={args.validation_csv.resolve()}",
+        flush=True,
     )
     if args.classroom_overfit_all_races:
         x = train_x
@@ -373,9 +408,6 @@ def run_training(args: argparse.Namespace) -> int:
         train_mask = np.ones(len(race_ids), dtype=bool)
         valid_mask = train_mask.copy()
     else:
-        valid_x_all, valid_y_all, valid_race_ids_all, valid_times, valid_flags = (
-            load_rows(args.db, feature_columns, VALIDATION_ROWS_VIEW)
-        )
         overlapping_races = sorted(
             set(map(int, train_race_ids)).intersection(map(int, valid_race_ids_all))
         )
@@ -443,21 +475,10 @@ def run_training(args: argparse.Namespace) -> int:
         raise ValueError("No complete validation races are available")
     valid_mask &= np.isin(race_ids, selected_valid_races)
 
-    train_market_fluc2 = load_market_fluc2(
-        args.db, train_race_ids, TRAINING_ROWS_VIEW
-    )
     market_fluc2 = (
         train_market_fluc2
         if args.classroom_overfit_all_races
-        else np.concatenate(
-            (
-                train_market_fluc2,
-                load_market_fluc2(
-                    args.db, valid_race_ids_all, VALIDATION_ROWS_VIEW
-                ),
-            ),
-            axis=0,
-        )
+        else np.concatenate((train_market_fluc2, valid_market_fluc2), axis=0)
     )
     x = transform(x, median, scale)
     x = zero_feature_columns(x, feature_columns, zero_features)
@@ -693,6 +714,8 @@ def run_training(args: argparse.Namespace) -> int:
     print(f"  Validation races: {len(selected_valid_races):,}", flush=True)
     print(
         f"db={args.db.resolve()} features={len(feature_columns)} "
+        f"training_csv={args.training_csv.resolve()} "
+        f"validation_csv={args.validation_csv.resolve()} "
         f"train_rows={len(train_y):,} train_races={len(training_race_indices):,} "
         f"valid_rows={len(valid_y):,} valid_races={len(selected_valid_races):,} "
         f"partition_source={partition_source} device={device}",
@@ -1287,8 +1310,10 @@ def run_training(args: argparse.Namespace) -> int:
             "median": median,
             "scale": scale,
             "partition_source": partition_source,
-            "row_source": TRAINING_ROWS_VIEW,
-            "validation_row_source": VALIDATION_ROWS_VIEW,
+            "row_source": str(args.training_csv.resolve()),
+            "validation_row_source": str(args.validation_csv.resolve()),
+            "source_training_view": TRAINING_ROWS_VIEW,
+            "source_validation_view": VALIDATION_ROWS_VIEW,
             "training_filter": training_filter,
             "optimizer_min_race_number": args.min_race_number,
             "validation_filter": validation_filter,
@@ -1393,8 +1418,10 @@ def run_training(args: argparse.Namespace) -> int:
                 "cardinality_loss_weight": args.cardinality_loss_weight,
                 "output_semantics": "race_conditioned_uncalibrated_binary_top3_probability",
                 "partition_source": partition_source,
-                "row_source": TRAINING_ROWS_VIEW,
-                "validation_row_source": VALIDATION_ROWS_VIEW,
+                "row_source": str(args.training_csv.resolve()),
+                "validation_row_source": str(args.validation_csv.resolve()),
+                "source_training_view": TRAINING_ROWS_VIEW,
+                "source_validation_view": VALIDATION_ROWS_VIEW,
                 "training_filter": training_filter,
                 "optimizer_min_race_number": args.min_race_number,
                 "validation_filter": validation_filter,
