@@ -27,11 +27,13 @@ Example:
 from __future__ import annotations
 
 import argparse
+import bisect
 import copy
 import inspect
 import json
 import sqlite3
 import sys
+import warnings
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -143,6 +145,11 @@ def parse_args() -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Require checkpoint state_dict keys to match the model exactly.",
+    )
+    parser.add_argument(
+        "--show-warnings",
+        action="store_true",
+        help="Show Python library warnings (suppressed by default for batch prediction output).",
     )
     return parser.parse_args()
 
@@ -277,12 +284,24 @@ def checkpoint_context_size(metadata: Mapping[str, Any]) -> int:
 
 
 def load_training_context_for_target(
-    db_path: Path, target_race_id: str, feature_columns: Sequence[str], metadata: Mapping[str, Any]
+    db_path: Path, target_race_id: str, feature_columns: Sequence[str], metadata: Mapping[str, Any],
+    prepared_context: tuple[dict[int, pd.DataFrame], list[tuple[pd.Timestamp, int]]] | None = None,
+    prepared_query: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
     """Use the exact chronological context policy used by training and validation."""
-    query = load_native_query(db_path, target_race_id, feature_columns)
+    query = prepared_query.copy() if prepared_query is not None else load_native_query(db_path, target_race_id, feature_columns)
     target_time = pd.to_datetime(query["start_time_iso"], utc=True, errors="raise").min()
     context_size = checkpoint_context_size(metadata)
+    if prepared_context is not None:
+        context_by_race, ordered_context = prepared_context
+        cutoff = bisect.bisect_left(ordered_context, (target_time, -1))
+        selected_ids = [race_id for _, race_id in ordered_context[max(0, cutoff - context_size):cutoff]]
+        if len(selected_ids) < context_size:
+            raise ValueError(
+                f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier training context races; "
+                f"checkpoint requires {context_size}."
+            )
+        return pd.concat([context_by_race[race_id] for race_id in selected_ids], ignore_index=True), query, selected_ids
     selected = ["race_id", "start_time_iso", "runner_number", "race_number", *feature_columns, "top3_mask"]
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
@@ -689,6 +708,8 @@ def predict_one(
     checkpoint: Path,
     model: TabFM | None = None,
     metadata: Mapping[str, Any] | None = None,
+    prepared_context: tuple[dict[int, pd.DataFrame], list[tuple[pd.Timestamp, int]]] | None = None,
+    prepared_query: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     device = torch.device(args.device)
     if model is None or metadata is None:
@@ -700,15 +721,16 @@ def predict_one(
         if args.preprocessor is not None:
             raise ValueError("--preprocessor is only supported with --data generic mode.")
         context, query, ordered_context_race_ids = load_training_context_for_target(
-            args.db, str(args.race_id), feature_columns, metadata
+            args.db, str(args.race_id), feature_columns, metadata, prepared_context, prepared_query
         )
-        print(
-            "PREDICTION CONTEXT "
-            f"checkpoint={checkpoint.name} strategy=most_recent_earlier_training_races "
-            f"races={len(ordered_context_race_ids)} rows={len(context)} "
-            f"race_ids={ordered_context_race_ids}",
-            flush=True,
-        )
+        if not args.backtest:
+            print(
+                "PREDICTION CONTEXT "
+                f"checkpoint={checkpoint.name} strategy=most_recent_earlier_training_races "
+                f"races={len(ordered_context_race_ids)} rows={len(context)} "
+                f"race_ids={ordered_context_race_ids}",
+                flush=True,
+            )
         context_values = matrix_from_frame(context, feature_columns, None)
     else:
         data = load_table(args.data)
@@ -950,14 +972,51 @@ def finished_race_ids(db_path: Path, maximum: int) -> list[int]:
     return race_ids if maximum == 0 else race_ids[:maximum]
 
 
+def prepare_backtest_native_data(
+    db_path: Path, feature_columns: Sequence[str], metadata: Mapping[str, Any], maximum: int
+) -> tuple[dict[int, pd.DataFrame], dict[int, pd.DataFrame], list[tuple[pd.Timestamp, int]]]:
+    """Load finished targets and the eligible training context pool once."""
+    selected = ["race_id", "start_time_iso", "runner_number", "race_number", *feature_columns, "top3_mask", "is_winner"]
+    connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    try:
+        require_training_rows_view(connection)
+        targets = pd.read_sql_query(
+            f"SELECT {', '.join(quote_identifier(column) for column in selected)} "
+            "FROM race_runners WHERE status = 'finished' ORDER BY start_time_iso, race_id, runner_number",
+            connection,
+        )
+        pool = pd.read_sql_query(
+            f"SELECT {', '.join(quote_identifier(column) for column in selected[:-1])} "
+            f"FROM {quote_identifier(TRAINING_ROWS_VIEW)} ORDER BY start_time_iso, race_id, runner_number",
+            connection,
+        )
+    finally:
+        connection.close()
+    if maximum:
+        wanted = targets.groupby("race_id", sort=False).size().index[:maximum]
+        targets = targets.loc[targets["race_id"].isin(wanted)].copy()
+    minimum = metadata.get("optimizer_min_race_number")
+    if minimum is not None:
+        pool = pool.loc[pool["race_number"] >= int(minimum)].copy()
+    summary = pool.groupby("race_id", sort=False).agg(
+        start_time_iso=("start_time_iso", "min"), runners=("race_id", "size"), top3=("top3_mask", "sum")
+    )
+    summary = summary.loc[(summary["runners"] >= 3) & (summary["top3"] == 3)]
+    context_ids = set(map(int, summary.index))
+    pool = pool.loc[pool["race_id"].isin(context_ids)].copy()
+    context_by_race = {int(race_id): group.copy() for race_id, group in pool.groupby("race_id", sort=False)}
+    target_by_race = {int(race_id): group.copy() for race_id, group in targets.groupby("race_id", sort=False)}
+    ordered_context = sorted(
+        (pd.to_datetime(summary.loc[race_id, "start_time_iso"], utc=True), int(race_id))
+        for race_id in summary.index
+    )
+    return context_by_race, target_by_race, ordered_context
+
+
 def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Backtest each checkpoint independently on every completed target race."""
     if args.data is not None:
         raise ValueError("--backtest requires native SQLite mode; omit --data.")
-    race_ids = finished_race_ids(args.db, args.backtest_max_races)
-    if not race_ids:
-        raise ValueError("No status='finished' races were found.")
-    print(f"BACKTEST targets={len(race_ids)} status=finished", flush=True)
     all_predictions: list[pd.DataFrame] = []
     metric_rows: list[dict[str, Any]] = []
     device = torch.device(args.device)
@@ -968,13 +1027,24 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
         except Exception as exc:
             print(f"WARNING skipped_checkpoint={checkpoint.name} reason={exc}", file=sys.stderr)
             continue
+        feature_columns = read_feature_columns(args, metadata)
+        context_by_race, target_by_race, ordered_context = prepare_backtest_native_data(
+            args.db, feature_columns, metadata, args.backtest_max_races
+        )
+        race_ids = list(target_by_race)
+        if not race_ids:
+            raise ValueError("No status='finished' races were found.")
+        print(f"BACKTEST targets={len(race_ids)} status=finished", flush=True)
         model_predictions: list[pd.DataFrame] = []
         skipped = 0
         for index, race_id in enumerate(race_ids, start=1):
             race_args = copy.copy(args)
             race_args.race_id = str(race_id)
             try:
-                prediction = predict_one(race_args, checkpoint, model, metadata)
+                prediction = predict_one(
+                    race_args, checkpoint, model, metadata,
+                    (context_by_race, ordered_context), target_by_race[race_id],
+                )
             except ValueError as exc:
                 # Earliest races may not yet have enough historical context.
                 skipped += 1
@@ -1018,6 +1088,8 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def main() -> int:
     args = parse_args()
+    if not args.show_warnings:
+        warnings.filterwarnings("ignore")
     try:
         if args.backtest:
             result, metrics = backtest(args)

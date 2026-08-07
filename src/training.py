@@ -9,6 +9,7 @@ import random
 import numpy as np
 import torch
 from src.checkpoint import resolve_resume_model_path
+from src.config import DEFAULT_FEATURES
 from src.constants import (
     MIN_CHECKPOINT_SELECTION_RACES,
     TRAINING_ROWS_VIEW,
@@ -31,6 +32,7 @@ from src.preprocessing import fit_preprocessor, transform, zero_feature_columns
 from src.progress import load_progress_race, print_progress_race
 from src.sampling import (
     build_query_race_schedule,
+    eligible_query_race_ids_from_context,
     eligible_query_race_ids,
     sample_independent_race_batch,
 )
@@ -305,18 +307,27 @@ def run_training(args: argparse.Namespace) -> int:
             if args.encode_races_before_icl is None else bool(args.encode_races_before_icl)
         ),
     )
-    requested_feature_columns = load_feature_columns(args.features_json)
+    feature_manifest_path = args.features_json or DEFAULT_FEATURES
     if resume_bundle is not None:
         feature_columns = list(resume_bundle["feature_columns"])
-        if requested_feature_columns != feature_columns:
-            raise ValueError(
-                "Fine-tune feature manifest differs from source model: "
-                f"requested_count={len(requested_feature_columns)} "
-                f"checkpoint_count={len(feature_columns)}; restore the source "
-                "feature manifest or use --overwrite-existing to train from scratch"
-            )
+        if args.features_json is not None:
+            requested_feature_columns = load_feature_columns(args.features_json)
+            if requested_feature_columns != feature_columns:
+                raise ValueError(
+                    "Fine-tune feature manifest differs from source model: "
+                    f"requested_count={len(requested_feature_columns)} "
+                    f"checkpoint_count={len(feature_columns)}; omit --features-json "
+                    "to inherit the checkpoint manifest, or use --overwrite-existing "
+                    "to train from scratch"
+                )
+        print(
+            "fine_tune_feature_manifest "
+            f"source_checkpoint count={len(feature_columns)} "
+            f"explicit_override={args.features_json is not None}",
+            flush=True,
+        )
     else:
-        feature_columns = requested_feature_columns
+        feature_columns = load_feature_columns(feature_manifest_path)
     split_manifest = None
     if args.split_manifest is not None:
         split_manifest = load_and_validate_runtime_manifest(args.split_manifest, args.db)
@@ -448,7 +459,6 @@ def run_training(args: argparse.Namespace) -> int:
             axis=0,
         )
     )
-    valid_fluc2 = market_fluc2[valid_mask].copy()
     x = transform(x, median, scale)
     x = zero_feature_columns(x, feature_columns, zero_features)
     race_time_by_id: dict[int, object] = {}
@@ -500,6 +510,35 @@ def run_training(args: argparse.Namespace) -> int:
             f"available_training_races={len(training_race_indices)}",
             flush=True,
         )
+    if not args.classroom_overfit_all_races:
+        candidate_validation_races = list(
+            map(int, dict.fromkeys(race_ids[valid_mask].tolist()))
+        )
+        eligible_validation_races = eligible_query_race_ids_from_context(
+            candidate_validation_races,
+            list(training_race_indices),
+            race_time_by_id,
+            effective_context_races_per_step,
+        )
+        skipped_early_validation_races = sorted(
+            set(candidate_validation_races) - set(eligible_validation_races)
+        )
+        if skipped_early_validation_races:
+            print(
+                "WARNING skipped_validation_races_without_earlier_training_context "
+                f"count={len(skipped_early_validation_races)} "
+                f"required_context_races={effective_context_races_per_step} "
+                f"preview={skipped_early_validation_races[:10]}",
+                flush=True,
+            )
+        valid_mask &= np.isin(race_ids, eligible_validation_races)
+        selected_valid_races = eligible_validation_races
+        if not np.any(valid_mask):
+            raise ValueError(
+                "No validation races have enough strictly earlier training context races"
+            )
+    # Slice after all validation eligibility rules, including causal context.
+    valid_fluc2 = market_fluc2[valid_mask].copy()
     train_y = y[training_pool_mask]
     valid_x, valid_y = x[valid_mask], y[valid_mask]
     valid_race_ids = race_ids[valid_mask]
@@ -1318,7 +1357,7 @@ def run_training(args: argparse.Namespace) -> int:
             "cardinality_loss_weight": args.cardinality_loss_weight,
             "output_semantics": "race_conditioned_uncalibrated_binary_top3_probability",
             "source_db": str(args.db.resolve()),
-            "feature_manifest": str(args.features_json.resolve()),
+            "feature_manifest": str(feature_manifest_path.resolve()),
             "context_manifest": str(args.context_json.resolve()),
             "split_manifest": str(args.split_manifest.resolve()) if args.split_manifest else None,
             "split_manifest_sha256": split_manifest.get("manifest_sha256") if split_manifest else None,
@@ -1409,7 +1448,7 @@ def run_training(args: argparse.Namespace) -> int:
                 ),
                 "classification_loss_weight": args.classification_loss_weight,
                 "source_db": str(args.db.resolve()),
-                "feature_manifest": str(args.features_json.resolve()),
+                "feature_manifest": str(feature_manifest_path.resolve()),
             "context_manifest": str(args.context_json.resolve()),
             "split_manifest": str(args.split_manifest.resolve()) if args.split_manifest else None,
             "split_manifest_sha256": split_manifest.get("manifest_sha256") if split_manifest else None,

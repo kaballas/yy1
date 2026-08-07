@@ -18,7 +18,13 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
-    parser.add_argument("--features-json", type=Path, default=DEFAULT_FEATURES)
+    parser.add_argument(
+        "--features-json", type=Path, default=None,
+        help=(
+            "Feature manifest for scratch training. When resuming, omit this to "
+            "inherit the checkpoint's saved feature manifest."
+        ),
+    )
     parser.add_argument("--context-json", type=Path, default=DEFAULT_CONTEXT)
     parser.add_argument("--split-manifest", type=Path, default=None,
                         help="Required split-v2 runtime manifest for clean training.")

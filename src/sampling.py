@@ -56,6 +56,30 @@ def eligible_query_race_ids(
     ]
 
 
+def eligible_query_race_ids_from_context(
+    query_race_ids: list[int],
+    context_race_ids: list[int],
+    race_time_by_id: dict[int, object],
+    required_context_races: int,
+) -> list[int]:
+    """Return query races with enough strictly earlier races from a fixed pool."""
+    if required_context_races < 1:
+        raise ValueError("required_context_races must be positive")
+    ordered_context = sorted(
+        map(int, context_race_ids),
+        key=lambda race_id: (race_time_by_id[race_id], race_id),
+    )
+    eligible: list[int] = []
+    for query_race_id in map(int, query_race_ids):
+        earlier = sum(
+            race_time_by_id[context_race_id] < race_time_by_id[query_race_id]
+            for context_race_id in ordered_context
+        )
+        if earlier >= required_context_races:
+            eligible.append(query_race_id)
+    return eligible
+
+
 def sample_independent_race_batch(
     x: np.ndarray,
     y: np.ndarray,

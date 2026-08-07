@@ -16,8 +16,8 @@ the eligible training pool once per epoch:
 
 ```bash
 python train_model.py \
-  --resume-model /home/theo/yy1/outputs/base.pt \
-  --output /home/theo/yy1/outputs/1_base.pt \
+  --resume-model /home/theo/yy1/outputs/merged_model.pt \
+  --output /home/theo/yy1/outputs/2.pt \
   --epochs 8 \
   --auto-race-schedule \
   --query-races-per-step 10 \
@@ -69,6 +69,23 @@ python train_model.py \
   --cardinality_loss_weight 0.0
 
 
+python train_model.py \
+  --resume-model /home/theo/yy1/outputs/merged_model.pt \
+  --output /home/theo/yy1/outputs/2.pt \
+  --epochs 8 \
+  --auto-race-schedule \
+  --query-races-per-step 10 \
+  --learning-rate 0.00003 \
+  --early-stopping-patience 4 \
+  --fine-tune-scope icl_and_race_head \
+  --min-race-number 3 \
+  --race-context-mode self_attention \
+  --seed 42 \
+  --device cpu \
+  --classification_loss_weight 1.0 \
+  --pairwise_loss_weight 0.25 \
+  --attention_delta_pairwise_loss_weight 0.05 \
+  --cardinality_loss_weight 0.0
 
 
 "open_price",
