@@ -232,7 +232,7 @@ def training_csv_columns(feature_columns: list[str]) -> list[str]:
         "runner_number",
         *feature_columns,
         "top3_mask",
-        "fluc2",
+        "market_fluc2_baseline",
     ]
 
 
@@ -244,7 +244,18 @@ def export_rows_to_csv(
 ) -> int:
     """Atomically export an ordered database view snapshot for model loading."""
     columns = training_csv_columns(feature_columns)
-    selected_columns = ", ".join(quote_identifier(column) for column in columns)
+    source_columns = [
+        "race_id",
+        "start_time_iso",
+        "is_validation",
+        "runner_number",
+        *feature_columns,
+        "top3_mask",
+    ]
+    selected_columns = ", ".join(
+        [*(quote_identifier(column) for column in source_columns),
+         f'{quote_identifier("fluc2")} AS {quote_identifier("market_fluc2_baseline")}']
+    )
     sql = (
         f"SELECT {selected_columns} FROM {quote_identifier(view_name)} "
         "ORDER BY start_time_iso, race_id, runner_number"

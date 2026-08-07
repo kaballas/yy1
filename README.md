@@ -39,6 +39,17 @@ gets its own sequence containing the most recent strictly earlier complete
 training races. The number of context races defaults to the race count in
 `tabfm_context.json`.
 
+Before model preprocessing or training starts, the selected SQLite views are
+exported and then reloaded from these CSV snapshots:
+
+- `outputs/training_records.csv`
+- `outputs/validation_records.csv`
+
+Use `--training-csv` and `--validation-csv` to select different paths. Both
+files are replaced with fresh, ordered exports on every run; the model arrays,
+labels, timestamps, validation flags, and market baseline are loaded from the
+CSV files rather than directly from SQLite.
+
 The command intentionally omits `--allow-small-cohort-early-stopping`. Until
 the `chronological_representative` cohort contains at least 20 complete races,
 all requested epochs run and checkpoint selection still retains the best
@@ -92,4 +103,3 @@ python train_model.py \
     "fluc1",
     "fluc2",
     
-
