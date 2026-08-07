@@ -81,11 +81,11 @@ python train_model.py \
 
 
 python train_model.py \
-  --resume-model /home/theo/yy1/outputs/merged_model.pt \
-  --output /home/theo/yy1/outputs/2.pt \
+  --resume-model /home/theo/yy1/outputs/2_base.pt \
+  --output /home/theo/yy1/outputs/2_fine.pt \
   --epochs 8 \
   --auto-race-schedule \
-  --query-races-per-step 10 \
+  --query-races-per-step 1 \
   --learning-rate 0.00003 \
   --early-stopping-patience 4 \
   --fine-tune-scope icl_and_race_head \

@@ -1,4 +1,0 @@
-model,context_source,context_pool_races,validation_races_available,context_races,validation_races,skipped_early_validation_races,top3_recall,exact_top3_set_rate,contained_top4_rate,contained_top5_rate,contained_top6_rate,complete_races,roc_auc,logloss
-/home/theo/yy1/outputs/1_base.pt,all_finished,8105,1,1,1,0,0.6666666666666666,0.0,0.0,0.0,0.0,1,0.625,0.6288948123576641
-/home/theo/yy1/outputs/1_base.pt,all_finished,8105,1,9,1,0,0.6666666666666666,0.0,0.0,0.0,0.0,1,0.625,0.627189282402902
-/home/theo/yy1/outputs/1_base.pt,all_finished,8105,1,2000,1,0,0.6666666666666666,0.0,0.0,0.0,0.0,1,0.625,0.6203464789679606

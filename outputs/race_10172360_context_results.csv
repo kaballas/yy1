@@ -1,2 +1,0 @@
-model,context_races,validation_races,skipped_early_validation_races,top3_recall,exact_top3_set_rate,contained_top4_rate,contained_top5_rate,contained_top6_rate,complete_races,roc_auc,logloss
-/home/theo/yy1/outputs/1.pt,10,1,0,0.3333333333333333,0.0,0.0,1.0,1.0,1,0.7333333333333333,0.7072134625901504
