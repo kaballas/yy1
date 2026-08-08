@@ -136,6 +136,46 @@ zero. `--context-prototype-loss-weight` directly applies pairwise ranking loss
 to prototype-only query corrections. It defaults to `0.25` when the branch is
 enabled and to zero otherwise.
 
+## Current prototype models
+
+The current prototype checkpoints use the normalized-input feature prototype
+branch described above. They differ primarily in the number of races exposed
+during training:
+
+| Checkpoint | Training scope |
+|---|---:|
+| `outputs/3_prototype.pt` | 200 races |
+| `outputs/4_prototype.pt` | 1,000 races |
+| `outputs/5_prototype.pt` | All 8,058 eligible training races available at training time |
+
+The saved `5_prototype.pt` bundle records the following effective model and
+training configuration:
+
+- 176 ordered manifest inputs, of which 123 are retained in the zero bucket;
+- nine strictly earlier same-competition context races per query;
+- five query races per optimizer step;
+- within-race self-attention with race encoding before ICL;
+- a 16-dimensional normalized-input prototype branch with a maximum correction
+  of `0.25`;
+- full-model scratch training, with epoch 2 retained as the best epoch.
+
+On 9 August 2026, the three checkpoints were evaluated on the same held-out,
+previously untrained races from `competition_id=590`. The command requested the
+latest 100 races; 50 targets were available and scored, with 48 satisfying the
+complete-race metric contract:
+
+| Checkpoint | Top-3 recall | Exact top-3 | Contained top-4 | Contained top-5 | Contained top-6 | ROC AUC | Logloss | Seconds/target |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `3_prototype.pt` | 0.5278 | 0.0625 | 0.2083 | 0.4167 | 0.5625 | 0.7720 | 0.6973 | 0.219 |
+| `4_prototype.pt` | 0.5556 | 0.1042 | 0.2708 | 0.4167 | 0.6042 | 0.7859 | 0.6858 | 0.244 |
+| `5_prototype.pt` | **0.5833** | **0.1042** | 0.2292 | **0.4375** | 0.5417 | **0.8056** | **0.5441** | 0.247 |
+
+These results show improving held-out top-three recall and ROC AUC as the
+training set grows. `5_prototype.pt` is the current recommended source
+checkpoint because it has the strongest top-three recall, ROC AUC, and
+logloss. Recheck this conclusion on additional untouched competitions rather
+than treating one 48-race cohort as permanent model selection evidence.
+
 ## Training diagnostics
 
 `pre_update_training_batch` is a noisy batch-level measurement taken before
@@ -191,8 +231,8 @@ and prototype input dimension are inherited:
 
 ```bash
 python train_model.py \
-  --resume-model /home/theo/yy1/outputs/3_feature_prototype.pt \
-  --output /home/theo/yy1/outputs/3_feature_prototype_fine.pt \
+  --resume-model /home/theo/yy1/outputs/5_prototype.pt \
+  --output /home/theo/yy1/outputs/5_prototype_fine.pt \
   --epochs 8 \
   --auto-race-schedule \
   --query-races-per-step 5 \
@@ -249,3 +289,8 @@ python predict_race.py \
   --backtest-max-races 20 \
   --competition-id 590
 ```
+
+Progress output reports inference time and average seconds per target. The
+final metrics table includes `inference_seconds`, `seconds_per_target`, and
+`checkpoint_seconds`; the final completion line reports total time across all
+checkpoints.
