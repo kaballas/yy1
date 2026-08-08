@@ -6,6 +6,26 @@ import torch
 import torch.nn.functional as F
 
 
+def context_dependence_margin_loss(
+    correct_context_loss: torch.Tensor,
+    permuted_context_loss: torch.Tensor,
+    margin: float,
+) -> torch.Tensor:
+    """Push permuted context above a detached correct-loss reference.
+
+    The ordinary prediction objective already minimizes ``correct_context_loss``.
+    Detaching it here prevents the correct/permuted gradients from cancelling
+    when the model initially produces identical predictions for both contexts.
+    """
+    if correct_context_loss.ndim != 0 or permuted_context_loss.ndim != 0:
+        raise ValueError("Context comparison losses must be scalar tensors")
+    if margin < 0:
+        raise ValueError("Context dependence margin must be non-negative")
+    return torch.relu(
+        correct_context_loss.detach() + margin - permuted_context_loss
+    )
+
+
 def query_row_cross_entropy(
     logits: torch.Tensor,
     targets: torch.Tensor,
@@ -110,7 +130,9 @@ def grouped_race_losses(
             negative_scores = scores[race_mask][race_targets == 0]
             if positive_scores.numel() == 0 or negative_scores.numel() == 0:
                 raise ValueError(
-                    "Pairwise loss requires positive and negative runners per race"
+                    "Pairwise loss requires positive and negative runners per race: "
+                    f"race_id={int(race_id)} positives={positive_scores.numel()} "
+                    f"negatives={negative_scores.numel()}"
                 )
             pairwise_losses.append(
                 F.softplus(
@@ -150,7 +172,11 @@ def grouped_pairwise_loss(
         positive_scores = scores[race_mask][race_targets == 1]
         negative_scores = scores[race_mask][race_targets == 0]
         if positive_scores.numel() == 0 or negative_scores.numel() == 0:
-            raise ValueError("Pairwise loss requires positive and negative runners per race")
+            raise ValueError(
+                "Pairwise loss requires positive and negative runners per race: "
+                f"race_id={int(race_id)} positives={positive_scores.numel()} "
+                f"negatives={negative_scores.numel()}"
+            )
         losses.append(
             F.softplus(-(positive_scores[:, None] - negative_scores[None, :])).mean()
         )

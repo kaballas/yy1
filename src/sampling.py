@@ -6,6 +6,33 @@ import numpy as np
 import torch
 
 
+def permute_context_labels(
+    batch_y: torch.Tensor,
+    train_sizes: torch.Tensor,
+    seed: int,
+) -> torch.Tensor:
+    """Deterministically permute only the labelled context prefix per sequence."""
+    if batch_y.ndim != 2:
+        raise ValueError("batch_y must have shape [B, T]")
+    if train_sizes.shape != (batch_y.shape[0],):
+        raise ValueError("train_sizes must match the batch dimension")
+    if batch_y.device.type != "cpu" or train_sizes.device.type != "cpu":
+        raise ValueError("Context permutation must occur before moving the batch")
+
+    permuted = batch_y.clone()
+    generator = torch.Generator(device="cpu")
+    for batch_index, context_rows_value in enumerate(train_sizes):
+        context_rows = int(context_rows_value)
+        if context_rows < 1 or context_rows > batch_y.shape[1]:
+            raise ValueError("Each train size must identify a non-empty context prefix")
+        generator.manual_seed(int(seed) + batch_index)
+        order = torch.randperm(context_rows, generator=generator)
+        permuted[batch_index, :context_rows] = batch_y[
+            batch_index, :context_rows
+        ][order]
+    return permuted
+
+
 def build_query_race_schedule(
     race_ids: list[int], steps: int, query_races_per_step: int,
     rng: np.random.Generator,
@@ -38,6 +65,7 @@ def eligible_query_race_ids(
     race_ids: list[int],
     race_time_by_id: dict[int, object],
     required_context_races: int,
+    competition_by_race_id: dict[int, int] | None = None,
 ) -> list[int]:
     """Return races with enough strictly earlier races for context."""
     if required_context_races < 1:
@@ -51,6 +79,11 @@ def eligible_query_race_ids(
         for race_id in available
         if sum(
             race_time_by_id[other_id] < race_time_by_id[race_id]
+            and (
+                competition_by_race_id is None
+                or competition_by_race_id[other_id]
+                == competition_by_race_id[race_id]
+            )
             for other_id in available
         ) >= required_context_races
     ]
@@ -61,6 +94,7 @@ def eligible_query_race_ids_from_context(
     context_race_ids: list[int],
     race_time_by_id: dict[int, object],
     required_context_races: int,
+    competition_by_race_id: dict[int, int] | None = None,
 ) -> list[int]:
     """Return query races with enough strictly earlier races from a fixed pool."""
     if required_context_races < 1:
@@ -73,6 +107,11 @@ def eligible_query_race_ids_from_context(
     for query_race_id in map(int, query_race_ids):
         earlier = sum(
             race_time_by_id[context_race_id] < race_time_by_id[query_race_id]
+            and (
+                competition_by_race_id is None
+                or competition_by_race_id[context_race_id]
+                == competition_by_race_id[query_race_id]
+            )
             for context_race_id in ordered_context
         )
         if earlier >= required_context_races:
@@ -87,6 +126,7 @@ def sample_independent_race_batch(
     context_races_per_query: int,
     query_race_ids: np.ndarray,
     race_time_by_id: dict[int, object],
+    competition_by_race_id: dict[int, int] | None = None,
     group_context_races: bool = False,
 ) -> tuple[
     torch.Tensor,
@@ -137,11 +177,17 @@ def sample_independent_race_batch(
             for race_id in ordered_context_races
             if int(race_id) != query_race_id
             and race_time_by_id[int(race_id)] < query_time
+            and (
+                competition_by_race_id is None
+                or competition_by_race_id[int(race_id)]
+                == competition_by_race_id[query_race_id]
+            )
         ]
         if len(eligible_context) < context_races_per_query:
             raise ValueError(
                 f"Query race {query_race_id} has only {len(eligible_context)} "
-                f"earlier context races; {context_races_per_query} are required"
+                f"strictly earlier same-competition context races; "
+                f"{context_races_per_query} are required"
             )
         context_race_ids = eligible_context[-context_races_per_query:]
         selected_context_ids.extend(context_race_ids)

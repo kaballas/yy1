@@ -67,7 +67,7 @@ def invalid_race_targets(
     race_ids: np.ndarray,
     mask: np.ndarray,
 ) -> list[tuple[int, int, int]]:
-    """Return races violating runner-count or three-positive contracts."""
+    """Return races violating rankable top-three target contracts."""
     invalid: list[tuple[int, int, int]] = []
 
     for race_id in np.unique(race_ids[mask]):
@@ -75,7 +75,10 @@ def invalid_race_targets(
         runner_count = len(indices)
         top3_count = int(y[indices].sum())
 
-        if runner_count < 3 or top3_count != 3:
+        # A three-runner race labels every runner positive. It has no negative
+        # example and therefore cannot define classification or pairwise rank
+        # separation for a top-three model.
+        if runner_count < 4 or top3_count != 3:
             invalid.append((int(race_id), runner_count, top3_count))
 
     return invalid

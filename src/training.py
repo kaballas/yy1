@@ -25,12 +25,13 @@ from src.database import (
     print_race_selection_logic,
     validate_feature_columns,
 )
-from src.dataset import load_feature_columns
+from src.dataset import load_feature_manifest
 from src.losses import (
+    context_dependence_margin_loss,
     grouped_pairwise_loss,
     grouped_race_losses,
 )
-from src.metrics import (checkpoint_selection_improves, cohort_checkpoint_selection, format_metric_line, pre_update_training_batch_metrics, probability_metrics, race_top3_metrics, select_fixed_probe_race_ids, stress_guardrail_passes, validation_metrics_by_cohort)
+from src.metrics import (checkpoint_selection_improves, cohort_checkpoint_selection, context_permutation_is_ineffective, fixed_probe_has_material_regression, format_metric_line, pre_update_training_batch_metrics, prediction_change_metrics, probability_metrics, race_top3_metrics, select_fixed_probe_race_ids, stress_guardrail_passes, validation_metrics_by_cohort)
 from src.model import TabFM
 from src.prediction import (
     market_rank_scores,
@@ -43,6 +44,7 @@ from src.sampling import (
     eligible_query_race_ids_from_context,
     eligible_query_race_ids,
     sample_independent_race_batch,
+    permute_context_labels,
 )
 from src.utilities import (
     initialize_fourier_frequencies,
@@ -55,6 +57,10 @@ from src.validation import build_race_indices, exclude_invalid_races
 
 
 MAX_SAFE_FINE_TUNE_LEARNING_RATE = 3e-5
+CONTEXT_STOP_WARNING_MIN_STEP = 100
+CONTEXT_STOP_WARNING_PROBES = 5
+FIXED_PROBE_REGRESSION_WARNING_MIN_STEP = 50
+FIXED_PROBE_STOP_WARNING_PROBES = 2
 
 
 def configure_trainable_parameters(
@@ -85,6 +91,9 @@ def configure_trainable_parameters(
             )
         for parameter in model.race_set_head.parameters():
             parameter.requires_grad_(True)
+        if getattr(model, "context_prototype_head", None) is not None:
+            for parameter in model.context_prototype_head.parameters():
+                parameter.requires_grad_(True)
         if training_scope == "decoder_and_race_head":
             for parameter in model.icl_predictor.decoder.parameters():
                 parameter.requires_grad_(True)
@@ -105,6 +114,7 @@ def configure_trainable_parameters(
             if not (
                 name.startswith("icl_predictor.decoder.")
                 or name.startswith("race_set_head.")
+                or name.startswith("context_prototype_head.")
             )
         ]
         if unexpected:
@@ -199,9 +209,23 @@ def run_training(args: argparse.Namespace) -> int:
         or args.auxiliary_row_loss_weight < 0
         or args.pairwise_loss_weight < 0
         or args.attention_delta_pairwise_loss_weight < 0
+        or (
+            args.context_prototype_loss_weight is not None
+            and args.context_prototype_loss_weight < 0
+        )
         or args.cardinality_loss_weight < 0
+        or args.context_dependence_loss_weight < 0
     ):
         raise SystemExit("Loss weights must be non-negative")
+    if args.context_dependence_margin < 0:
+        raise SystemExit("--context-dependence-margin must be non-negative")
+    if args.context_prototype_dim is not None and args.context_prototype_dim < 1:
+        raise SystemExit("--context-prototype-dim must be positive")
+    if (
+        args.context_prototype_max_correction is not None
+        and args.context_prototype_max_correction <= 0
+    ):
+        raise SystemExit("--context-prototype-max-correction must be positive")
     if args.fine_tune_attention_head_only and args.fine_tune_scope not in (
         None, "attention_head_only"
     ):
@@ -252,6 +276,9 @@ def run_training(args: argparse.Namespace) -> int:
         )
     source_model_kwargs = dict(resume_bundle.get("model_kwargs", {})) if resume_bundle else {}
     source_race_mode = source_model_kwargs.get("race_context_mode", "none")
+    source_context_prototype_branch = bool(
+        source_model_kwargs.get("context_prototype_branch", False)
+    )
     training_scope = resolve_training_scope(
         args.fine_tune_scope,
         args.fine_tune_attention_head_only,
@@ -294,6 +321,29 @@ def run_training(args: argparse.Namespace) -> int:
         raise ValueError(
             "A race-aware checkpoint cannot be loaded into a non-race-aware architecture"
         )
+    context_prototype_branch = (
+        source_context_prototype_branch
+        if args.context_prototype_branch is None
+        else bool(args.context_prototype_branch)
+    )
+    if source_context_prototype_branch and not context_prototype_branch:
+        raise ValueError(
+            "A context-prototype checkpoint cannot be loaded with the branch disabled"
+        )
+    context_prototype_dim = (
+        source_model_kwargs.get("context_prototype_dim", 16)
+        if args.context_prototype_dim is None else args.context_prototype_dim
+    )
+    context_prototype_max_correction = (
+        source_model_kwargs.get("context_prototype_max_correction", 0.5)
+        if args.context_prototype_max_correction is None
+        else args.context_prototype_max_correction
+    )
+    args.context_prototype_loss_weight = (
+        (0.25 if context_prototype_branch else 0.0)
+        if args.context_prototype_loss_weight is None
+        else args.context_prototype_loss_weight
+    )
     if training_scope != "full_model" and race_context_mode != "self_attention":
         raise ValueError(
             f"--fine-tune-scope={training_scope} requires race_context_mode=self_attention"
@@ -301,6 +351,11 @@ def run_training(args: argparse.Namespace) -> int:
     if args.attention_delta_pairwise_loss_weight > 0 and race_context_mode != "self_attention":
         raise ValueError(
             "--attention-delta-pairwise-loss-weight requires race_context_mode=self_attention"
+        )
+    if args.context_prototype_loss_weight > 0 and not context_prototype_branch:
+        raise ValueError(
+            "--context-prototype-loss-weight requires --context-prototype-branch; "
+            "set its weight to 0 when the branch is disabled"
         )
     model_kwargs = dict(source_model_kwargs or {"max_classes": 2, "is_classifier": True})
     model_kwargs.update(
@@ -314,12 +369,18 @@ def run_training(args: argparse.Namespace) -> int:
             bool(source_model_kwargs.get("encode_races_before_icl", False))
             if args.encode_races_before_icl is None else bool(args.encode_races_before_icl)
         ),
+        context_prototype_branch=context_prototype_branch,
+        context_prototype_dim=context_prototype_dim,
+        context_prototype_max_correction=context_prototype_max_correction,
     )
     feature_manifest_path = args.features_json or DEFAULT_FEATURES
     if resume_bundle is not None:
         feature_columns = list(resume_bundle["feature_columns"])
+        zero_features = list(resume_bundle.get("zeroed_features", []))
         if args.features_json is not None:
-            requested_feature_columns = load_feature_columns(args.features_json)
+            requested_feature_columns, zero_features = load_feature_manifest(
+                args.features_json
+            )
             if requested_feature_columns != feature_columns:
                 raise ValueError(
                     "Fine-tune feature manifest differs from source model: "
@@ -335,7 +396,19 @@ def run_training(args: argparse.Namespace) -> int:
             flush=True,
         )
     else:
-        feature_columns = load_feature_columns(feature_manifest_path)
+        feature_columns, zero_features = load_feature_manifest(feature_manifest_path)
+    if context_prototype_branch:
+        if (
+            resume_bundle is not None
+            and source_context_prototype_branch
+            and "context_prototype_input_dim" not in source_model_kwargs
+        ):
+            raise ValueError(
+                "This checkpoint uses the obsolete hidden-representation prototype "
+                "branch. Start a fresh run with --overwrite-existing or use a new "
+                "--output path for input-feature prototypes."
+            )
+        model_kwargs["context_prototype_input_dim"] = len(feature_columns)
     split_manifest = None
     if args.split_manifest is not None:
         split_manifest = load_and_validate_runtime_manifest(args.split_manifest, args.db)
@@ -354,19 +427,13 @@ def run_training(args: argparse.Namespace) -> int:
     print(
         "context_regime "
         f"requested_context_races={requested_context_races_per_step} "
-        "training_context=most_recent_earlier_training_races_per_query "
-        "validation_context=most_recent_earlier_training_races_per_query "
+        "training_context=most_recent_strictly_earlier_same_competition_races_per_query "
+        "validation_context=most_recent_strictly_earlier_same_competition_races_per_query "
+        "validation_context_pool=all_complete_partition_rows "
         "manifest_role=default_window_size_only "
         f"manifest_race_count={len(validation_context_race_ids)}",
         flush=True,
     )
-    zero_features = (
-        list(resume_bundle.get("zeroed_features", []))
-        if resume_bundle is not None and args.zero_features is None
-        else list(args.zero_features or [])
-    )
-    if len(zero_features) != len(set(zero_features)):
-        raise ValueError("--zero-features contains duplicates")
     validate_feature_columns(args.db, feature_columns)
     print_race_selection_logic(args.db, args.min_race_number)
     if args.training_csv.resolve() == args.validation_csv.resolve():
@@ -382,6 +449,7 @@ def run_training(args: argparse.Namespace) -> int:
         train_y_all,
         train_race_ids,
         train_times,
+        train_competition_ids,
         train_validation_flags,
         train_market_fluc2,
     ) = load_rows_from_csv(args.training_csv, feature_columns)
@@ -390,6 +458,7 @@ def run_training(args: argparse.Namespace) -> int:
         valid_y_all,
         valid_race_ids_all,
         valid_times,
+        valid_competition_ids_all,
         valid_flags,
         valid_market_fluc2,
     ) = load_rows_from_csv(args.validation_csv, feature_columns)
@@ -404,6 +473,7 @@ def run_training(args: argparse.Namespace) -> int:
         y = train_y_all
         race_ids = train_race_ids
         times = train_times
+        competition_ids = train_competition_ids
         validation_flags = train_validation_flags
         train_mask = np.ones(len(race_ids), dtype=bool)
         valid_mask = train_mask.copy()
@@ -420,6 +490,9 @@ def run_training(args: argparse.Namespace) -> int:
         y = np.concatenate((train_y_all, valid_y_all), axis=0)
         race_ids = np.concatenate((train_race_ids, valid_race_ids_all), axis=0)
         times = np.concatenate((train_times, valid_times), axis=0)
+        competition_ids = np.concatenate(
+            (train_competition_ids, valid_competition_ids_all), axis=0
+        )
         validation_flags = np.concatenate(
             (train_validation_flags, valid_flags), axis=0
         )
@@ -483,11 +556,20 @@ def run_training(args: argparse.Namespace) -> int:
     x = transform(x, median, scale)
     x = zero_feature_columns(x, feature_columns, zero_features)
     race_time_by_id: dict[int, object] = {}
-    for race_id_value, race_time in zip(race_ids, times):
+    competition_by_race_id: dict[int, int] = {}
+    for race_id_value, race_time, competition_id_value in zip(
+        race_ids, times, competition_ids
+    ):
         race_id = int(race_id_value)
+        competition_id = int(competition_id_value)
         previous = race_time_by_id.setdefault(race_id, race_time)
         if previous != race_time:
             raise ValueError(f"Race {race_id} has inconsistent start times")
+        previous_competition = competition_by_race_id.setdefault(
+            race_id, competition_id
+        )
+        if previous_competition != competition_id:
+            raise ValueError(f"Race {race_id} has inconsistent competition IDs")
     eligible_race_ids = load_race_number_eligible_ids(
         args.db, args.min_race_number
     )
@@ -535,18 +617,23 @@ def run_training(args: argparse.Namespace) -> int:
         candidate_validation_races = list(
             map(int, dict.fromkeys(race_ids[valid_mask].tolist()))
         )
+        validation_context_mask = training_pool_mask | valid_mask
+        validation_context_race_indices = build_race_indices(
+            race_ids, validation_context_mask
+        )
         eligible_validation_races = eligible_query_race_ids_from_context(
             candidate_validation_races,
-            list(training_race_indices),
+            list(validation_context_race_indices),
             race_time_by_id,
             effective_context_races_per_step,
+            competition_by_race_id,
         )
         skipped_early_validation_races = sorted(
             set(candidate_validation_races) - set(eligible_validation_races)
         )
         if skipped_early_validation_races:
             print(
-                "WARNING skipped_validation_races_without_earlier_training_context "
+                "WARNING skipped_validation_races_without_earlier_same_competition_context "
                 f"count={len(skipped_early_validation_races)} "
                 f"required_context_races={effective_context_races_per_step} "
                 f"preview={skipped_early_validation_races[:10]}",
@@ -556,8 +643,13 @@ def run_training(args: argparse.Namespace) -> int:
         selected_valid_races = eligible_validation_races
         if not np.any(valid_mask):
             raise ValueError(
-                "No validation races have enough strictly earlier training context races"
+                "No validation races have enough strictly earlier "
+                "same-competition context races"
             )
+    else:
+        validation_context_race_indices = build_race_indices(
+            race_ids, training_pool_mask | valid_mask
+        )
     # Slice after all validation eligibility rules, including causal context.
     valid_fluc2 = market_fluc2[valid_mask].copy()
     train_y = y[training_pool_mask]
@@ -666,6 +758,7 @@ def run_training(args: argparse.Namespace) -> int:
         list(training_race_indices),
         race_time_by_id,
         effective_context_races_per_step,
+        competition_by_race_id,
     )
     excluded_early_query_races = len(training_race_ids) - len(
         chronological_query_race_ids
@@ -677,7 +770,10 @@ def run_training(args: argparse.Namespace) -> int:
         flush=True,
     )
     if not chronological_query_race_ids:
-        raise ValueError("No training query races have enough earlier context races")
+        raise ValueError(
+            "No training query races have enough strictly earlier "
+            "same-competition context races"
+        )
     if effective_query_races_per_step > len(chronological_query_race_ids):
         print(
             "query_races_per_step_adjusted_for_chronology "
@@ -725,16 +821,18 @@ def run_training(args: argparse.Namespace) -> int:
         f"train_top3_rate={train_y.mean():.4f} valid_top3_rate={valid_y.mean():.4f} "
         f"all_non_top3_valid_accuracy={1.0 - valid_y.mean():.4f} "
         f"class_weights=[{class_weights[0]:.3f}, {class_weights[1]:.3f}] "
-        "training_context=most_recent_earlier_training_races_per_query "
-        "validation_context=most_recent_earlier_training_races_per_query "
+        "training_context=most_recent_strictly_earlier_same_competition_races_per_query "
+        "validation_context=most_recent_strictly_earlier_same_competition_races_per_query "
         f"context_races_per_query={effective_context_races_per_step} "
         f"independent_query_sequences_per_step={effective_query_races_per_step} "
         f"auto_race_schedule={args.auto_race_schedule} "
         f"min_race_number={args.min_race_number} "
         f"race_context_mode={race_context_mode} "
+        f"context_prototype_branch={context_prototype_branch} "
         f"pairwise_loss_weight={args.pairwise_loss_weight} "
         f"attention_delta_pairwise_loss_weight="
         f"{args.attention_delta_pairwise_loss_weight} "
+        f"context_prototype_loss_weight={args.context_prototype_loss_weight} "
         f"cardinality_loss_weight={args.cardinality_loss_weight} "
         f"validation_cohort_source={validation_cohort_source} "
         f"validation_cohort_races={validation_cohort_race_counts} "
@@ -743,15 +841,22 @@ def run_training(args: argparse.Namespace) -> int:
     )
     if resume_bundle is not None:
         model = TabFM(**model_kwargs).to(device)
+        architecture_unchanged = (
+            source_race_mode == race_context_mode
+            and source_context_prototype_branch == context_prototype_branch
+        )
         incompatible = model.load_state_dict(
             resume_bundle["model_state_dict"],
-            strict=source_race_mode == race_context_mode,
+            strict=architecture_unchanged,
         )
-        if source_race_mode != race_context_mode:
+        if not architecture_unchanged:
             unexpected = list(incompatible.unexpected_keys)
             invalid_missing = [
                 key for key in incompatible.missing_keys
-                if not key.startswith("race_set_head.")
+                if not (
+                    key.startswith("race_set_head.")
+                    or key.startswith("context_prototype_head.")
+                )
             ]
             if unexpected or invalid_missing:
                 raise ValueError(
@@ -787,6 +892,11 @@ def run_training(args: argparse.Namespace) -> int:
         trainable_prefixes = ["icl_predictor", "race_set_head"]
     else:
         trainable_prefixes = sorted({name.split(".", 1)[0] for name in trainable_names})
+    if (
+        model.context_prototype_head is not None
+        and training_scope != "full_model"
+    ):
+        trainable_prefixes.append("context_prototype_head")
     print(
         "trainable_module_prefixes=" + ",".join(trainable_prefixes),
         flush=True,
@@ -814,6 +924,11 @@ def run_training(args: argparse.Namespace) -> int:
         ("Steps per epoch", str(effective_steps_per_epoch)),
         ("Probe races", str(len(fixed_probe_race_ids))),
         ("Probe cadence", f"every {args.probe_every_steps} optimizer steps"),
+        (
+            "Context stop warning",
+            f"after step {max(CONTEXT_STOP_WARNING_MIN_STEP, args.probe_every_steps * CONTEXT_STOP_WARNING_PROBES)} "
+            f"and {CONTEXT_STOP_WARNING_PROBES} ineffective permutation probes",
+        ),
         ("Step loss window", str(args.step_loss_window)),
         ("Maximum optimizer steps", f"{args.epochs * effective_steps_per_epoch:,}"),
         ("Learning rate", f"{learning_rate:.8g}"),
@@ -839,10 +954,33 @@ def run_training(args: argparse.Namespace) -> int:
             "Attention-delta pairwise loss",
             f"{args.attention_delta_pairwise_loss_weight:g}",
         ),
+        (
+            "Context prototype direct loss",
+            f"{args.context_prototype_loss_weight:g}",
+        ),
         ("Cardinality loss weight", f"{args.cardinality_loss_weight:g}"),
+        (
+            "Context dependence weight",
+            f"{args.context_dependence_loss_weight:g}",
+        ),
+        ("Context dependence margin", f"{args.context_dependence_margin:g}"),
+        (
+            "Context dependence formulation",
+            "Detached correct-loss reference; maximize permuted loss to margin",
+        ),
         ("Stress recall maximum drop", f"{args.stress_top3_recall_max_drop:g}"),
         ("Early-stopping patience", f"{args.early_stopping_patience} epochs"),
         ("Race context mode", race_context_mode),
+        ("Context prototype branch", str(context_prototype_branch)),
+        (
+            "Context prototype source",
+            "Normalized input features" if context_prototype_branch else "Disabled",
+        ),
+        ("Context prototype dimension", str(context_prototype_dim)),
+        (
+            "Context prototype max correction",
+            f"{context_prototype_max_correction:g}",
+        ),
         (
             "Minimum race number",
             str(args.min_race_number) if args.min_race_number is not None else "None",
@@ -892,22 +1030,40 @@ def run_training(args: argparse.Namespace) -> int:
             flush=True,
         )
 
+    best_fixed_probe_top3_recall = float("-inf")
+    best_fixed_probe_auc = float("-inf")
+    fixed_probe_regression_streak = 0
+    ineffective_context_probe_streak = 0
+    context_warning_start_step = max(
+        CONTEXT_STOP_WARNING_MIN_STEP,
+        args.probe_every_steps * CONTEXT_STOP_WARNING_PROBES,
+    )
+
     def predict_with_causal_context(
         query_x: np.ndarray, query_race_indices: dict[int, np.ndarray],
+        context_label_mode: str = "correct",
     ) -> np.ndarray:
         return predict_with_chronological_context(
             model,
             x,
             y,
-            training_race_indices,
+            validation_context_race_indices,
             race_time_by_id,
             query_x,
             query_race_indices,
             effective_context_races_per_step,
             device,
+            context_label_mode=context_label_mode,
+            context_label_seed=args.seed,
+            competition_by_race_id=competition_by_race_id,
         )
 
-    def evaluate_fixed_probe(label: str, global_step: int) -> dict[str, float | int]:
+    def evaluate_fixed_probe(
+        label: str, global_step: int
+    ) -> tuple[dict[str, float | int], np.ndarray]:
+        nonlocal best_fixed_probe_top3_recall
+        nonlocal best_fixed_probe_auc
+        nonlocal fixed_probe_regression_streak
         was_training = model.training
         model.eval()
         probe_probability = predict_with_causal_context(
@@ -928,11 +1084,146 @@ def run_training(args: argparse.Namespace) -> int:
             f"logloss={probe_metrics['logloss']:.5f}",
             flush=True,
         )
+        current_recall = float(probe_metrics["top3_recall"])
+        current_auc = float(probe_metrics["roc_auc"])
+        if label == "after_update" and global_step >= FIXED_PROBE_REGRESSION_WARNING_MIN_STEP:
+            regressed = fixed_probe_has_material_regression(
+                best_fixed_probe_top3_recall,
+                best_fixed_probe_auc,
+                current_recall,
+                current_auc,
+            )
+            fixed_probe_regression_streak = (
+                fixed_probe_regression_streak + 1 if regressed else 0
+            )
+            if regressed:
+                print(
+                    "TRAINING_WARNING type=fixed_probe_regression "
+                    f"step={global_step} streak={fixed_probe_regression_streak} "
+                    f"top3_recall_drop="
+                    f"{best_fixed_probe_top3_recall - current_recall:.4f} "
+                    f"auc_drop={best_fixed_probe_auc - current_auc:.4f} "
+                    "action=observe_next_probe",
+                    flush=True,
+                )
+            if fixed_probe_regression_streak >= FIXED_PROBE_STOP_WARNING_PROBES:
+                print(
+                    "TRAINING_STOP_WARNING severity=stop_recommended "
+                    "reason=repeated_fixed_probe_regression "
+                    f"step={global_step} consecutive_probes="
+                    f"{fixed_probe_regression_streak} "
+                    "action=stop_run_and_reduce_learning_rate",
+                    flush=True,
+                )
+        best_fixed_probe_top3_recall = max(
+            best_fixed_probe_top3_recall, current_recall
+        )
+        best_fixed_probe_auc = max(best_fixed_probe_auc, current_auc)
         if was_training:
             model.train()
-        return probe_metrics
+        return probe_metrics, probe_probability
 
-    evaluate_fixed_probe("before_training", 0)
+    def evaluate_context_ablation_probe(
+        label: str, global_step: int, baseline_probability: np.ndarray
+    ) -> None:
+        """Compare fixed-probe predictions under deterministic label ablations."""
+        nonlocal ineffective_context_probe_streak
+        was_training = model.training
+        model.eval()
+        baseline_metrics = probability_metrics(
+            fixed_probe_y, baseline_probability, fixed_probe_row_race_ids
+        )
+        print(
+            f"CONTEXT_ABLATION_PROBE label={label} step={global_step} "
+            f"variant=correct races={baseline_metrics['complete_races']} "
+            "max_probability_delta=0.00000000 "
+            "mean_probability_delta=0.00000000 "
+            "ranking_changed_races=0 top3_changed_races=0 "
+            "mean_rank_displacement=0.0000 "
+            f"top3_recall={baseline_metrics['top3_recall']:.4f} "
+            "top3_recall_delta=+0.0000 "
+            f"auc={baseline_metrics['roc_auc']:.4f} auc_delta=+0.0000 "
+            f"logloss={baseline_metrics['logloss']:.5f} "
+            "logloss_delta=+0.00000",
+            flush=True,
+        )
+        for variant in ("permuted", "zeroed", "flipped"):
+            ablated_probability = predict_with_causal_context(
+                fixed_probe_x,
+                fixed_probe_query_race_indices,
+                context_label_mode=variant,
+            )
+            ablated_metrics = probability_metrics(
+                fixed_probe_y, ablated_probability, fixed_probe_row_race_ids
+            )
+            change = prediction_change_metrics(
+                baseline_probability,
+                ablated_probability,
+                fixed_probe_row_race_ids,
+            )
+            auc_delta = (
+                float(ablated_metrics["roc_auc"])
+                - float(baseline_metrics["roc_auc"])
+            )
+            logloss_delta = (
+                float(ablated_metrics["logloss"])
+                - float(baseline_metrics["logloss"])
+            )
+            print(
+                f"CONTEXT_ABLATION_PROBE label={label} step={global_step} "
+                f"variant={variant} races={change['compared_races']} "
+                f"max_probability_delta={change['max_probability_delta']:.8f} "
+                f"mean_probability_delta={change['mean_probability_delta']:.8f} "
+                f"ranking_changed_races={change['ranking_changed_races']} "
+                f"top3_changed_races={change['top3_changed_races']} "
+                f"mean_rank_displacement="
+                f"{change['mean_absolute_rank_displacement']:.4f} "
+                f"top3_recall={ablated_metrics['top3_recall']:.4f} "
+                f"top3_recall_delta="
+                f"{float(ablated_metrics['top3_recall']) - float(baseline_metrics['top3_recall']):+.4f} "
+                f"auc={ablated_metrics['roc_auc']:.4f} "
+                f"auc_delta="
+                f"{auc_delta:+.4f} "
+                f"logloss={ablated_metrics['logloss']:.5f} "
+                f"logloss_delta="
+                f"{logloss_delta:+.5f}",
+                flush=True,
+            )
+            if variant == "permuted" and label == "after_update":
+                ineffective = context_permutation_is_ineffective(
+                    float(change["mean_probability_delta"]),
+                    auc_delta,
+                    logloss_delta,
+                )
+                ineffective_context_probe_streak = (
+                    ineffective_context_probe_streak + 1 if ineffective else 0
+                )
+                if (
+                    global_step >= context_warning_start_step
+                    and ineffective_context_probe_streak
+                    >= CONTEXT_STOP_WARNING_PROBES
+                    and ineffective_context_probe_streak
+                    % CONTEXT_STOP_WARNING_PROBES == 0
+                ):
+                    print(
+                        "TRAINING_STOP_WARNING severity=stop_recommended "
+                        "reason=context_permutation_ineffective "
+                        f"step={global_step} consecutive_probes="
+                        f"{ineffective_context_probe_streak} "
+                        f"mean_probability_delta="
+                        f"{float(change['mean_probability_delta']):.8f} "
+                        f"auc_delta={auc_delta:+.4f} "
+                        f"logloss_delta={logloss_delta:+.5f} "
+                        "action=stop_run_and_review_context_objective",
+                        flush=True,
+                    )
+        if was_training:
+            model.train()
+
+    _, before_training_probability = evaluate_fixed_probe("before_training", 0)
+    evaluate_context_ablation_probe(
+        "before_training", 0, before_training_probability
+    )
     best_selection: tuple[float, ...] | None = None
     best_state: dict[str, torch.Tensor] | None = None
     best_epoch = 0
@@ -973,7 +1264,13 @@ def run_training(args: argparse.Namespace) -> int:
         classification_losses = []
         pairwise_losses = []
         attention_delta_pairwise_losses = []
+        context_prototype_pairwise_losses = []
+        context_prototype_abs_means = []
+        context_prototype_permutation_deltas = []
         cardinality_losses = []
+        context_dependence_losses = []
+        permuted_context_prediction_losses = []
+        context_margin_satisfied_steps = 0
         context_row_counts = []
         query_row_counts = []
         batch_row_counts = []
@@ -1010,12 +1307,13 @@ def run_training(args: argparse.Namespace) -> int:
             )
             print(
                 "TRAINING AND VALIDATION CONTEXT "
-                "strategy=most_recent_earlier_training_races "
+                "strategy=most_recent_strictly_earlier_same_competition_races "
                 "layout=independent_sequence_per_query "
                 f"races_per_query={effective_context_races_per_step}",
                 flush=True,
             )
         for step_index in range(effective_steps_per_epoch):
+            global_step = (epoch - 1) * effective_steps_per_epoch + step_index + 1
             (
                 batch_x,
                 batch_y,
@@ -1031,8 +1329,16 @@ def run_training(args: argparse.Namespace) -> int:
                 effective_context_races_per_step,
                 query_schedule[step_index],
                 race_time_by_id,
+                competition_by_race_id,
                 group_context_races=model.encode_races_before_icl,
             )
+            permuted_batch_y = None
+            if args.context_dependence_loss_weight > 0:
+                permuted_batch_y = permute_context_labels(
+                    batch_y,
+                    batch_train_sizes,
+                    seed=args.seed + global_step * 1_000_003,
+                )
             if args.print_race_schedule:
                 context_display = ", ".join(
                     f"{race_id}:{schedule_race_numbers.get(int(race_id), '?')}"
@@ -1061,23 +1367,34 @@ def run_training(args: argparse.Namespace) -> int:
             ):
                 raise RuntimeError("A validation race appeared in a training batch")
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            if permuted_batch_y is not None:
+                permuted_batch_y = permuted_batch_y.to(device)
             batch_train_sizes = batch_train_sizes.to(device)
             batch_race_group_ids = batch_race_group_ids.to(device)
             batch_valid_row_mask = batch_valid_row_mask.to(device)
             optimizer.zero_grad(set_to_none=True)
+            return_auxiliary_deltas = (
+                args.attention_delta_pairwise_loss_weight > 0
+                or args.context_prototype_loss_weight > 0
+            )
             model_output = model(
                 batch_x,
                 batch_y,
                 batch_train_sizes,
                 race_group_ids=batch_race_group_ids,
-                return_race_delta=args.attention_delta_pairwise_loss_weight > 0,
                 valid_row_mask=batch_valid_row_mask,
+                return_auxiliary_deltas=return_auxiliary_deltas,
             )
-            if args.attention_delta_pairwise_loss_weight > 0:
-                logits, race_delta = model_output
+            if return_auxiliary_deltas:
+                logits, auxiliary_deltas = model_output
+                race_delta = auxiliary_deltas["race_delta"]
+                context_prototype_delta = auxiliary_deltas[
+                    "context_prototype_delta"
+                ]
             else:
                 logits = model_output
                 race_delta = None
+                context_prototype_delta = None
             positions = torch.arange(logits.shape[1], device=logits.device).unsqueeze(0)
             query_mask = positions >= batch_train_sizes.unsqueeze(1)
             query_mask &= batch_valid_row_mask
@@ -1088,7 +1405,7 @@ def run_training(args: argparse.Namespace) -> int:
             query_logits = logits[query_mask][:, :2]
             query_targets = batch_y[query_mask]
             query_row_race_ids_tensor = batch_race_group_ids[query_mask]
-            loss, classification_loss, pairwise_loss, cardinality_loss = grouped_race_losses(
+            prediction_loss, classification_loss, pairwise_loss, cardinality_loss = grouped_race_losses(
                 query_logits,
                 query_targets,
                 query_row_race_ids_tensor,
@@ -1097,7 +1414,13 @@ def run_training(args: argparse.Namespace) -> int:
                 args.cardinality_loss_weight,
                 classification_loss_weight=args.classification_loss_weight,
             )
-            if race_delta is not None:
+            loss = prediction_loss
+            if args.attention_delta_pairwise_loss_weight > 0:
+                if race_delta is None:
+                    raise RuntimeError(
+                        "Attention-delta loss was enabled but the model returned "
+                        "no race correction"
+                    )
                 attention_delta_pairwise_loss = grouped_pairwise_loss(
                     race_delta[query_mask][:, :2],
                     query_targets,
@@ -1110,18 +1433,110 @@ def run_training(args: argparse.Namespace) -> int:
                 )
             else:
                 attention_delta_pairwise_loss = loss.new_zeros(())
+            if args.context_prototype_loss_weight > 0:
+                if context_prototype_delta is None:
+                    raise RuntimeError(
+                        "Context prototype direct loss was enabled but the model "
+                        "returned no prototype correction"
+                    )
+                context_prototype_pairwise_loss = grouped_pairwise_loss(
+                    context_prototype_delta[query_mask][:, :2],
+                    query_targets,
+                    query_row_race_ids_tensor,
+                )
+                loss = (
+                    loss
+                    + args.context_prototype_loss_weight
+                    * context_prototype_pairwise_loss
+                )
+            else:
+                context_prototype_pairwise_loss = loss.new_zeros(())
+            permuted_context_prototype_delta = None
+            if permuted_batch_y is not None:
+                permuted_model_output = model(
+                    batch_x,
+                    permuted_batch_y,
+                    batch_train_sizes,
+                    race_group_ids=batch_race_group_ids,
+                    valid_row_mask=batch_valid_row_mask,
+                    return_auxiliary_deltas=(
+                        args.context_prototype_loss_weight > 0
+                    ),
+                )
+                if args.context_prototype_loss_weight > 0:
+                    permuted_logits, permuted_auxiliary_deltas = (
+                        permuted_model_output
+                    )
+                    permuted_context_prototype_delta = (
+                        permuted_auxiliary_deltas["context_prototype_delta"]
+                    )
+                else:
+                    permuted_logits = permuted_model_output
+                permuted_query_logits = permuted_logits[query_mask][:, :2]
+                (
+                    permuted_context_prediction_loss,
+                    _,
+                    _,
+                    _,
+                ) = grouped_race_losses(
+                    permuted_query_logits,
+                    query_targets,
+                    query_row_race_ids_tensor,
+                    loss_weights,
+                    args.pairwise_loss_weight,
+                    args.cardinality_loss_weight,
+                    classification_loss_weight=args.classification_loss_weight,
+                )
+                context_dependence_loss = context_dependence_margin_loss(
+                    prediction_loss,
+                    permuted_context_prediction_loss,
+                    args.context_dependence_margin,
+                )
+                context_margin_satisfied_steps += int(
+                    float(context_dependence_loss.detach()) == 0.0
+                )
+                loss = (
+                    loss
+                    + args.context_dependence_loss_weight
+                    * context_dependence_loss
+                )
+            else:
+                permuted_context_prediction_loss = loss.new_zeros(())
+                context_dependence_loss = loss.new_zeros(())
             if not torch.isfinite(loss):
                 raise FloatingPointError(
                     "Non-finite training loss encountered before backward pass"
                 )
             step_loss = float(loss.detach())
+            context_loss_value = float(context_dependence_loss.detach())
+            context_loss_gap = float(
+                (
+                    permuted_context_prediction_loss.detach()
+                    - prediction_loss.detach()
+                )
+            )
+            if context_prototype_delta is not None:
+                query_context_prototype_delta = context_prototype_delta[query_mask]
+                context_prototype_abs_mean = float(
+                    query_context_prototype_delta.detach().abs().mean()
+                )
+            else:
+                context_prototype_abs_mean = 0.0
+            if permuted_context_prototype_delta is not None:
+                context_prototype_permutation_delta = float(
+                    (
+                        context_prototype_delta[query_mask].detach()
+                        - permuted_context_prototype_delta[query_mask].detach()
+                    ).abs().mean()
+                )
+            else:
+                context_prototype_permutation_delta = 0.0
             step_race_metrics = pre_update_training_batch_metrics(
                 query_targets.detach().cpu().numpy(),
                 query_logits,
                 query_row_race_ids_tensor.detach().cpu().numpy(),
             )
             step_loss_history.append(step_loss)
-            global_step = (epoch - 1) * effective_steps_per_epoch + step_index + 1
             print(
                 f"pre_update_training_batch epoch={epoch:02d} "
                 f"step={step_index + 1}/{effective_steps_per_epoch} "
@@ -1129,6 +1544,13 @@ def run_training(args: argparse.Namespace) -> int:
                 f"complete_races={step_race_metrics['complete_races']} "
                 f"loss={step_loss:.5f} "
                 f"rolling_loss={np.mean(step_loss_history):.5f} "
+                f"context_dependence_loss={context_loss_value:.5f} "
+                f"permuted_minus_correct_loss={context_loss_gap:+.5f} "
+                f"prototype_pairwise_loss="
+                f"{float(context_prototype_pairwise_loss.detach()):.5f} "
+                f"prototype_abs_mean={context_prototype_abs_mean:.6f} "
+                f"prototype_permutation_delta="
+                f"{context_prototype_permutation_delta:.6f} "
                 "{"
                 f"top3_recall={step_race_metrics['top3_recall']:.4f} "
                 f"exact_top3_set={step_race_metrics['exact_top3_set_rate']:.4f} "
@@ -1155,14 +1577,32 @@ def run_training(args: argparse.Namespace) -> int:
             if hasattr(base_model, "mark_weights_updated"):
                 base_model.mark_weights_updated()
             if global_step % args.probe_every_steps == 0:
-                evaluate_fixed_probe("after_update", global_step)
+                _, after_update_probability = evaluate_fixed_probe(
+                    "after_update", global_step
+                )
+                evaluate_context_ablation_probe(
+                    "after_update", global_step, after_update_probability
+                )
             losses.append(float(loss.detach()))
             classification_losses.append(float(classification_loss.detach()))
             pairwise_losses.append(float(pairwise_loss.detach()))
             attention_delta_pairwise_losses.append(
                 float(attention_delta_pairwise_loss.detach())
             )
+            context_prototype_pairwise_losses.append(
+                float(context_prototype_pairwise_loss.detach())
+            )
+            context_prototype_abs_means.append(context_prototype_abs_mean)
+            context_prototype_permutation_deltas.append(
+                context_prototype_permutation_delta
+            )
             cardinality_losses.append(float(cardinality_loss.detach()))
+            context_dependence_losses.append(
+                float(context_dependence_loss.detach())
+            )
+            permuted_context_prediction_losses.append(
+                float(permuted_context_prediction_loss.detach())
+            )
             context_row_counts.extend(
                 map(float, batch_train_sizes.detach().cpu().numpy())
             )
@@ -1190,7 +1630,18 @@ def run_training(args: argparse.Namespace) -> int:
             f"pairwise_loss={np.mean(pairwise_losses):.5f} "
             f"attention_delta_pairwise_loss="
             f"{np.mean(attention_delta_pairwise_losses):.5f} "
+            f"context_prototype_pairwise_loss="
+            f"{np.mean(context_prototype_pairwise_losses):.5f} "
+            f"context_prototype_abs_mean="
+            f"{np.mean(context_prototype_abs_means):.6f} "
+            f"context_prototype_permutation_delta="
+            f"{np.mean(context_prototype_permutation_deltas):.6f} "
             f"cardinality_loss={np.mean(cardinality_losses):.5f} "
+            f"context_dependence_loss={np.mean(context_dependence_losses):.5f} "
+            f"permuted_context_prediction_loss="
+            f"{np.mean(permuted_context_prediction_losses):.5f} "
+            f"context_margin_satisfied_steps="
+            f"{context_margin_satisfied_steps}/{len(losses)} "
             f"avg_context_rows_per_query={np.mean(context_row_counts):.1f} "
             f"avg_query_rows_per_race={np.mean(query_row_counts):.1f} "
             f"valid_rows_per_step_min={min(batch_row_counts)} "
@@ -1323,9 +1774,14 @@ def run_training(args: argparse.Namespace) -> int:
             "context_rows": None,
             "context_race_ids": [],
             "validation_context_race_ids": [],
-            "context_sampling": "most_recent_earlier_training_races_per_query",
+            "context_sampling": (
+                "most_recent_strictly_earlier_same_competition_races_per_query"
+            ),
             "training_query_layout": "independent_padded_sequence_per_query_race",
-            "validation_context_strategy": "most_recent_earlier_training_races",
+            "validation_context_strategy": (
+                "most_recent_strictly_earlier_same_competition_races"
+            ),
+            "validation_context_pool": "all_complete_partition_rows",
             "validation_context_races_per_prediction": effective_context_races_per_step,
             "context_manifest_race_ids": validation_context_race_ids,
             "context_manifest_role": "default_context_window_size_only",
@@ -1335,6 +1791,21 @@ def run_training(args: argparse.Namespace) -> int:
             "steps_per_epoch": effective_steps_per_epoch,
             "probe_race_ids": fixed_probe_race_ids.tolist(),
             "probe_every_steps": args.probe_every_steps,
+            "training_warning_policy": {
+                "context_warning_start_step": context_warning_start_step,
+                "ineffective_context_probe_streak": CONTEXT_STOP_WARNING_PROBES,
+                "permutation_minimum_probability_delta": 1e-4,
+                "permutation_minimum_auc_change": 0.01,
+                "permutation_minimum_logloss_change": 0.001,
+                "fixed_probe_regression_warning_min_step": (
+                    FIXED_PROBE_REGRESSION_WARNING_MIN_STEP
+                ),
+                "fixed_probe_stop_warning_streak": (
+                    FIXED_PROBE_STOP_WARNING_PROBES
+                ),
+                "fixed_probe_minimum_top3_recall_drop": 0.10,
+                "fixed_probe_minimum_auc_drop": 0.10,
+            },
             "step_loss_window": args.step_loss_window,
             "requested_steps_per_epoch": args.steps_per_epoch,
             "auto_race_schedule": args.auto_race_schedule,
@@ -1375,11 +1846,32 @@ def run_training(args: argparse.Namespace) -> int:
             "race_context_heads": race_context_heads,
             "race_context_ff_dim": race_context_ff_dim,
             "race_context_residual": race_context_residual,
+            "context_prototype_branch": context_prototype_branch,
+            "context_prototype_source": (
+                "normalized_input_features" if context_prototype_branch else None
+            ),
+            "context_prototype_dim": context_prototype_dim,
+            "context_prototype_input_dim": (
+                len(feature_columns) if context_prototype_branch else None
+            ),
+            "context_prototype_max_correction": (
+                context_prototype_max_correction
+            ),
             "pairwise_loss_weight": args.pairwise_loss_weight,
             "attention_delta_pairwise_loss_weight": (
                 args.attention_delta_pairwise_loss_weight
             ),
+            "context_prototype_loss_weight": (
+                args.context_prototype_loss_weight
+            ),
             "cardinality_loss_weight": args.cardinality_loss_weight,
+            "context_dependence_loss_weight": (
+                args.context_dependence_loss_weight
+            ),
+            "context_dependence_margin": args.context_dependence_margin,
+            "context_dependence_formulation": (
+                "detached_correct_reference_margin_against_permuted_context"
+            ),
             "output_semantics": "race_conditioned_uncalibrated_binary_top3_probability",
             "source_db": str(args.db.resolve()),
             "feature_manifest": str(feature_manifest_path.resolve()),
@@ -1411,11 +1903,32 @@ def run_training(args: argparse.Namespace) -> int:
                 "race_context_heads": race_context_heads,
                 "race_context_ff_dim": race_context_ff_dim,
                 "race_context_residual": race_context_residual,
+                "context_prototype_branch": context_prototype_branch,
+                "context_prototype_source": (
+                    "normalized_input_features" if context_prototype_branch else None
+                ),
+                "context_prototype_dim": context_prototype_dim,
+                "context_prototype_input_dim": (
+                    len(feature_columns) if context_prototype_branch else None
+                ),
+                "context_prototype_max_correction": (
+                    context_prototype_max_correction
+                ),
                 "pairwise_loss_weight": args.pairwise_loss_weight,
                 "attention_delta_pairwise_loss_weight": (
                     args.attention_delta_pairwise_loss_weight
                 ),
+                "context_prototype_loss_weight": (
+                    args.context_prototype_loss_weight
+                ),
                 "cardinality_loss_weight": args.cardinality_loss_weight,
+                "context_dependence_loss_weight": (
+                    args.context_dependence_loss_weight
+                ),
+                "context_dependence_margin": args.context_dependence_margin,
+                "context_dependence_formulation": (
+                    "detached_correct_reference_margin_against_permuted_context"
+                ),
                 "output_semantics": "race_conditioned_uncalibrated_binary_top3_probability",
                 "partition_source": partition_source,
                 "row_source": str(args.training_csv.resolve()),
@@ -1431,10 +1944,15 @@ def run_training(args: argparse.Namespace) -> int:
                 "context_rows": None,
                 "context_race_ids": [],
                 "validation_context_race_ids": [],
-                "validation_context_strategy": "most_recent_earlier_training_races",
+                "validation_context_strategy": (
+                    "most_recent_strictly_earlier_same_competition_races"
+                ),
+                "validation_context_pool": "all_complete_partition_rows",
                 "validation_context_races_per_prediction": effective_context_races_per_step,
                 "context_manifest_race_ids": validation_context_race_ids,
-                "context_sampling": "most_recent_earlier_training_races_per_query",
+                "context_sampling": (
+                    "most_recent_strictly_earlier_same_competition_races_per_query"
+                ),
                 "training_query_layout": "independent_padded_sequence_per_query_race",
                 "context_races_per_step": effective_context_races_per_step,
                 "requested_context_races_per_step": requested_context_races_per_step,
@@ -1443,6 +1961,21 @@ def run_training(args: argparse.Namespace) -> int:
                 "steps_per_epoch": effective_steps_per_epoch,
                 "probe_race_ids": fixed_probe_race_ids.tolist(),
                 "probe_every_steps": args.probe_every_steps,
+                "training_warning_policy": {
+                    "context_warning_start_step": context_warning_start_step,
+                    "ineffective_context_probe_streak": CONTEXT_STOP_WARNING_PROBES,
+                    "permutation_minimum_probability_delta": 1e-4,
+                    "permutation_minimum_auc_change": 0.01,
+                    "permutation_minimum_logloss_change": 0.001,
+                    "fixed_probe_regression_warning_min_step": (
+                        FIXED_PROBE_REGRESSION_WARNING_MIN_STEP
+                    ),
+                    "fixed_probe_stop_warning_streak": (
+                        FIXED_PROBE_STOP_WARNING_PROBES
+                    ),
+                    "fixed_probe_minimum_top3_recall_drop": 0.10,
+                    "fixed_probe_minimum_auc_drop": 0.10,
+                },
                 "step_loss_window": args.step_loss_window,
                 "requested_steps_per_epoch": args.steps_per_epoch,
                 "auto_race_schedule": args.auto_race_schedule,

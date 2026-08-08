@@ -97,7 +97,7 @@ def select_fixed_probe_race_ids(
             continue
         seen.add(race_id)
         indices = np.flatnonzero(race_ids == race_id)
-        if len(indices) >= 3 and int(target[indices].sum()) == 3:
+        if len(indices) >= 4 and int(target[indices].sum()) == 3:
             selected.append(race_id)
             if len(selected) == max_races:
                 break
@@ -142,6 +142,92 @@ def probability_metrics(
             -(target * np.log(clipped) + (1 - target) * np.log(1 - clipped)).mean()
         ),
     }
+
+
+def prediction_change_metrics(
+    baseline_probability: np.ndarray,
+    ablated_probability: np.ndarray,
+    race_ids: np.ndarray,
+) -> dict[str, float | int]:
+    """Measure probability and within-race ranking changes from an ablation."""
+    if not (
+        len(baseline_probability) == len(ablated_probability) == len(race_ids)
+    ):
+        raise ValueError("Prediction comparison arrays are misaligned")
+
+    absolute_delta = np.abs(ablated_probability - baseline_probability)
+    ranking_changed_races = 0
+    top3_changed_races = 0
+    compared_races = 0
+    total_rank_displacement = 0.0
+    compared_rows = 0
+    for race_id in np.unique(race_ids):
+        indices = np.flatnonzero(race_ids == race_id)
+        if not len(indices):
+            continue
+        baseline_order = np.argsort(
+            -baseline_probability[indices], kind="stable"
+        )
+        ablated_order = np.argsort(
+            -ablated_probability[indices], kind="stable"
+        )
+        ranking_changed_races += int(not np.array_equal(baseline_order, ablated_order))
+        top3_changed_races += int(
+            set(baseline_order[:3].tolist()) != set(ablated_order[:3].tolist())
+        )
+        baseline_rank = np.empty(len(indices), dtype=np.int64)
+        ablated_rank = np.empty(len(indices), dtype=np.int64)
+        baseline_rank[baseline_order] = np.arange(len(indices))
+        ablated_rank[ablated_order] = np.arange(len(indices))
+        total_rank_displacement += float(
+            np.abs(baseline_rank - ablated_rank).sum()
+        )
+        compared_rows += len(indices)
+        compared_races += 1
+
+    return {
+        "max_probability_delta": float(absolute_delta.max(initial=0.0)),
+        "mean_probability_delta": float(absolute_delta.mean()) if len(absolute_delta) else 0.0,
+        "ranking_changed_races": ranking_changed_races,
+        "top3_changed_races": top3_changed_races,
+        "compared_races": compared_races,
+        "mean_absolute_rank_displacement": (
+            total_rank_displacement / compared_rows if compared_rows else 0.0
+        ),
+    }
+
+
+def context_permutation_is_ineffective(
+    mean_probability_delta: float,
+    auc_delta: float,
+    logloss_delta: float,
+    *,
+    minimum_probability_delta: float = 1e-4,
+    minimum_auc_change: float = 0.01,
+    minimum_logloss_change: float = 0.001,
+) -> bool:
+    """Return whether permutation has no material probability or metric effect."""
+    return (
+        abs(mean_probability_delta) < minimum_probability_delta
+        and abs(auc_delta) < minimum_auc_change
+        and abs(logloss_delta) < minimum_logloss_change
+    )
+
+
+def fixed_probe_has_material_regression(
+    best_top3_recall: float,
+    best_auc: float,
+    current_top3_recall: float,
+    current_auc: float,
+    *,
+    minimum_top3_recall_drop: float = 0.10,
+    minimum_auc_drop: float = 0.10,
+) -> bool:
+    """Return whether both fixed-probe ranking signals regressed materially."""
+    return (
+        best_top3_recall - current_top3_recall >= minimum_top3_recall_drop
+        and best_auc - current_auc >= minimum_auc_drop
+    )
 
 
 def validation_metrics_by_cohort(

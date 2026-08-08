@@ -3,10 +3,15 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
+from src.losses import context_dependence_margin_loss
+
 from src.metrics import (
     checkpoint_selection_improves,
     cohort_checkpoint_selection,
+    context_permutation_is_ineffective,
+    fixed_probe_has_material_regression,
     pre_update_training_batch_metrics,
+    prediction_change_metrics,
     select_fixed_probe_race_ids,
 )
 
@@ -18,6 +23,58 @@ def test_fixed_probe_selection_is_deterministic_and_whole_race():
     selected = select_fixed_probe_race_ids(target, race_ids, max_races=2)
 
     np.testing.assert_array_equal(selected, np.asarray([20, 10]))
+
+
+def test_fixed_probe_excludes_three_runner_all_positive_race():
+    race_ids = np.asarray([10, 10, 10, 20, 20, 20, 20])
+    target = np.asarray([1, 1, 1, 1, 1, 1, 0])
+
+    selected = select_fixed_probe_race_ids(target, race_ids, max_races=2)
+
+    np.testing.assert_array_equal(selected, np.asarray([20]))
+
+
+def test_prediction_change_metrics_reports_probability_and_ranking_changes():
+    race_ids = np.asarray([10, 10, 10, 10, 20, 20, 20, 20])
+    baseline = np.asarray([0.9, 0.8, 0.7, 0.1, 0.9, 0.8, 0.7, 0.1])
+    ablated = np.asarray([0.9, 0.8, 0.1, 0.7, 0.9, 0.8, 0.7, 0.1])
+
+    metrics = prediction_change_metrics(baseline, ablated, race_ids)
+
+    assert metrics["compared_races"] == 2
+    assert metrics["ranking_changed_races"] == 1
+    assert metrics["top3_changed_races"] == 1
+    assert metrics["max_probability_delta"] == pytest.approx(0.6)
+    assert metrics["mean_probability_delta"] == pytest.approx(0.15)
+    assert metrics["mean_absolute_rank_displacement"] == pytest.approx(0.25)
+
+
+def test_context_permutation_ineffective_requires_all_changes_to_be_small():
+    assert context_permutation_is_ineffective(5e-6, 0.001, 0.0001)
+    assert not context_permutation_is_ineffective(2e-4, 0.001, 0.0001)
+    assert not context_permutation_is_ineffective(5e-6, -0.02, 0.0001)
+    assert not context_permutation_is_ineffective(5e-6, 0.001, 0.002)
+
+
+def test_fixed_probe_regression_requires_recall_and_auc_drops():
+    assert fixed_probe_has_material_regression(0.65, 0.75, 0.50, 0.60)
+    assert not fixed_probe_has_material_regression(0.65, 0.75, 0.60, 0.60)
+    assert not fixed_probe_has_material_regression(0.65, 0.75, 0.50, 0.70)
+
+
+def test_context_dependence_margin_loss_separates_correct_and_permuted_losses():
+    correct = torch.tensor(0.8, requires_grad=True)
+    permuted = torch.tensor(0.8, requires_grad=True)
+
+    loss = context_dependence_margin_loss(correct, permuted, margin=0.02)
+    loss.backward()
+
+    assert loss.item() == pytest.approx(0.02)
+    assert correct.grad is None
+    assert permuted.grad.item() == pytest.approx(-1.0)
+    assert context_dependence_margin_loss(
+        torch.tensor(0.7), torch.tensor(0.8), margin=0.02
+    ).item() == 0.0
 
 
 def _first_pre_update_metrics(learning_rate: float):

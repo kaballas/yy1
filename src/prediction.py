@@ -8,6 +8,30 @@ from src.model import TabFM
 from src.sampling import build_race_group_ids
 
 
+CONTEXT_LABEL_MODES = ("correct", "permuted", "zeroed", "flipped")
+
+
+def ablate_context_labels(
+    labels: np.ndarray, mode: str, *, seed: int = 0
+) -> np.ndarray:
+    """Return a deterministic context-label counterfactual."""
+    labels = np.asarray(labels)
+    if mode not in CONTEXT_LABEL_MODES:
+        raise ValueError(
+            f"Unknown context label mode {mode!r}; expected one of "
+            f"{CONTEXT_LABEL_MODES}"
+        )
+    if mode == "correct":
+        return labels.copy()
+    if mode == "permuted":
+        return np.random.default_rng(seed).permutation(labels)
+    if mode == "zeroed":
+        return np.zeros_like(labels)
+    if not np.isin(labels, (0, 1)).all():
+        raise ValueError("Flipped context labels must be binary")
+    return (1 - labels).astype(labels.dtype, copy=False)
+
+
 def predict(
     model: TabFM, context_x: np.ndarray, context_y: np.ndarray,
     query_x: np.ndarray, query_race_ids: np.ndarray,
@@ -60,6 +84,9 @@ def predict_with_chronological_context(
     query_race_indices: dict[int, np.ndarray],
     context_races_per_prediction: int,
     device: torch.device,
+    context_label_mode: str = "correct",
+    context_label_seed: int = 0,
+    competition_by_race_id: dict[int, int] | None = None,
 ) -> np.ndarray:
     """Predict complete races using only the most recent earlier context races."""
     if context_races_per_prediction < 1:
@@ -78,11 +105,17 @@ def predict_with_chronological_context(
             race_id
             for race_id in ordered_context_races
             if race_time_by_id[race_id] < query_time
+            and (
+                competition_by_race_id is None
+                or competition_by_race_id[race_id]
+                == competition_by_race_id[query_race_id]
+            )
         ]
         if len(eligible_context_races) < context_races_per_prediction:
             raise ValueError(
                 f"Query race {query_race_id} has only "
-                f"{len(eligible_context_races)} earlier context races; "
+                f"{len(eligible_context_races)} strictly earlier "
+                "same-competition context races; "
                 f"{context_races_per_prediction} are required"
             )
         selected_context_races = eligible_context_races[
@@ -99,10 +132,15 @@ def predict_with_chronological_context(
                 for race_id in selected_context_races
             ]
         )
+        selected_context_y = ablate_context_labels(
+            context_y[context_indices],
+            context_label_mode,
+            seed=context_label_seed + int(query_race_id),
+        )
         result[query_indices] = predict(
             model,
             context_x[context_indices],
-            context_y[context_indices],
+            selected_context_y,
             query_x[query_indices],
             np.full(len(query_indices), query_race_id, dtype=np.int64),
             len(context_indices),

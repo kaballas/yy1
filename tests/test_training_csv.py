@@ -15,15 +15,16 @@ def test_exported_training_records_are_reloaded_from_csv(tmp_path):
     try:
         connection.execute(
             "CREATE TABLE rows ("
-            "race_id INTEGER, start_time_iso TEXT, is_validation INTEGER, "
+            "race_id INTEGER, start_time_iso TEXT, competition_id INTEGER, "
+            "is_validation INTEGER, "
             "runner_number INTEGER, speed REAL, top3_mask INTEGER, fluc2 REAL)"
         )
         connection.executemany(
-            "INSERT INTO rows VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO rows VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                (20, "2026-01-02T01:00:00Z", 0, 2, None, 0, None),
-                (10, "2026-01-01T01:00:00Z", 0, 2, 1.5, 0, 4.2),
-                (10, "2026-01-01T01:00:00Z", 0, 1, 2.5, 1, 3.1),
+                (20, "2026-01-02T01:00:00Z", 501, 0, 2, None, 0, None),
+                (10, "2026-01-01T01:00:00Z", 500, 0, 2, 1.5, 0, 4.2),
+                (10, "2026-01-01T01:00:00Z", 500, 0, 1, 2.5, 1, 3.1),
             ],
         )
         connection.execute("CREATE VIEW training_rows AS SELECT * FROM rows")
@@ -34,7 +35,7 @@ def test_exported_training_records_are_reloaded_from_csv(tmp_path):
     assert export_rows_to_csv(
         database_path, ["speed"], "training_rows", csv_path
     ) == 3
-    x, y, race_ids, times, validation_flags, market = load_rows_from_csv(
+    x, y, race_ids, times, competition_ids, validation_flags, market = load_rows_from_csv(
         csv_path, ["speed"]
     )
 
@@ -42,6 +43,7 @@ def test_exported_training_records_are_reloaded_from_csv(tmp_path):
         assert next(csv.reader(handle)) == [
             "race_id",
             "start_time_iso",
+            "competition_id",
             "is_validation",
             "runner_number",
             "speed",
@@ -50,6 +52,7 @@ def test_exported_training_records_are_reloaded_from_csv(tmp_path):
         ]
     np.testing.assert_array_equal(race_ids, [10, 10, 20])
     np.testing.assert_array_equal(y, [1, 0, 0])
+    np.testing.assert_array_equal(competition_ids, [500, 500, 501])
     np.testing.assert_array_equal(validation_flags, [0, 0, 0])
     np.testing.assert_allclose(x[:2, 0], [2.5, 1.5])
     assert np.isnan(x[2, 0])
@@ -61,9 +64,9 @@ def test_exported_training_records_are_reloaded_from_csv(tmp_path):
 def test_csv_loader_rejects_a_different_feature_schema(tmp_path):
     csv_path = tmp_path / "training.csv"
     csv_path.write_text(
-        "race_id,start_time_iso,is_validation,runner_number,wrong,top3_mask,"
+        "race_id,start_time_iso,competition_id,is_validation,runner_number,wrong,top3_mask,"
         "market_fluc2_baseline\n"
-        "1,2026-01-01T00:00:00Z,0,1,2.0,1,3.0\n",
+        "1,2026-01-01T00:00:00Z,500,0,1,2.0,1,3.0\n",
         encoding="utf-8",
     )
 
@@ -82,11 +85,13 @@ def test_market_baseline_header_is_unique_when_fluc2_is_a_feature(tmp_path):
     try:
         connection.execute(
             "CREATE TABLE rows ("
-            "race_id INTEGER, start_time_iso TEXT, is_validation INTEGER, "
+            "race_id INTEGER, start_time_iso TEXT, competition_id INTEGER, "
+            "is_validation INTEGER, "
             "runner_number INTEGER, fluc2 REAL, top3_mask INTEGER)"
         )
         connection.execute(
-            "INSERT INTO rows VALUES (1, '2026-01-01T00:00:00Z', 0, 1, 2.5, 1)"
+            "INSERT INTO rows VALUES "
+            "(1, '2026-01-01T00:00:00Z', 500, 0, 1, 2.5, 1)"
         )
         connection.execute("CREATE VIEW training_rows AS SELECT * FROM rows")
         connection.commit()
@@ -99,6 +104,6 @@ def test_market_baseline_header_is_unique_when_fluc2_is_a_feature(tmp_path):
     assert len(header) == len(set(header))
     assert header[-2:] == ["top3_mask", "market_fluc2_baseline"]
 
-    x, _, _, _, _, market = load_rows_from_csv(csv_path, ["fluc2"])
+    x, _, _, _, _, _, market = load_rows_from_csv(csv_path, ["fluc2"])
     np.testing.assert_allclose(x[:, 0], [2.5])
     np.testing.assert_allclose(market, [2.5])

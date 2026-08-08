@@ -149,6 +149,96 @@ class RaceSetHead(nn.Module):
     return result.reshape(hidden.shape[0], hidden.shape[1], -1)
 
 
+class ContextPrototypeHead(nn.Module):
+  """Bounded query-logit correction from labelled context prototypes.
+
+  Context rows are split by their binary label, projected into a shared metric
+  space, and averaged into positive and negative prototypes.  Each query row is
+  compared with both prototypes.  The head is deliberately small: it gives the
+  historical label a direct connection to its runner representation while the
+  normal ICL and race-set paths remain responsible for the base prediction.
+  """
+
+  def __init__(self, input_dim, prototype_dim=16, output_classes=2,
+               max_correction=0.5):
+    super().__init__()
+    if prototype_dim < 1:
+      raise ValueError("context_prototype_dim must be positive")
+    if output_classes != 2:
+      raise ValueError("context prototypes currently require binary classification")
+    if not isinstance(max_correction, (int, float)) or max_correction <= 0:
+      raise ValueError("context_prototype_max_correction must be positive")
+    self.prototype_dim = prototype_dim
+    self.output_classes = output_classes
+    self.max_correction = float(max_correction)
+    self.projection = nn.Linear(input_dim, prototype_dim)
+    self.projection_norm = nn.LayerNorm(prototype_dim)
+    # A small non-zero initial gain makes label permutation observable from the
+    # first probe without allowing this new branch to dominate base logits.
+    self.raw_logit_gain = nn.Parameter(torch.tensor(-2.2521685))
+
+  def project(self, hidden):
+    return torch.nn.functional.normalize(
+        self.projection_norm(self.projection(hidden)), dim=-1, eps=1e-6)
+
+  def build_prototypes(self, hidden, labels, train_size, valid_row_mask=None):
+    if hidden.shape[:2] != labels.shape:
+      raise ValueError("labels must match hidden batch and sequence dimensions")
+    if train_size.shape != (hidden.shape[0],):
+      raise ValueError("train_size must have one value per batch sequence")
+    positions = torch.arange(hidden.shape[1], device=hidden.device)[None, :]
+    context_mask = positions < train_size[:, None]
+    if valid_row_mask is not None:
+      if valid_row_mask.shape != labels.shape or valid_row_mask.dtype != torch.bool:
+        raise ValueError("valid_row_mask must be bool and match context labels")
+      context_mask &= valid_row_mask
+    if torch.any(context_mask & ~((labels == 0) | (labels == 1))):
+      raise ValueError("context prototype labels must be binary")
+
+    projected = self.project(hidden)
+    prototypes = []
+    class_valid = []
+    for class_index in (0, 1):
+      class_mask = context_mask & (labels == class_index)
+      count = class_mask.sum(dim=1)
+      summed = (projected * class_mask[..., None]).sum(dim=1)
+      prototype = summed / count.clamp_min(1).to(projected.dtype)[:, None]
+      prototypes.append(torch.nn.functional.normalize(
+          prototype, dim=-1, eps=1e-6))
+      class_valid.append(count > 0)
+    return torch.stack(prototypes, dim=1), torch.stack(class_valid, dim=1).all(dim=1)
+
+  def correction_from_prototypes(self, hidden, prototypes, prototype_valid,
+                                 query_mask):
+    expected = (hidden.shape[0], 2, self.prototype_dim)
+    if prototypes.shape != expected:
+      raise ValueError(
+          f"context prototypes have shape {tuple(prototypes.shape)}, expected {expected}")
+    if prototype_valid.shape != (hidden.shape[0],):
+      raise ValueError("prototype_valid must have one value per batch sequence")
+    if query_mask.shape != hidden.shape[:2] or query_mask.dtype != torch.bool:
+      raise ValueError("query_mask must be bool and match hidden rows")
+    projected = self.project(hidden)
+    negative_similarity = (projected * prototypes[:, 0, None, :]).sum(dim=-1)
+    positive_similarity = (projected * prototypes[:, 1, None, :]).sum(dim=-1)
+    gain = torch.nn.functional.softplus(self.raw_logit_gain)
+    score = gain * (positive_similarity - negative_similarity)
+    score = self.max_correction * torch.tanh(score)
+    active = query_mask & prototype_valid[:, None]
+    score = torch.where(active, score, torch.zeros_like(score))
+    return torch.stack((-score, score), dim=-1)
+
+  def forward(self, hidden, labels, train_size, valid_row_mask=None):
+    prototypes, prototype_valid = self.build_prototypes(
+        hidden, labels, train_size, valid_row_mask=valid_row_mask)
+    positions = torch.arange(hidden.shape[1], device=hidden.device)[None, :]
+    query_mask = positions >= train_size[:, None]
+    if valid_row_mask is not None:
+      query_mask &= valid_row_mask
+    return self.correction_from_prototypes(
+        hidden, prototypes, prototype_valid, query_mask)
+
+
 # Always-on activation-chunk sizes. TabFM runs the whole training fold as one
 # in-context sequence, so a single forward materialises activations that grow
 # with rows * features and OOM the GPU on large tasks. These sizes split each

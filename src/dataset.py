@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 
 
-def load_feature_columns(path: Path) -> list[str]:
-    """Load and validate the ordered feature manifest."""
+def load_feature_manifest(path: Path) -> tuple[list[str], list[str]]:
+    """Load and validate the ordered features and zeroing contract."""
     payload = json.loads(path.read_text())
     features = payload.get("features")
     if not isinstance(features, list) or not features:
@@ -17,6 +17,28 @@ def load_feature_columns(path: Path) -> list[str]:
         raise ValueError(f"{path} contains an invalid feature name")
     if len(features) != len(set(features)):
         raise ValueError(f"{path} contains duplicate features")
+
+    zeroed_features = payload.get("zeroed_features", [])
+    if not isinstance(zeroed_features, list):
+        raise ValueError(f"{path} must contain a 'zeroed_features' list")
+    if any(
+        not isinstance(column, str) or not column for column in zeroed_features
+    ):
+        raise ValueError(f"{path} contains an invalid zeroed feature name")
+    if len(zeroed_features) != len(set(zeroed_features)):
+        raise ValueError(f"{path} contains duplicate zeroed features")
+    missing = sorted(set(zeroed_features) - set(features))
+    if missing:
+        raise ValueError(
+            f"{path} zeroed features are absent from 'features': "
+            + ", ".join(missing)
+        )
+    return features, zeroed_features
+
+
+def load_feature_columns(path: Path) -> list[str]:
+    """Load and validate the ordered feature manifest."""
+    features, _ = load_feature_manifest(path)
     return features
 
 

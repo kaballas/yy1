@@ -27,7 +27,7 @@ def validate_feature_columns(db_path: Path, features: list[str]) -> None:
     finally:
         connection.close()
     required = {
-        "race_id", "start_time_iso", "runner_number", "top3_mask",
+        "race_id", "competition_id", "start_time_iso", "runner_number", "top3_mask",
         "is_validation", "fluc2",
     }
     missing_required = sorted(required - set(schema))
@@ -152,7 +152,7 @@ def print_race_selection_logic(db_path: Path, minimum_race_number: int | None) -
         flush=True,
     )
     print(
-        "training_race_post_sql_logic: exclude races with fewer than 3 runners "
+        "training_race_post_sql_logic: exclude races with fewer than 4 runners "
         "or other than exactly 3 "
         "top3_mask=1 rows; "
         + (
@@ -171,7 +171,7 @@ def print_race_selection_logic(db_path: Path, minimum_race_number: int | None) -
     )
     print("\n")
     print(
-        "validation_race_post_sql_logic: exclude races with fewer than 3 runners "
+        "validation_race_post_sql_logic: exclude races with fewer than 4 runners "
         "or other than exactly 3 top3_mask=1 rows; preserve all "
         "remaining races (no max-valid truncation). Cohorts come from "
         "model_validation_races.validation_cohort when present; an uncovered "
@@ -228,6 +228,7 @@ def training_csv_columns(feature_columns: list[str]) -> list[str]:
     return [
         "race_id",
         "start_time_iso",
+        "competition_id",
         "is_validation",
         "runner_number",
         *feature_columns,
@@ -247,6 +248,7 @@ def export_rows_to_csv(
     source_columns = [
         "race_id",
         "start_time_iso",
+        "competition_id",
         "is_validation",
         "runner_number",
         *feature_columns,
@@ -301,6 +303,7 @@ def load_rows_from_csv(
     np.ndarray,
     np.ndarray,
     np.ndarray,
+    np.ndarray,
 ]:
     """Load all training arrays, including market prices, from a CSV snapshot."""
     expected_columns = training_csv_columns(feature_columns)
@@ -327,7 +330,7 @@ def load_rows_from_csv(
             f"{expected_width} columns"
         )
 
-    feature_start = 4
+    feature_start = 5
     feature_end = feature_start + len(feature_columns)
 
     def optional_float(value: str) -> float:
@@ -338,7 +341,8 @@ def load_rows_from_csv(
         times = np.asarray(
             [parse_iso_timestamp(row[1]) for row in rows], dtype=object
         )
-        validation_flags = np.asarray([int(row[2]) for row in rows], dtype=np.int8)
+        competition_ids = np.asarray([int(row[2]) for row in rows], dtype=np.int64)
+        validation_flags = np.asarray([int(row[3]) for row in rows], dtype=np.int8)
         x = np.asarray(
             [
                 [optional_float(value) for value in row[feature_start:feature_end]]
@@ -354,7 +358,7 @@ def load_rows_from_csv(
     except (TypeError, ValueError) as error:
         raise ValueError(f"Invalid typed value in training CSV {csv_path}: {error}") from error
     print(f"csv_load path={csv_path.resolve()} rows={len(rows):,}", flush=True)
-    return x, y, race_ids, times, validation_flags, market_fluc2
+    return x, y, race_ids, times, competition_ids, validation_flags, market_fluc2
 
 
 def load_market_fluc2(

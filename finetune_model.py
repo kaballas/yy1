@@ -28,15 +28,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=5e-5)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--early-stopping-patience", type=int, default=3)
-    parser.add_argument(
-        "--zero-features",
-        nargs="*",
-        default=None,
-        help=(
-            "Override features neutralized to standardized zero. "
-            "Omit to inherit the source model; pass with no names to disable."
-        ),
-    )
     parser.add_argument("--progress-race-id", type=int, default=10733171)
     parser.add_argument("--fine-tune-race-id", type=int, required=True,
                         help="Experiment race whose labelled rows are used for adaptation.")
@@ -66,8 +57,6 @@ def main() -> int:
         command.extend(["--split-manifest", str(args.split_manifest)])
     if args.encode_races_before_icl is not None:
         command.append("--encode-races-before-icl" if args.encode_races_before_icl else "--no-encode-races-before-icl")
-    if args.zero_features is not None:
-        command.extend(["--zero-features", *args.zero_features])
     if args.progress_race_id is not None:
         command.extend(["--progress-race-id", str(args.progress_race_id)])
     command.extend(["--fine-tune-race-id", str(args.fine_tune_race_id)])

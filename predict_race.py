@@ -139,7 +139,23 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--backtest-max-races", type=int, default=0,
-        help="Optional chronological cap for --backtest; 0 means every finished race.",
+        help=(
+            "Use the most recent N matching finished races for --backtest, then score "
+            "them chronologically; 0 means every matching finished race."
+        ),
+    )
+    parser.add_argument(
+        "--competition-id", type=int,
+        help="Limit --backtest target races to this competition_id.",
+    )
+    parser.add_argument(
+        "--include-competition-history-context",
+        action="store_true",
+        help=(
+            "In native single-race prediction, augment the checkpoint context "
+            "with every strictly earlier finished, completely labelled race "
+            "having the target race's competition_id."
+        ),
     )
     parser.add_argument(
         "--strict-load",
@@ -193,11 +209,11 @@ def load_native_query(
 def load_competition_context_race_ids(
     db_path: Path, target_race_id: str
 ) -> tuple[list[int], int, int]:
-    """Select finished historical races with the target competition and slot."""
+    """Select all complete earlier races from the target's competition."""
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
         target_rows = connection.execute(
-            "SELECT competition_id, race_number "
+            "SELECT competition_id, race_number, MIN(start_time_iso) "
             "FROM race_runners WHERE race_id = ? "
             "GROUP BY competition_id, race_number",
             (int(target_race_id),),
@@ -210,21 +226,25 @@ def load_competition_context_race_ids(
             raise ValueError(
                 f"Target race {target_race_id} has inconsistent competition_id/race_number."
             )
-        competition_id, target_race_number = target_rows[0]
-        if competition_id is None or target_race_number is None:
+        competition_id, target_race_number, target_time = target_rows[0]
+        if competition_id is None or target_race_number is None or target_time is None:
             raise ValueError(
-                f"Target race {target_race_id} has NULL competition_id or race_number."
+                f"Target race {target_race_id} has NULL competition_id, race_number, "
+                "or start_time_iso."
             )
         context_rows = connection.execute(
             "SELECT race_id "
             "FROM race_runners "
             "WHERE status = 'finished' "
             "AND competition_id = ? "
-            "AND race_number = ? "
             "AND race_id <> ? "
+            "AND start_time_iso < ? "
+            "AND top3_mask IN (0, 1) "
             "GROUP BY race_id "
+            "HAVING COUNT(*) >= 4 "
+            "AND SUM(CASE WHEN top3_mask = 1 THEN 1 ELSE 0 END) = 3 "
             "ORDER BY MIN(start_time_iso), race_id",
-            (int(competition_id), int(target_race_number), int(target_race_id)),
+            (int(competition_id), int(target_race_id), str(target_time)),
         ).fetchall()
     finally:
         connection.close()
@@ -233,14 +253,15 @@ def load_competition_context_race_ids(
     if not context_race_ids:
         raise ValueError(
             f"No finished historical races found for competition_id={int(competition_id)} "
-            f"and race_number={int(target_race_number)}."
+            f"strictly before target race {int(target_race_id)}."
         )
     print(
         "competition_context_selection "
         f"target_race_id={int(target_race_id)} "
         f"competition_id={int(competition_id)} "
         f"target_race_number={int(target_race_number)} "
-        f"finished_context_races={len(context_race_ids)}",
+        f"eligible_previous_races={len(context_race_ids)} "
+        f"race_ids={context_race_ids}",
         flush=True,
     )
     return context_race_ids, int(competition_id), int(target_race_number)
@@ -288,6 +309,7 @@ def load_training_context_for_target(
     db_path: Path, target_race_id: str, feature_columns: Sequence[str], metadata: Mapping[str, Any],
     prepared_context: tuple[dict[int, pd.DataFrame], list[tuple[pd.Timestamp, int]]] | None = None,
     prepared_query: pd.DataFrame | None = None,
+    include_competition_history: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
     """Use the exact chronological context policy used by training and validation."""
     query = prepared_query.copy() if prepared_query is not None else load_native_query(db_path, target_race_id, feature_columns)
@@ -302,7 +324,10 @@ def load_training_context_for_target(
                 f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier training context races; "
                 f"checkpoint requires {context_size}."
             )
-        return pd.concat([context_by_race[race_id] for race_id in selected_ids], ignore_index=True), query, selected_ids
+        context = pd.concat(
+            [context_by_race[race_id] for race_id in selected_ids], ignore_index=True
+        )
+        return context, query, selected_ids
     selected = ["race_id", "start_time_iso", "runner_number", "race_number", *feature_columns, "top3_mask"]
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
@@ -321,7 +346,7 @@ def load_training_context_for_target(
     summary = frame.groupby("race_id", sort=False).agg(
         start_time_iso=("start_time_iso", "min"), runners=("race_id", "size"), top3=("top3_mask", "sum")
     )
-    summary = summary.loc[(summary["runners"] >= 3) & (summary["top3"] == 3)].sort_values("start_time_iso", kind="stable")
+    summary = summary.loc[(summary["runners"] >= 4) & (summary["top3"] == 3)].sort_values("start_time_iso", kind="stable")
     selected_ids = [int(value) for value in summary.tail(context_size).index]
     if len(selected_ids) < context_size:
         raise ValueError(
@@ -332,6 +357,45 @@ def load_training_context_for_target(
     order = {race_id: index for index, race_id in enumerate(selected_ids)}
     context["__context_order"] = context["race_id"].map(order)
     context = context.sort_values(["__context_order", "runner_number"], kind="stable").drop(columns="__context_order")
+    if include_competition_history:
+        competition_ids, _, _ = load_competition_context_race_ids(
+            db_path, target_race_id
+        )
+        added_ids = [race_id for race_id in competition_ids if race_id not in selected_ids]
+        combined_ids = list(dict.fromkeys([*selected_ids, *competition_ids]))
+        selected_columns = [
+            "race_id", "start_time_iso", "runner_number", *feature_columns, "top3_mask"
+        ]
+        placeholders = ", ".join("?" for _ in combined_ids)
+        connection = sqlite3.connect(
+            f"file:{db_path.resolve()}?mode=ro", uri=True
+        )
+        try:
+            context = pd.read_sql_query(
+                f"SELECT {', '.join(quote_identifier(column) for column in selected_columns)} "
+                f"FROM race_runners WHERE race_id IN ({placeholders}) "
+                "ORDER BY start_time_iso, race_id, runner_number",
+                connection,
+                params=combined_ids,
+            )
+        finally:
+            connection.close()
+        selected_ids = [
+            int(value)
+            for value in context[["race_id", "start_time_iso"]]
+            .drop_duplicates()
+            .sort_values(["start_time_iso", "race_id"], kind="stable")["race_id"]
+        ]
+        print(
+            "competition_history_context_augmented "
+            f"target_race_id={int(target_race_id)} "
+            f"checkpoint_context_races={context_size} "
+            f"competition_history_races={len(competition_ids)} "
+            f"new_competition_races={len(added_ids)} "
+            f"combined_context_races={len(selected_ids)} "
+            f"race_ids={selected_ids}",
+            flush=True,
+        )
     return context, query, selected_ids
 
 
@@ -722,16 +786,39 @@ def predict_one(
         if args.preprocessor is not None:
             raise ValueError("--preprocessor is only supported with --data generic mode.")
         context, query, ordered_context_race_ids = load_training_context_for_target(
-            args.db, str(args.race_id), feature_columns, metadata, prepared_context, prepared_query
+            args.db,
+            str(args.race_id),
+            feature_columns,
+            metadata,
+            prepared_context,
+            prepared_query,
+            include_competition_history=getattr(
+                args, "include_competition_history_context", False
+            ),
         )
         if not args.backtest:
+            context_strategy = (
+                "most_recent_earlier_training_races_plus_all_earlier_same_competition"
+                if getattr(args, "include_competition_history_context", False)
+                else "most_recent_earlier_training_races"
+            )
             print(
                 "PREDICTION CONTEXT "
-                f"checkpoint={checkpoint.name} strategy=most_recent_earlier_training_races "
+                f"checkpoint={checkpoint.name} strategy={context_strategy} "
                 f"races={len(ordered_context_race_ids)} rows={len(context)} "
                 f"race_ids={ordered_context_race_ids}",
                 flush=True,
             )
+            if len(ordered_context_race_ids) > checkpoint_context_size(metadata):
+                print(
+                    "WARNING context_window_out_of_distribution "
+                    f"checkpoint={checkpoint.name} "
+                    f"trained_context_races={checkpoint_context_size(metadata)} "
+                    f"prediction_context_races={len(ordered_context_race_ids)} "
+                    "reason=include_competition_history_context",
+                    file=sys.stderr,
+                    flush=True,
+                )
         context_values = matrix_from_frame(context, feature_columns, None)
     else:
         data = load_table(args.data)
@@ -957,34 +1044,55 @@ def print_model_rankings(result: pd.DataFrame, runner_id_column: str) -> None:
         print(ranking.to_string(index=False))
 
 
-def finished_race_ids(db_path: Path, maximum: int) -> list[int]:
-    """Return all finished target races in chronological order."""
+def finished_race_ids(
+    db_path: Path, maximum: int, competition_id: int | None = None
+) -> list[int]:
+    """Return matching finished targets chronologically, capped to the latest N."""
     if maximum < 0:
         raise ValueError("--backtest-max-races must be zero or positive.")
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
+        where = "status = 'finished'"
+        params: tuple[int, ...] = ()
+        if competition_id is not None:
+            where += " AND competition_id = ?"
+            params = (competition_id,)
         rows = connection.execute(
-            "SELECT race_id FROM race_runners WHERE status = 'finished' "
-            "GROUP BY race_id ORDER BY MIN(start_time_iso), race_id"
+            f"SELECT race_id FROM race_runners WHERE {where} "
+            "GROUP BY race_id ORDER BY MIN(start_time_iso), race_id",
+            params,
         ).fetchall()
     finally:
         connection.close()
     race_ids = [int(row[0]) for row in rows]
-    return race_ids if maximum == 0 else race_ids[:maximum]
+    return race_ids if maximum == 0 else race_ids[-maximum:]
 
 
 def prepare_backtest_native_data(
-    db_path: Path, feature_columns: Sequence[str], metadata: Mapping[str, Any], maximum: int
+    db_path: Path,
+    feature_columns: Sequence[str],
+    metadata: Mapping[str, Any],
+    maximum: int,
+    competition_id: int | None = None,
 ) -> tuple[dict[int, pd.DataFrame], dict[int, pd.DataFrame], list[tuple[pd.Timestamp, int]]]:
     """Load finished targets and the eligible training context pool once."""
+    if maximum < 0:
+        raise ValueError("--backtest-max-races must be zero or positive.")
     selected = ["race_id", "start_time_iso", "runner_number", "race_number", *feature_columns, "top3_mask", "is_winner"]
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
         require_training_rows_view(connection)
+        target_where = "status = 'finished'"
+        target_params: tuple[int, ...] = ()
+        if competition_id is not None:
+            target_where += " AND competition_id = ?"
+            target_params = (competition_id,)
         targets = pd.read_sql_query(
             f"SELECT {', '.join(quote_identifier(column) for column in selected)} "
-            "FROM race_runners WHERE status = 'finished' ORDER BY start_time_iso, race_id, runner_number",
+            f"FROM race_runners WHERE {target_where} "
+            "ORDER BY start_time_iso, race_id, runner_number",
             connection,
+            params=target_params,
         )
         pool = pd.read_sql_query(
             f"SELECT {', '.join(quote_identifier(column) for column in selected[:-1])} "
@@ -994,7 +1102,9 @@ def prepare_backtest_native_data(
     finally:
         connection.close()
     if maximum:
-        wanted = targets.groupby("race_id", sort=False).size().index[:maximum]
+        # A cap is operationally useful for testing current performance. Keep
+        # the latest matching races, while retaining chronological score order.
+        wanted = targets.groupby("race_id", sort=False).size().index[-maximum:]
         targets = targets.loc[targets["race_id"].isin(wanted)].copy()
     minimum = metadata.get("optimizer_min_race_number")
     if minimum is not None:
@@ -1002,7 +1112,7 @@ def prepare_backtest_native_data(
     summary = pool.groupby("race_id", sort=False).agg(
         start_time_iso=("start_time_iso", "min"), runners=("race_id", "size"), top3=("top3_mask", "sum")
     )
-    summary = summary.loc[(summary["runners"] >= 3) & (summary["top3"] == 3)]
+    summary = summary.loc[(summary["runners"] >= 4) & (summary["top3"] == 3)]
     context_ids = set(map(int, summary.index))
     pool = pool.loc[pool["race_id"].isin(context_ids)].copy()
     context_by_race = {int(race_id): group.copy() for race_id, group in pool.groupby("race_id", sort=False)}
@@ -1030,14 +1140,28 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
             continue
         feature_columns = read_feature_columns(args, metadata)
         context_by_race, target_by_race, ordered_context = prepare_backtest_native_data(
-            args.db, feature_columns, metadata, args.backtest_max_races
+            args.db,
+            feature_columns,
+            metadata,
+            args.backtest_max_races,
+            args.competition_id,
         )
         race_ids = list(target_by_race)
         if not race_ids:
             raise ValueError("No status='finished' races were found.")
-        print(f"BACKTEST targets={len(race_ids)} status=finished", flush=True)
+        scope = (
+            "competition_id=all"
+            if args.competition_id is None
+            else f"competition_id={args.competition_id}"
+        )
+        cap = "all" if args.backtest_max_races == 0 else f"latest_{args.backtest_max_races}"
+        print(
+            f"BACKTEST targets={len(race_ids)} status=finished {scope} selection={cap}",
+            flush=True,
+        )
         model_predictions: list[pd.DataFrame] = []
         skipped = 0
+        skip_examples: list[str] = []
         for index, race_id in enumerate(race_ids, start=1):
             race_args = copy.copy(args)
             race_args.race_id = str(race_id)
@@ -1049,11 +1173,13 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
             except ValueError as exc:
                 # Earliest races may not yet have enough historical context.
                 skipped += 1
-                continue
-            score_column = "ranking_probability" if "ranking_probability" in prediction else "prediction"
-            prediction = prediction.rename(columns={score_column: "model_score"})
-            prediction["checkpoint"] = checkpoint.name
-            model_predictions.append(prediction)
+                if len(skip_examples) < 3:
+                    skip_examples.append(f"race_id={race_id}: {exc}")
+            else:
+                score_column = "ranking_probability" if "ranking_probability" in prediction else "prediction"
+                prediction = prediction.rename(columns={score_column: "model_score"})
+                prediction["checkpoint"] = checkpoint.name
+                model_predictions.append(prediction)
             if index % 100 == 0 or index == len(race_ids):
                 print(
                     f"BACKTEST PROGRESS checkpoint={checkpoint.name} "
@@ -1061,7 +1187,12 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
                     flush=True,
                 )
         if not model_predictions:
-            print(f"WARNING skipped_checkpoint={checkpoint.name} reason=no scoreable races", file=sys.stderr)
+            detail = " | ".join(skip_examples)
+            print(
+                f"WARNING skipped_checkpoint={checkpoint.name} reason=no scoreable races"
+                + (f" examples={detail}" if detail else ""),
+                file=sys.stderr,
+            )
             continue
         model_frame = pd.concat(model_predictions, ignore_index=True)
         labels = pd.to_numeric(model_frame["top3_mask"], errors="coerce")
@@ -1092,6 +1223,19 @@ def main() -> int:
     if not args.show_warnings:
         warnings.filterwarnings("ignore")
     try:
+        if getattr(args, "include_competition_history_context", False) and args.backtest:
+            raise ValueError(
+                "--include-competition-history-context currently supports "
+                "single-race prediction only; omit --backtest."
+            )
+        if (
+            getattr(args, "include_competition_history_context", False)
+            and args.data is not None
+        ):
+            raise ValueError(
+                "--include-competition-history-context requires native SQLite mode; "
+                "omit --data."
+            )
         if args.backtest:
             result, metrics = backtest(args)
         else:

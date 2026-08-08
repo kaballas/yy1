@@ -99,9 +99,9 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Parameters to optimize: attention_head_only trains race_set_head "
-            "only; decoder_and_race_head trains icl_predictor.decoder and "
-            "race_set_head only; icl_and_race_head trains the complete "
-            "icl_predictor and race_set_head; full_model trains all parameters. "
+            "and an enabled context-prototype head; decoder_and_race_head also "
+            "trains icl_predictor.decoder; icl_and_race_head trains the complete "
+            "icl_predictor plus both context heads; full_model trains all parameters. "
             "A resumed self-attention model defaults to icl_and_race_head."
         ),
     )
@@ -161,12 +161,6 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.20,
         help="Deprecated; validation is selected by race_runners.is_validation = 1.",
-    )
-    parser.add_argument(
-        "--zero-features",
-        nargs="*",
-        default=None,
-        help="Set these columns to standardized zero after preprocessing.",
     )
     parser.add_argument(
         "--train-cutoff-iso",
@@ -235,6 +229,26 @@ def parse_args() -> argparse.Namespace:
         help="Experimental representation-level race encoder before ICL; requires retraining.",
     )
     parser.add_argument(
+        "--context-prototype-branch", action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Add a bounded query-logit correction based on positive and negative "
+            "runner prototypes from labelled context rows. Resumed models inherit "
+            "their saved setting when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--context-prototype-dim", type=int, default=None,
+        help="Metric-space dimension for the context prototype branch (default: 16).",
+    )
+    parser.add_argument(
+        "--context-prototype-max-correction", type=float, default=None,
+        help=(
+            "Maximum absolute per-class logit correction from context prototypes "
+            "(default: 0.5)."
+        ),
+    )
+    parser.add_argument(
         "--classification-loss-weight", "--classification_loss_weight",
         dest="classification_loss_weight", type=float, default=1.0,
     )
@@ -259,8 +273,42 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--context-prototype-loss-weight",
+        "--context_prototype_loss_weight",
+        dest="context_prototype_loss_weight",
+        type=float,
+        default=None,
+        help=(
+            "Direct pairwise ranking loss applied to prototype-only query "
+            "corrections. Requires --context-prototype-branch and defaults to "
+            "0.25 when that branch is enabled, otherwise 0."
+        ),
+    )
+    parser.add_argument(
         "--cardinality-loss-weight", "--cardinality_loss_weight",
         dest="cardinality_loss_weight", type=float, default=0.0,
+    )
+    parser.add_argument(
+        "--context-dependence-loss-weight",
+        "--context_dependence_loss_weight",
+        dest="context_dependence_loss_weight",
+        type=float,
+        default=0.1,
+        help=(
+            "Weight for the contrastive context objective. It requires correct "
+            "context to beat a deterministic label-permuted context (default: 0.1)."
+        ),
+    )
+    parser.add_argument(
+        "--context-dependence-margin",
+        "--context_dependence_margin",
+        dest="context_dependence_margin",
+        type=float,
+        default=0.02,
+        help=(
+            "Required loss advantage of correct over label-permuted context "
+            "before the context penalty becomes zero (default: 0.02)."
+        ),
     )
     parser.add_argument(
         "--stress-top3-recall-max-drop",
