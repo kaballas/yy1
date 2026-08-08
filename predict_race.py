@@ -33,6 +33,7 @@ import inspect
 import json
 import sqlite3
 import sys
+import time
 import warnings
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -1128,10 +1129,12 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Backtest each checkpoint independently on every completed target race."""
     if args.data is not None:
         raise ValueError("--backtest requires native SQLite mode; omit --data.")
+    backtest_started_at = time.perf_counter()
     all_predictions: list[pd.DataFrame] = []
     metric_rows: list[dict[str, Any]] = []
     device = torch.device(args.device)
     for checkpoint in checkpoint_paths(args):
+        checkpoint_started_at = time.perf_counter()
         print(f"BACKTESTING checkpoint={checkpoint}", flush=True)
         try:
             model, metadata = load_model(checkpoint, device, args.strict_load)
@@ -1162,6 +1165,7 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
         model_predictions: list[pd.DataFrame] = []
         skipped = 0
         skip_examples: list[str] = []
+        inference_started_at = time.perf_counter()
         for index, race_id in enumerate(race_ids, start=1):
             race_args = copy.copy(args)
             race_args.race_id = str(race_id)
@@ -1181,11 +1185,15 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
                 prediction["checkpoint"] = checkpoint.name
                 model_predictions.append(prediction)
             if index % 100 == 0 or index == len(race_ids):
+                inference_elapsed = time.perf_counter() - inference_started_at
                 print(
                     f"BACKTEST PROGRESS checkpoint={checkpoint.name} "
-                    f"races={index}/{len(race_ids)} scored={len(model_predictions)} skipped={skipped}",
+                    f"races={index}/{len(race_ids)} scored={len(model_predictions)} "
+                    f"skipped={skipped} elapsed_seconds={inference_elapsed:.2f} "
+                    f"seconds_per_target={inference_elapsed / index:.3f}",
                     flush=True,
                 )
+        inference_seconds = time.perf_counter() - inference_started_at
         if not model_predictions:
             detail = " | ".join(skip_examples)
             print(
@@ -1205,16 +1213,33 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
             )
         else:
             metrics = {"complete_races": 0}
+        checkpoint_seconds = time.perf_counter() - checkpoint_started_at
+        seconds_per_target = inference_seconds / len(race_ids)
         metric_rows.append({
             "checkpoint": checkpoint.name,
             "targets_requested": len(race_ids),
             "targets_scored": int(model_frame[args.race_id_column].nunique()),
             "targets_skipped": skipped,
+            "inference_seconds": inference_seconds,
+            "seconds_per_target": seconds_per_target,
+            "checkpoint_seconds": checkpoint_seconds,
             **metrics,
         })
+        print(
+            f"BACKTEST COMPLETE checkpoint={checkpoint.name} "
+            f"inference_seconds={inference_seconds:.2f} "
+            f"seconds_per_target={seconds_per_target:.3f} "
+            f"checkpoint_seconds={checkpoint_seconds:.2f}",
+            flush=True,
+        )
         all_predictions.append(model_frame)
     if not all_predictions:
         raise ValueError("No checkpoint produced any backtest predictions.")
+    print(
+        f"BACKTEST COMPLETE checkpoints={len(metric_rows)} "
+        f"total_seconds={time.perf_counter() - backtest_started_at:.2f}",
+        flush=True,
+    )
     return pd.concat(all_predictions, ignore_index=True), pd.DataFrame(metric_rows)
 
 

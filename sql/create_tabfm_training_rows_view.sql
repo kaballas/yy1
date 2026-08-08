@@ -9,7 +9,7 @@ CREATE VIEW tabfm_trainable_validation_runners AS
 SELECT
     rr.*
 FROM race_runners AS rr
-WHERE rr.top3_mask IN (0, 1) and competition_id in (999
+WHERE rr.top3_mask IN (0, 1) and competition_id in (580,590
 );
 
 DROP VIEW tabfm_validation_runners;
