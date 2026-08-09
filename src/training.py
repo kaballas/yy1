@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
+from datetime import datetime
 import json
 import random
 import numpy as np
@@ -61,6 +62,61 @@ CONTEXT_STOP_WARNING_MIN_STEP = 100
 CONTEXT_STOP_WARNING_PROBES = 5
 FIXED_PROBE_REGRESSION_WARNING_MIN_STEP = 50
 FIXED_PROBE_STOP_WARNING_PROBES = 2
+
+
+def timestamped_best_checkpoint_path(
+    output: Path, epoch: int, saved_at: datetime | None = None
+) -> tuple[Path, str]:
+    """Return a unique, sortable path for an improved epoch checkpoint."""
+    saved_at = saved_at or datetime.now().astimezone()
+    if saved_at.tzinfo is None:
+        raise ValueError("Checkpoint timestamp must be timezone-aware")
+    timestamp = saved_at.strftime("%Y%m%dT%H%M%S%f%z")
+    suffix = output.suffix or ".pt"
+    stem = output.stem if output.suffix else output.name
+    path = output.with_name(
+        f"{stem}.best-epoch-{epoch:03d}.{timestamp}{suffix}"
+    )
+    return path, saved_at.isoformat()
+
+
+def save_best_epoch_checkpoint(
+    *,
+    output: Path,
+    epoch: int,
+    state_dict: dict[str, torch.Tensor],
+    model_kwargs: dict[str, object],
+    feature_columns: list[str],
+    median: np.ndarray,
+    scale: np.ndarray,
+    context_races_per_step: int,
+    zeroed_features: list[str],
+    metrics: dict[str, object],
+    metrics_by_cohort: dict[str, object],
+) -> Path:
+    """Atomically retain a standalone checkpoint whenever validation improves."""
+    path, saved_at = timestamped_best_checkpoint_path(output, epoch)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint = {
+        "model_state_dict": state_dict,
+        "model_kwargs": model_kwargs,
+        "feature_columns": feature_columns,
+        "median": median,
+        "scale": scale,
+        "context_races_per_step": context_races_per_step,
+        "validation_context_races_per_prediction": context_races_per_step,
+        "zeroed_features": zeroed_features,
+        "label": "top3_mask",
+        "best_epoch": epoch,
+        "best_metrics": metrics,
+        "best_metrics_by_validation_cohort": metrics_by_cohort,
+        "checkpoint_saved_at": saved_at,
+        "checkpoint_kind": "best_epoch_snapshot",
+    }
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    torch.save(checkpoint, temporary)
+    temporary.replace(path)
+    return path
 
 
 def configure_trainable_parameters(
@@ -1693,6 +1749,19 @@ def run_training(args: argparse.Namespace) -> int:
             }
             best_metrics_by_cohort = metrics_by_cohort
             epochs_without_improvement = 0
+            best_checkpoint_path = save_best_epoch_checkpoint(
+                output=args.output,
+                epoch=best_epoch,
+                state_dict=best_state,
+                model_kwargs=model_kwargs,
+                feature_columns=feature_columns,
+                median=median,
+                scale=scale,
+                context_races_per_step=effective_context_races_per_step,
+                zeroed_features=zero_features,
+                metrics=best_metrics,
+                metrics_by_cohort=best_metrics_by_cohort,
+            )
             print(
                 f"NEW BEST epoch={best_epoch} "
                 f"top3_recall={race_metrics['top3_recall']:.4f} "
@@ -1700,7 +1769,8 @@ def run_training(args: argparse.Namespace) -> int:
                 f"contained_top4={race_metrics['contained_top4_rate']:.4f} "
                 f"exact_top3_set={race_metrics['exact_top3_set_rate']:.4f} "
                 f"auc={race_metrics['roc_auc']:.4f} "
-                f"logloss={race_metrics['logloss']:.5f}",
+                f"logloss={race_metrics['logloss']:.5f} "
+                f"checkpoint={best_checkpoint_path}",
                 flush=True,
             )
         else:

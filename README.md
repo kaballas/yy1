@@ -99,6 +99,127 @@ The input-feature prototype architecture is incompatible with the obsolete
 hidden-representation prototype checkpoint. Start from scratch with a new path
 or `--overwrite-existing` when moving to this architecture.
 
+## Training parameter reference
+
+This section covers every option currently accepted by `train_model.py`.
+Values described as inherited are read from `--resume-model` when that option
+is supplied. Boolean options using the `--no-...` form explicitly disable the
+corresponding feature.
+
+### Data, manifests, and checkpoints
+
+| Parameter | Default | Detailed behavior |
+|---|---|---|
+| `--db PATH` | `db/race_runners.sqlite` | SQLite source used to resolve the training and validation views, race chronology, competition membership, and market baseline columns. Use the database whose split flags belong to the experiment. |
+| `--training-csv PATH` | `outputs/training_records.csv` | Destination for the fresh export of the training view. Training reloads this CSV rather than continuing directly from SQLite, making the exact records inspectable. |
+| `--validation-csv PATH` | `outputs/validation_records.csv` | Destination for the fresh validation export. Validation rows and the market baseline are reloaded from this snapshot. It must remain disjoint from training races. |
+| `--features-json PATH` | `tabfm_features.json` for scratch training | Ordered feature and zero-bucket manifest. Omit it when resuming so the checkpoint's exact feature order, zeroed features, preprocessing statistics, and prototype input width are inherited. An explicitly incompatible resume manifest is rejected. |
+| `--context-json PATH` | `tabfm_context.json` | Context manifest. Its race count supplies the default `--context-races-per-step`; actual query context is still restricted to strictly earlier complete races from the same competition. |
+| `--split-manifest PATH` | none | Split-v2 provenance manifest for a clean experiment. Supply the manifest associated with the database split so training can record and validate the split provenance. |
+| `--output PATH` | `outputs/tabfm_race_top3.pt` | Checkpoint bundle written after training. If this file already exists, it is automatically treated as a resume source unless `--overwrite-existing` is used. |
+| `--resume-model PATH` | none | Loads model weights, feature order, preprocessing, architecture, and relevant metadata from an existing bundle. A fresh AdamW optimizer is created; optimizer momentum is not resumed. |
+| `--overwrite-existing` | false | Starts from scratch even if `--output` already exists. This is destructive to the named output, so use a new path unless replacement is deliberate. It cannot be combined with `--resume-model`. |
+| `--allow-in-place-fine-tune` | false | Permits `--resume-model` and `--output` to name the same file. Without it, in-place replacement is rejected so the source checkpoint remains available for comparison and recovery. |
+
+### Fine-tuning scope
+
+| Parameter | Default | Detailed behavior |
+|---|---|---|
+| `--fine-tune-scope SCOPE` | `full_model` from scratch; `icl_and_race_head` for a resumed self-attention model | Selects trainable parameters. `attention_head_only` trains the race head and enabled prototype head; `decoder_and_race_head` also trains the ICL decoder; `icl_and_race_head` trains the complete ICL predictor plus both context heads; `full_model` updates every parameter. The recommended model-5 fine-tune uses `icl_and_race_head`. |
+| `--fine-tune-attention-head-only` | false | Shortcut for the legacy attention-head-only mode. It requires a resumed self-attention checkpoint and conflicts with any different explicit `--fine-tune-scope`. Prefer the scope option in new commands. |
+
+### Epoch and race scheduling
+
+| Parameter | Default | Detailed behavior |
+|---|---|---|
+| `--epochs N` | `10` | Maximum complete passes through the generated optimizer-step schedule. Early stopping may finish sooner; the best accepted state, not necessarily the last epoch, is saved. |
+| `--steps-per-epoch N` | `100` | Optimizer steps in each epoch when automatic scheduling is disabled. It is derived from the eligible race count when `--auto-race-schedule` is enabled. |
+| `--auto-race-schedule` | false | Derives steps per epoch and the effective query-race batch size from eligible complete races. `--query-races-per-step` becomes the maximum target batch size. This is recommended for full-dataset training. |
+| `--context-races-per-step N` | number of races in `--context-json` | Number of most-recent, complete, strictly earlier same-competition races assigned independently to each query. Increasing it changes the context distribution and should be validated rather than assumed beneficial. |
+| `--query-races-per-step N` | `80` | Maximum complete query races in one optimizer step. Smaller values reduce memory use and give more updates per epoch; the prototype runs use `5`. |
+| `--print-race-schedule` | false | Prints `race_id:race_number` for context and query races in chronological step order. Enable it when auditing causal membership or investigating unexpected scheduling. |
+| `--batch-rows N` | `256` | Deprecated compatibility argument. Current batches are composed of complete races and therefore have variable row counts; this value does not control the active race scheduler. |
+| `--min-race-number N` | none | Restricts optimizer-step context and query pools to races whose `race_number` is at least `N`. Validation and its fixed context are unchanged, so this is an experimental training filter rather than a validation filter. |
+
+### Optimizer and numerical controls
+
+| Parameter | Default | Detailed behavior |
+|---|---|---|
+| `--learning-rate RATE` | `0.0003` from scratch; `0.00003` when resuming | AdamW step size. Fine-tuning uses the lower default to avoid destroying useful weights. Values above `0.00003` on resume are rejected unless the high-rate safety override is supplied. |
+| `--allow-high-fine-tune-learning-rate` | false | Bypasses the resumed-model learning-rate ceiling. Use only for a controlled destructive-update experiment with a separate output path. |
+| `--weight-decay RATE` | `0.0001` | AdamW decoupled weight decay. It regularizes trainable weights; excessive values can suppress the relatively small context corrections. |
+| `--max-grad-norm VALUE` | `1.0` | Clips the total gradient norm before each optimizer update. It must be positive and limits unstable steps without changing the forward loss. |
+| `--seed N` | `42` | Seeds Python, NumPy, Torch, and the training sampler. Reusing it makes schedule and probe comparisons reproducible; use additional seeds when estimating result variance. |
+| `--device DEVICE` | `cuda` when available, otherwise `cpu` | Torch execution device, such as `cpu`, `cuda`, or `cuda:0`. CPU is slower but avoids GPU availability and memory constraints. |
+
+### Validation, probes, and checkpoint selection
+
+| Parameter | Default | Detailed behavior |
+|---|---|---|
+| `--early-stopping-patience N` | `3` | Stops after `N` consecutive eligible epochs fail to improve checkpoint-selection metrics. It must be positive. Small chronological cohorts disable patience unless explicitly allowed. |
+| `--allow-small-cohort-early-stopping` | false | Enables patience-based stopping when the `chronological_representative` cohort contains fewer than 20 complete races. This makes selection more sensitive to noise. |
+| `--probe-every-steps N` | `10` | Runs deterministic `FIXED_PROBE` and context-ablation diagnostics every `N` optimizer updates. Lower values give faster feedback but increase runtime. |
+| `--probe-races N` | `20` | Number of complete development races held fixed for deterministic probes. It must be positive; a larger cohort is steadier but more expensive. |
+| `--step-loss-window N` | `10` | Number of recent optimizer-step losses used in `rolling_loss`. It smooths logging only and does not change gradients. |
+| `--max-valid-races N` | none | Compatibility check only. Validation is never truncated; a value below the complete flagged validation cohort is rejected. |
+| `--stress-top3-recall-max-drop VALUE` | `0.5` | Checkpoint-selection guardrail in the range `[0,1]`. It limits the permitted absolute top-three-recall degradation on the market-miss stress cohort relative to its best observed result. |
+| `--progress-race-id ID` | first validation race | Chooses one race whose runner ranking is printed after every epoch. This is a human-readable diagnostic and does not select the checkpoint. |
+| `--valid-frac VALUE` | `0.20` | Deprecated. The active partition comes from `race_runners.is_validation`; changing this value does not create a random validation split. |
+| `--train-cutoff-iso TIMESTAMP` | none | Deprecated and rejected by the flag-based validation pipeline. Set chronological membership in the database split instead. |
+
+### Race-context and prototype architecture
+
+| Parameter | Default | Detailed behavior |
+|---|---|---|
+| `--race-context-mode {none,self_attention}` | `none` from scratch; inherited on resume | Enables interaction between runners in the same query race. `self_attention` lets runner representations influence one another before the final ranking correction. |
+| `--race-context-dim N` | `32` | Hidden width of the within-race attention branch. It must be positive and divisible by `--race-context-heads`. Larger values increase capacity and compute. |
+| `--race-context-layers N` | `1` | Number of stacked within-race attention layers. More layers add capacity and latency and require scratch training or an architecture-compatible checkpoint. |
+| `--race-context-heads N` | `2` | Number of attention heads. It must be positive and divide the context dimension exactly. |
+| `--race-context-ff-dim N` | `64` | Hidden width of the race-context feed-forward sublayer. Larger values increase parameters and CPU cost. |
+| `--race-context-residual` / `--no-race-context-residual` | enabled | Controls whether the race-head correction is added residually to the base logits. Resumed models inherit their stored setting when neither form is supplied. |
+| `--encode-races-before-icl` / `--no-encode-races-before-icl` | disabled from scratch; inherited on resume | Applies the representation-level race encoder before the ICL predictor. It changes the architecture and therefore requires compatible weights or scratch retraining. |
+| `--context-prototype-branch` / `--no-context-prototype-branch` | disabled from scratch; inherited on resume | Enables the positive/negative historical feature prototypes and bounded query-logit correction. A prototype checkpoint cannot be resumed with this branch disabled. |
+| `--context-prototype-dim N` | `16` | Width of the learned prototype metric space. It must be positive and is part of checkpoint tensor compatibility. |
+| `--context-prototype-max-correction VALUE` | `0.5` | Positive bound on the absolute per-class logit correction contributed by prototypes. The recommended models explicitly use the more conservative value `0.25`. |
+
+### Loss weights and context objectives
+
+All loss weights must be non-negative. A value of zero disables that component.
+The total objective is the weighted sum of the enabled components.
+
+For compatibility with older commands, the loss flags also accept these exact
+underscore aliases: `--classification_loss_weight`,
+`--auxiliary_row_loss_weight`, `--pairwise_loss_weight`,
+`--attention_delta_pairwise_loss_weight`,
+`--context_prototype_loss_weight`, `--cardinality_loss_weight`,
+`--context_dependence_loss_weight`, and `--context_dependence_margin`. They are
+identical to the hyphenated forms documented below; do not supply both forms in
+one command.
+
+| Parameter | Default | Detailed behavior |
+|---|---|---|
+| `--classification-loss-weight VALUE` | `1.0` | Weight on class-weighted binary top-three cross-entropy, averaged within each race and then equally across races. This is the primary probability-learning objective. |
+| `--pairwise-loss-weight VALUE` | `0.0` | Weight on the softplus ranking loss between every top-three and non-top-three runner within each complete query race. The recommended prototype runs use `0.25`. |
+| `--attention-delta-pairwise-loss-weight VALUE` | `0.0` | Applies pairwise ranking loss directly to the self-attention race-head correction, ensuring that branch learns ranking information rather than letting base logits do all the work. It requires self-attention; the recommended value is `0.05`. |
+| `--context-prototype-loss-weight VALUE` | `0.25` when the prototype branch is enabled, otherwise `0` | Applies pairwise ranking loss directly to prototype-only query corrections. This is the direct supervision that connects historical labels and runner features to rankings. |
+| `--cardinality-loss-weight VALUE` | `0.0` | Penalizes the squared difference between the sum of runner top-three probabilities and three, normalized by three, within each race. Leave it at zero when independent binary probabilities are preferred. |
+| `--context-dependence-loss-weight VALUE` | `0.1` | Weight on the contrastive context objective comparing correct context with a deterministic label-permuted version. It teaches correct context to outperform incorrect label-feature associations. |
+| `--context-dependence-margin VALUE` | `0.02` | Required loss advantage of correct context over permuted context. Once the advantage reaches the margin, the context-dependence penalty becomes zero. Prototype runs use the gentler value `0.005`. |
+| `--auxiliary-row-loss-weight VALUE` | `0.0` | Reserved CLI compatibility option. It is currently parsed and validated but is not added to the implemented training objective; leave it at zero until the code supplies the documented auxiliary loss. |
+
+### Experimental and leakage-prone controls
+
+| Parameter | Default | Detailed behavior |
+|---|---|---|
+| `--fine-tune-race-id ID` | none | Experiment only. Moves exactly one complete race into the optimizer pool during resume and deliberately uses its labels. Results on that race are no longer out-of-sample. |
+| `--classroom-overfit-all-races` | false | Experiment only. Uses every exposed complete race for both optimization and validation, including fixed context races. This intentionally leaks labels and must never be used for production evaluation. |
+
+For the authoritative parser defaults after future code changes, run:
+
+```bash
+python train_model.py --help
+```
+
 ## Causal context contract
 
 Each training and validation query race receives its own independent sequence.

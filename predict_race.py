@@ -1129,13 +1129,11 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Backtest each checkpoint independently on every completed target race."""
     if args.data is not None:
         raise ValueError("--backtest requires native SQLite mode; omit --data.")
-    backtest_started_at = time.perf_counter()
     all_predictions: list[pd.DataFrame] = []
     metric_rows: list[dict[str, Any]] = []
     device = torch.device(args.device)
     for checkpoint in checkpoint_paths(args):
         checkpoint_started_at = time.perf_counter()
-        print(f"BACKTESTING checkpoint={checkpoint}", flush=True)
         try:
             model, metadata = load_model(checkpoint, device, args.strict_load)
         except Exception as exc:
@@ -1152,21 +1150,11 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
         race_ids = list(target_by_race)
         if not race_ids:
             raise ValueError("No status='finished' races were found.")
-        scope = (
-            "competition_id=all"
-            if args.competition_id is None
-            else f"competition_id={args.competition_id}"
-        )
-        cap = "all" if args.backtest_max_races == 0 else f"latest_{args.backtest_max_races}"
-        print(
-            f"BACKTEST targets={len(race_ids)} status=finished {scope} selection={cap}",
-            flush=True,
-        )
         model_predictions: list[pd.DataFrame] = []
         skipped = 0
         skip_examples: list[str] = []
         inference_started_at = time.perf_counter()
-        for index, race_id in enumerate(race_ids, start=1):
+        for race_id in race_ids:
             race_args = copy.copy(args)
             race_args.race_id = str(race_id)
             try:
@@ -1184,15 +1172,6 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
                 prediction = prediction.rename(columns={score_column: "model_score"})
                 prediction["checkpoint"] = checkpoint.name
                 model_predictions.append(prediction)
-            if index % 100 == 0 or index == len(race_ids):
-                inference_elapsed = time.perf_counter() - inference_started_at
-                print(
-                    f"BACKTEST PROGRESS checkpoint={checkpoint.name} "
-                    f"races={index}/{len(race_ids)} scored={len(model_predictions)} "
-                    f"skipped={skipped} elapsed_seconds={inference_elapsed:.2f} "
-                    f"seconds_per_target={inference_elapsed / index:.3f}",
-                    flush=True,
-                )
         inference_seconds = time.perf_counter() - inference_started_at
         if not model_predictions:
             detail = " | ".join(skip_examples)
@@ -1225,22 +1204,39 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
             "checkpoint_seconds": checkpoint_seconds,
             **metrics,
         })
-        print(
-            f"BACKTEST COMPLETE checkpoint={checkpoint.name} "
-            f"inference_seconds={inference_seconds:.2f} "
-            f"seconds_per_target={seconds_per_target:.3f} "
-            f"checkpoint_seconds={checkpoint_seconds:.2f}",
-            flush=True,
-        )
         all_predictions.append(model_frame)
     if not all_predictions:
         raise ValueError("No checkpoint produced any backtest predictions.")
-    print(
-        f"BACKTEST COMPLETE checkpoints={len(metric_rows)} "
-        f"total_seconds={time.perf_counter() - backtest_started_at:.2f}",
-        flush=True,
-    )
     return pd.concat(all_predictions, ignore_index=True), pd.DataFrame(metric_rows)
+
+
+def ranked_backtest_metrics(metrics: pd.DataFrame) -> pd.DataFrame:
+    """Return the compact model leaderboard shown after a backtest."""
+    ranking = metrics.sort_values(
+        by=[
+            "top3_recall",
+            "contained_top5_rate",
+            "contained_top4_rate",
+            "roc_auc",
+            "logloss",
+        ],
+        ascending=[False, False, False, False, True],
+        na_position="last",
+    ).reset_index(drop=True)
+    ranking.insert(0, "rank", np.arange(1, len(ranking) + 1))
+    columns = [
+        "rank",
+        "checkpoint",
+        "top3_recall",
+        "exact_top3_set_rate",
+        "contained_top4_rate",
+        "contained_top5_rate",
+        "contained_top6_rate",
+        "roc_auc",
+        "logloss",
+        "targets_scored",
+    ]
+    return ranking.loc[:, [column for column in columns if column in ranking]]
 
 
 def main() -> int:
@@ -1274,8 +1270,14 @@ def main() -> int:
 
     with pd.option_context("display.max_rows", None, "display.max_columns", None):
         if metrics is not None:
-            print("\nBACKTEST METRICS")
-            print(metrics.to_string(index=False))
+            leaderboard = ranked_backtest_metrics(metrics)
+            print("MODEL RANKING")
+            print(
+                leaderboard.to_string(
+                    index=False,
+                    float_format=lambda value: f"{value:.4f}",
+                )
+            )
         else:
             print(result.to_string(index=False))
             print_model_rankings(result, args.runner_id_column)
