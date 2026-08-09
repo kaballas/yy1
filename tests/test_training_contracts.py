@@ -75,6 +75,18 @@ def test_fine_tune_scopes_reset_and_select_exact_modules():
         name.startswith("icl_predictor.") or name.startswith("race_set_head.")
         for name in trainable_parameter_names(model)
     )
+    configure_trainable_parameters(model, "race_aware_full")
+    race_aware_names = trainable_parameter_names(model)
+    assert all(
+        name.startswith("pre_icl_race_encoder.")
+        or name.startswith("icl_predictor.")
+        or name.startswith("race_set_head.")
+        for name in race_aware_names
+    )
+    assert any(
+        name.startswith("pre_icl_race_encoder.") for name in race_aware_names
+    )
+    assert not any(name.startswith("cell_embedder.") for name in race_aware_names)
     configure_trainable_parameters(model, "full_model")
     assert len(trainable_parameter_names(model)) == sum(1 for _ in model.named_parameters())
     configure_trainable_parameters(model, "attention_head_only")
@@ -89,6 +101,13 @@ def test_partial_scope_requires_race_head():
 def test_cli_accepts_decoder_and_race_head(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["train_model.py", "--fine-tune-scope", "decoder_and_race_head"])
     assert parse_args().fine_tune_scope == "decoder_and_race_head"
+
+
+def test_cli_accepts_race_aware_full(monkeypatch):
+    monkeypatch.setattr(
+        sys, "argv", ["train_model.py", "--fine-tune-scope", "race_aware_full"]
+    )
+    assert parse_args().fine_tune_scope == "race_aware_full"
 
 
 def test_cli_accepts_context_prototype_direct_loss(monkeypatch):

@@ -132,6 +132,7 @@ def configure_trainable_parameters(
         "attention_head_only",
         "decoder_and_race_head",
         "icl_and_race_head",
+        "race_aware_full",
     }
     if training_scope not in valid_scopes:
         raise ValueError(f"Unknown training scope: {training_scope}")
@@ -153,9 +154,17 @@ def configure_trainable_parameters(
         if training_scope == "decoder_and_race_head":
             for parameter in model.icl_predictor.decoder.parameters():
                 parameter.requires_grad_(True)
-        elif training_scope == "icl_and_race_head":
+        elif training_scope in {"icl_and_race_head", "race_aware_full"}:
             for parameter in model.icl_predictor.parameters():
                 parameter.requires_grad_(True)
+            if training_scope == "race_aware_full":
+                if getattr(model, "pre_icl_race_encoder", None) is None:
+                    raise ValueError(
+                        "--fine-tune-scope=race_aware_full requires an enabled "
+                        "pre-ICL race encoder"
+                    )
+                for parameter in model.pre_icl_race_encoder.parameters():
+                    parameter.requires_grad_(True)
 
     parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
     trainable_count = sum(parameter.numel() for parameter in parameters)
@@ -946,6 +955,12 @@ def run_training(args: argparse.Namespace) -> int:
         trainable_prefixes = ["race_set_head"]
     elif training_scope == "icl_and_race_head":
         trainable_prefixes = ["icl_predictor", "race_set_head"]
+    elif training_scope == "race_aware_full":
+        trainable_prefixes = [
+            "pre_icl_race_encoder",
+            "icl_predictor",
+            "race_set_head",
+        ]
     else:
         trainable_prefixes = sorted({name.split(".", 1)[0] for name in trainable_names})
     if (

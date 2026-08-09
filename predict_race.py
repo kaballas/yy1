@@ -48,7 +48,8 @@ from src.constants import TRAINING_ROWS_VIEW
 from src.database import quote_identifier, require_training_rows_view
 from src.preprocessing import transform as transform_training_features
 from src.preprocessing import zero_feature_columns
-from src.metrics import probability_metrics
+from src.metrics import probability_metrics, race_top3_metrics
+from src.prediction import market_rank_scores
 
 try:
     from src.model.model import TabFM
@@ -82,8 +83,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--db", type=Path,
                         default=DEFAULT_DB,
                         help="SQLite database used by train_model.py native mode.")
-    parser.add_argument("--race-id",
-                        help="Race ID to predict. Compared as text to avoid integer/string mismatches.")
+    parser.add_argument(
+        "--race-id",
+        help=(
+            "Race ID to predict, or the only race to evaluate with --backtest. "
+            "Compared as text to avoid integer/string mismatches."
+        ),
+    )
     parser.add_argument("--race-id-column", default="race_id")
     parser.add_argument("--runner-id-column", default="runner_number")
     parser.add_argument("--label-column", default="top3_mask")
@@ -1075,6 +1081,7 @@ def prepare_backtest_native_data(
     metadata: Mapping[str, Any],
     maximum: int,
     competition_id: int | None = None,
+    target_race_id: str | None = None,
 ) -> tuple[dict[int, pd.DataFrame], dict[int, pd.DataFrame], list[tuple[pd.Timestamp, int]]]:
     """Load finished targets and the eligible training context pool once."""
     if maximum < 0:
@@ -1084,10 +1091,17 @@ def prepare_backtest_native_data(
     try:
         require_training_rows_view(connection)
         target_where = "status = 'finished'"
-        target_params: tuple[int, ...] = ()
+        target_params: list[int] = []
         if competition_id is not None:
             target_where += " AND competition_id = ?"
-            target_params = (competition_id,)
+            target_params.append(competition_id)
+        if target_race_id is not None:
+            try:
+                selected_race_id = int(target_race_id)
+            except ValueError as exc:
+                raise ValueError("--race-id must be an integer in native backtest mode") from exc
+            target_where += " AND race_id = ?"
+            target_params.append(selected_race_id)
         targets = pd.read_sql_query(
             f"SELECT {', '.join(quote_identifier(column) for column in selected)} "
             f"FROM race_runners WHERE {target_where} "
@@ -1102,7 +1116,7 @@ def prepare_backtest_native_data(
         )
     finally:
         connection.close()
-    if maximum:
+    if maximum and target_race_id is None:
         # A cap is operationally useful for testing current performance. Keep
         # the latest matching races, while retaining chronological score order.
         wanted = targets.groupby("race_id", sort=False).size().index[-maximum:]
@@ -1146,10 +1160,14 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
             metadata,
             args.backtest_max_races,
             args.competition_id,
+            args.race_id,
         )
         race_ids = list(target_by_race)
         if not race_ids:
-            raise ValueError("No status='finished' races were found.")
+            detail = f" for race_id={args.race_id}" if args.race_id else ""
+            if args.competition_id is not None:
+                detail += f" competition_id={args.competition_id}"
+            raise ValueError(f"No status='finished' race was found{detail}.")
         model_predictions: list[pd.DataFrame] = []
         skipped = 0
         skip_examples: list[str] = []
@@ -1190,6 +1208,11 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
                 model_frame.loc[valid, "model_score"].to_numpy(dtype=np.float64),
                 model_frame.loc[valid, args.race_id_column].to_numpy(dtype=np.int64),
             )
+            metrics["exact_top1_rate"] = exact_top1_rate(
+                model_frame.loc[valid],
+                "model_score",
+                args.race_id_column,
+            )
         else:
             metrics = {"complete_races": 0}
         checkpoint_seconds = time.perf_counter() - checkpoint_started_at
@@ -1207,7 +1230,76 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
         all_predictions.append(model_frame)
     if not all_predictions:
         raise ValueError("No checkpoint produced any backtest predictions.")
+    market_frame = all_predictions[0]
+    market_labels = pd.to_numeric(market_frame["top3_mask"], errors="coerce")
+    market_prices = pd.to_numeric(market_frame["fluc2"], errors="coerce")
+    market_rows_valid = market_labels.isin([0, 1]) & market_prices.gt(0)
+    fully_covered_races = market_frame.loc[market_rows_valid].groupby(
+        args.race_id_column
+    ).size()
+    all_race_sizes = market_frame.groupby(args.race_id_column).size()
+    fully_covered_races = fully_covered_races.index[
+        fully_covered_races.eq(all_race_sizes.reindex(fully_covered_races.index))
+    ]
+    market_mask = market_rows_valid & market_frame[args.race_id_column].isin(
+        fully_covered_races
+    )
+    if market_mask.any():
+        market_metrics = race_top3_metrics(
+            market_labels.loc[market_mask].to_numpy(dtype=np.int64),
+            market_rank_scores(
+                market_prices.loc[market_mask].to_numpy(dtype=np.float64)
+            ),
+            market_frame.loc[market_mask, args.race_id_column].to_numpy(
+                dtype=np.int64
+            ),
+        )
+        market_scored_frame = market_frame.loc[market_mask].copy()
+        market_scored_frame["market_score"] = market_rank_scores(
+            market_prices.loc[market_mask].to_numpy(dtype=np.float64)
+        )
+        market_metrics["exact_top1_rate"] = exact_top1_rate(
+            market_scored_frame,
+            "market_score",
+            args.race_id_column,
+        )
+        metric_rows.append(
+            {
+                "checkpoint": "fluc2_market",
+                "targets_requested": int(
+                    market_frame[args.race_id_column].nunique()
+                ),
+                "targets_scored": int(len(fully_covered_races)),
+                "targets_skipped": int(
+                    market_frame[args.race_id_column].nunique()
+                    - len(fully_covered_races)
+                ),
+                "inference_seconds": 0.0,
+                "seconds_per_target": 0.0,
+                "checkpoint_seconds": 0.0,
+                "roc_auc": float("nan"),
+                "logloss": float("nan"),
+                **market_metrics,
+            }
+        )
     return pd.concat(all_predictions, ignore_index=True), pd.DataFrame(metric_rows)
+
+
+def exact_top1_rate(
+    frame: pd.DataFrame, score_column: str, race_id_column: str
+) -> float:
+    """Return winner accuracy among races with exactly one known winner."""
+    correct = 0
+    complete = 0
+    for _, race in frame.groupby(race_id_column, sort=False):
+        winners = pd.to_numeric(race["is_winner"], errors="coerce")
+        scores = pd.to_numeric(race[score_column], errors="coerce")
+        if int(winners.eq(1).sum()) != 1 or not scores.notna().any():
+            continue
+        predicted_row = scores.idxmax()
+        correct += int(winners.loc[predicted_row] == 1)
+        complete += 1
+    return correct / complete if complete else float("nan")
 
 
 def ranked_backtest_metrics(metrics: pd.DataFrame) -> pd.DataFrame:
@@ -1227,6 +1319,7 @@ def ranked_backtest_metrics(metrics: pd.DataFrame) -> pd.DataFrame:
     columns = [
         "rank",
         "checkpoint",
+        "exact_top1_rate",
         "top3_recall",
         "exact_top3_set_rate",
         "contained_top4_rate",

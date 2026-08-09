@@ -78,6 +78,27 @@ def test_prepared_targets_filter_competition_and_keep_chronological_order(tmp_pa
     assert list(targets) == [3, 4]
 
 
+def test_prepared_targets_can_select_one_backtest_race(tmp_path):
+    path = _database(tmp_path)
+    _, targets, _ = prepare_backtest_native_data(
+        path, ["feature"], {}, maximum=0, target_race_id="3"
+    )
+    assert list(targets) == [3]
+
+
+def test_single_backtest_race_respects_competition_filter(tmp_path):
+    path = _database(tmp_path)
+    _, targets, _ = prepare_backtest_native_data(
+        path,
+        ["feature"],
+        {},
+        maximum=0,
+        competition_id=591,
+        target_race_id="3",
+    )
+    assert not targets
+
+
 def test_negative_backtest_cap_is_rejected(tmp_path):
     path = _database(tmp_path)
     with pytest.raises(ValueError, match="zero or positive"):

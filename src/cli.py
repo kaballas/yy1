@@ -95,13 +95,16 @@ def parse_args() -> argparse.Namespace:
             "attention_head_only",
             "decoder_and_race_head",
             "icl_and_race_head",
+            "race_aware_full",
         ),
         default=None,
         help=(
             "Parameters to optimize: attention_head_only trains race_set_head "
             "and an enabled context-prototype head; decoder_and_race_head also "
             "trains icl_predictor.decoder; icl_and_race_head trains the complete "
-            "icl_predictor plus both context heads; full_model trains all parameters. "
+            "icl_predictor plus the post-ICL race and prototype heads; "
+            "race_aware_full additionally trains the pre-ICL race encoder; "
+            "full_model trains all parameters. "
             "A resumed self-attention model defaults to icl_and_race_head."
         ),
     )
