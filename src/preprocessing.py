@@ -6,7 +6,7 @@ import numpy as np
 
 
 def fit_preprocessor(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Fit the original median and robust-scale preprocessing statistics."""
+    """Fit median-imputation and ordinary standard-deviation scale statistics."""
     median = np.nanmedian(x, axis=0).astype(np.float32)
     median = np.nan_to_num(median)
     filled = np.where(np.isnan(x), median, x)

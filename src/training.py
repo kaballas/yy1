@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections import deque
 from datetime import datetime
+import hashlib
 import json
 import random
 import numpy as np
@@ -57,6 +58,14 @@ from tabfm_split.runtime import load_and_validate_runtime_manifest
 from src.validation import build_race_indices, exclude_invalid_races
 
 
+def _sha256_file(path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 MAX_SAFE_FINE_TUNE_LEARNING_RATE = 3e-5
 CONTEXT_STOP_WARNING_MIN_STEP = 100
 CONTEXT_STOP_WARNING_PROBES = 5
@@ -93,6 +102,7 @@ def save_best_epoch_checkpoint(
     zeroed_features: list[str],
     metrics: dict[str, object],
     metrics_by_cohort: dict[str, object],
+    provenance: dict[str, object] | None = None,
 ) -> Path:
     """Atomically retain a standalone checkpoint whenever validation improves."""
     path, saved_at = timestamped_best_checkpoint_path(output, epoch)
@@ -113,6 +123,7 @@ def save_best_epoch_checkpoint(
         "checkpoint_saved_at": saved_at,
         "checkpoint_kind": "best_epoch_snapshot",
     }
+    checkpoint.update(provenance or {})
     temporary = path.with_suffix(path.suffix + ".tmp")
     torch.save(checkpoint, temporary)
     temporary.replace(path)
@@ -132,6 +143,8 @@ def configure_trainable_parameters(
         "attention_head_only",
         "decoder_and_race_head",
         "icl_and_race_head",
+        "icl_race_and_label_context",
+        "label_context_only",
         "race_aware_full",
     }
     if training_scope not in valid_scopes:
@@ -140,7 +153,14 @@ def configure_trainable_parameters(
     for parameter in model.parameters():
         parameter.requires_grad_(training_scope == "full_model")
 
-    if training_scope != "full_model":
+    if training_scope == "label_context_only":
+        if getattr(model, "label_context_head", None) is None:
+            raise ValueError(
+                "--fine-tune-scope=label_context_only requires --label-context-branch"
+            )
+        for parameter in model.label_context_head.parameters():
+            parameter.requires_grad_(True)
+    elif training_scope != "full_model":
         if model.race_set_head is None:
             raise ValueError(
                 f"--fine-tune-scope={training_scope} requires "
@@ -148,13 +168,12 @@ def configure_trainable_parameters(
             )
         for parameter in model.race_set_head.parameters():
             parameter.requires_grad_(True)
-        if getattr(model, "context_prototype_head", None) is not None:
-            for parameter in model.context_prototype_head.parameters():
-                parameter.requires_grad_(True)
         if training_scope == "decoder_and_race_head":
             for parameter in model.icl_predictor.decoder.parameters():
                 parameter.requires_grad_(True)
-        elif training_scope in {"icl_and_race_head", "race_aware_full"}:
+        elif training_scope in {
+            "icl_and_race_head", "icl_race_and_label_context", "race_aware_full"
+        }:
             for parameter in model.icl_predictor.parameters():
                 parameter.requires_grad_(True)
             if training_scope == "race_aware_full":
@@ -165,6 +184,26 @@ def configure_trainable_parameters(
                     )
                 for parameter in model.pre_icl_race_encoder.parameters():
                     parameter.requires_grad_(True)
+                for optional_head_name in (
+                    "context_prototype_head", "label_context_head"
+                ):
+                    optional_head = getattr(model, optional_head_name, None)
+                    if optional_head is not None:
+                        for parameter in optional_head.parameters():
+                            parameter.requires_grad_(True)
+        if training_scope == "icl_race_and_label_context":
+            label_head = getattr(model, "label_context_head", None)
+            if label_head is not None:
+                for parameter in label_head.parameters():
+                    parameter.requires_grad_(True)
+
+    if training_scope == "icl_race_and_label_context" and getattr(
+        model, "label_context_head", None
+    ) is None:
+        raise ValueError(
+            "--fine-tune-scope=icl_race_and_label_context requires "
+            "--label-context-branch"
+        )
 
     parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
     trainable_count = sum(parameter.numel() for parameter in parameters)
@@ -180,6 +219,7 @@ def configure_trainable_parameters(
                 name.startswith("icl_predictor.decoder.")
                 or name.startswith("race_set_head.")
                 or name.startswith("context_prototype_head.")
+                or name.startswith("label_context_head.")
             )
         ]
         if unexpected:
@@ -244,6 +284,7 @@ def validate_fine_tune_learning_rate(
 
 def run_training(args: argparse.Namespace) -> int:
     """Execute the original training, evaluation, and checkpoint workflow."""
+    debug_output = bool(getattr(args, "debug_training_output", False))
     if args.epochs < 1 or args.steps_per_epoch < 1:
         raise SystemExit("--epochs and --steps-per-epoch must be positive")
     if (args.context_races_per_step is not None and args.context_races_per_step < 1) or args.query_races_per_step < 1:
@@ -278,6 +319,10 @@ def run_training(args: argparse.Namespace) -> int:
             args.context_prototype_loss_weight is not None
             and args.context_prototype_loss_weight < 0
         )
+        or (
+            args.label_context_loss_weight is not None
+            and args.label_context_loss_weight < 0
+        )
         or args.cardinality_loss_weight < 0
         or args.context_dependence_loss_weight < 0
     ):
@@ -291,6 +336,23 @@ def run_training(args: argparse.Namespace) -> int:
         and args.context_prototype_max_correction <= 0
     ):
         raise SystemExit("--context-prototype-max-correction must be positive")
+    if args.label_context_heads is not None and args.label_context_heads < 1:
+        raise SystemExit("--label-context-heads must be positive")
+    if (
+        args.label_context_max_correction is not None
+        and args.label_context_max_correction <= 0
+    ):
+        raise SystemExit("--label-context-max-correction must be positive")
+    if (
+        args.label_context_temperature is not None
+        and (
+            not np.isfinite(args.label_context_temperature)
+            or args.label_context_temperature <= 0
+        )
+    ):
+        raise SystemExit("--label-context-temperature must be finite and positive")
+    if args.label_context_top_k is not None and args.label_context_top_k < 0:
+        raise SystemExit("--label-context-top-k must be non-negative")
     if args.fine_tune_attention_head_only and args.fine_tune_scope not in (
         None, "attention_head_only"
     ):
@@ -344,6 +406,12 @@ def run_training(args: argparse.Namespace) -> int:
     source_context_prototype_branch = bool(
         source_model_kwargs.get("context_prototype_branch", False)
     )
+    source_label_context_branch = bool(
+        source_model_kwargs.get("label_context_branch", False)
+    )
+    source_label_context_labels_in_values_only = bool(
+        source_model_kwargs.get("label_context_labels_in_values_only", False)
+    )
     training_scope = resolve_training_scope(
         args.fine_tune_scope,
         args.fine_tune_attention_head_only,
@@ -378,6 +446,12 @@ def run_training(args: argparse.Namespace) -> int:
         source_model_kwargs.get("race_context_residual", True)
         if args.race_context_residual is None else args.race_context_residual
     )
+    race_head_scale = (
+        source_model_kwargs.get("race_head_scale", 1.0)
+        if args.race_head_scale is None else args.race_head_scale
+    )
+    if not np.isfinite(race_head_scale) or race_head_scale < 0:
+        raise ValueError("--race-head-scale must be finite and non-negative")
     if race_context_layers < 1 or race_context_heads < 1:
         raise SystemExit("Race context layers and heads must be positive")
     if race_context_dim % race_context_heads:
@@ -409,7 +483,53 @@ def run_training(args: argparse.Namespace) -> int:
         if args.context_prototype_loss_weight is None
         else args.context_prototype_loss_weight
     )
-    if training_scope != "full_model" and race_context_mode != "self_attention":
+    label_context_branch = (
+        source_label_context_branch
+        if args.label_context_branch is None
+        else bool(args.label_context_branch)
+    )
+    if source_label_context_branch and not label_context_branch:
+        raise ValueError(
+            "A label-context checkpoint cannot be loaded with the branch disabled"
+        )
+    label_context_heads = (
+        source_model_kwargs.get("label_context_heads", 2)
+        if args.label_context_heads is None else args.label_context_heads
+    )
+    label_context_max_correction = (
+        source_model_kwargs.get("label_context_max_correction", 0.5)
+        if args.label_context_max_correction is None
+        else args.label_context_max_correction
+    )
+    label_context_labels_in_values_only = (
+        source_label_context_labels_in_values_only
+        if source_label_context_branch
+        and args.label_context_labels_in_values_only is None
+        else (
+            True
+            if args.label_context_labels_in_values_only is None
+            else bool(args.label_context_labels_in_values_only)
+        )
+    )
+    label_context_temperature = (
+        source_model_kwargs.get("label_context_temperature", 1.0)
+        if args.label_context_temperature is None
+        else args.label_context_temperature
+    )
+    label_context_top_k = (
+        source_model_kwargs.get("label_context_top_k", 0)
+        if args.label_context_top_k is None
+        else args.label_context_top_k
+    )
+    args.label_context_loss_weight = (
+        (0.25 if label_context_branch else 0.0)
+        if args.label_context_loss_weight is None
+        else args.label_context_loss_weight
+    )
+    if (
+        training_scope not in {"full_model", "label_context_only"}
+        and race_context_mode != "self_attention"
+    ):
         raise ValueError(
             f"--fine-tune-scope={training_scope} requires race_context_mode=self_attention"
         )
@@ -422,6 +542,11 @@ def run_training(args: argparse.Namespace) -> int:
             "--context-prototype-loss-weight requires --context-prototype-branch; "
             "set its weight to 0 when the branch is disabled"
         )
+    if args.label_context_loss_weight > 0 and not label_context_branch:
+        raise ValueError(
+            "--label-context-loss-weight requires --label-context-branch; "
+            "set its weight to 0 when the branch is disabled"
+        )
     model_kwargs = dict(source_model_kwargs or {"max_classes": 2, "is_classifier": True})
     model_kwargs.update(
         race_context_mode=race_context_mode,
@@ -430,6 +555,7 @@ def run_training(args: argparse.Namespace) -> int:
         race_context_heads=race_context_heads,
         race_context_ff_dim=race_context_ff_dim,
         race_context_residual=race_context_residual,
+        race_head_scale=race_head_scale,
         encode_races_before_icl=(
             bool(source_model_kwargs.get("encode_races_before_icl", False))
             if args.encode_races_before_icl is None else bool(args.encode_races_before_icl)
@@ -437,6 +563,14 @@ def run_training(args: argparse.Namespace) -> int:
         context_prototype_branch=context_prototype_branch,
         context_prototype_dim=context_prototype_dim,
         context_prototype_max_correction=context_prototype_max_correction,
+        label_context_branch=label_context_branch,
+        label_context_heads=label_context_heads,
+        label_context_max_correction=label_context_max_correction,
+        label_context_labels_in_values_only=(
+            label_context_labels_in_values_only
+        ),
+        label_context_temperature=label_context_temperature,
+        label_context_top_k=label_context_top_k,
     )
     feature_manifest_path = args.features_json or DEFAULT_FEATURES
     if resume_bundle is not None:
@@ -454,12 +588,13 @@ def run_training(args: argparse.Namespace) -> int:
                     "to inherit the checkpoint manifest, or use --overwrite-existing "
                     "to train from scratch"
                 )
-        print(
-            "fine_tune_feature_manifest "
-            f"source_checkpoint count={len(feature_columns)} "
-            f"explicit_override={args.features_json is not None}",
-            flush=True,
-        )
+        if debug_output:
+            print(
+                "fine_tune_feature_manifest "
+                f"source_checkpoint count={len(feature_columns)} "
+                f"explicit_override={args.features_json is not None}",
+                flush=True,
+            )
     else:
         feature_columns, zero_features = load_feature_manifest(feature_manifest_path)
     if context_prototype_branch:
@@ -489,26 +624,47 @@ def run_training(args: argparse.Namespace) -> int:
             f"requested={requested_context_races_per_step} "
             f"available={len(validation_context_race_ids)}"
         )
-    print(
-        "context_regime "
-        f"requested_context_races={requested_context_races_per_step} "
-        "training_context=most_recent_strictly_earlier_same_competition_races_per_query "
-        "validation_context=most_recent_strictly_earlier_same_competition_races_per_query "
-        "validation_context_pool=all_complete_partition_rows "
-        "manifest_role=default_window_size_only "
-        f"manifest_race_count={len(validation_context_race_ids)}",
-        flush=True,
+    if debug_output:
+        print(
+            "context_regime "
+            f"requested_context_races={requested_context_races_per_step} "
+            "training_context=most_recent_strictly_earlier_same_competition_races_per_query "
+            "validation_context=most_recent_strictly_earlier_same_competition_races_per_query "
+            "validation_context_pool=all_complete_partition_rows "
+            "manifest_role=default_window_size_only "
+            f"manifest_race_count={len(validation_context_race_ids)}",
+            flush=True,
+        )
+    validate_feature_columns(args.db, feature_columns, verbose=debug_output)
+    if debug_output:
+        print_race_selection_logic(args.db, args.min_race_number)
+    shared_record_csv = (
+        args.training_csv.resolve() == args.validation_csv.resolve()
     )
-    validate_feature_columns(args.db, feature_columns)
-    print_race_selection_logic(args.db, args.min_race_number)
-    if args.training_csv.resolve() == args.validation_csv.resolve():
+    if shared_record_csv and not args.classroom_overfit_all_races:
         raise ValueError("--training-csv and --validation-csv must be different paths")
     export_rows_to_csv(
-        args.db, feature_columns, TRAINING_ROWS_VIEW, args.training_csv
+        args.db,
+        feature_columns,
+        TRAINING_ROWS_VIEW,
+        args.training_csv,
+        verbose=debug_output,
     )
-    export_rows_to_csv(
-        args.db, feature_columns, VALIDATION_ROWS_VIEW, args.validation_csv
-    )
+    if shared_record_csv:
+        print(
+            "CLASSROOM OVERFIT shared_training_validation_csv "
+            f"path={args.training_csv.resolve()} "
+            f"source_view={TRAINING_ROWS_VIEW}; validation export skipped",
+            flush=True,
+        )
+    else:
+        export_rows_to_csv(
+            args.db,
+            feature_columns,
+            VALIDATION_ROWS_VIEW,
+            args.validation_csv,
+            verbose=debug_output,
+        )
     (
         train_x,
         train_y_all,
@@ -517,7 +673,9 @@ def run_training(args: argparse.Namespace) -> int:
         train_competition_ids,
         train_validation_flags,
         train_market_fluc2,
-    ) = load_rows_from_csv(args.training_csv, feature_columns)
+    ) = load_rows_from_csv(
+        args.training_csv, feature_columns, verbose=debug_output
+    )
     (
         valid_x_all,
         valid_y_all,
@@ -526,13 +684,16 @@ def run_training(args: argparse.Namespace) -> int:
         valid_competition_ids_all,
         valid_flags,
         valid_market_fluc2,
-    ) = load_rows_from_csv(args.validation_csv, feature_columns)
-    print(
-        "training_record_source "
-        f"training_csv={args.training_csv.resolve()} "
-        f"validation_csv={args.validation_csv.resolve()}",
-        flush=True,
+    ) = load_rows_from_csv(
+        args.validation_csv, feature_columns, verbose=debug_output
     )
+    if debug_output:
+        print(
+            "training_record_source "
+            f"training_csv={args.training_csv.resolve()} "
+            f"validation_csv={args.validation_csv.resolve()}",
+            flush=True,
+        )
     if args.classroom_overfit_all_races:
         x = train_x
         y = train_y_all
@@ -678,42 +839,37 @@ def run_training(args: argparse.Namespace) -> int:
             f"available_training_races={len(training_race_indices)}",
             flush=True,
         )
-    if not args.classroom_overfit_all_races:
-        candidate_validation_races = list(
-            map(int, dict.fromkeys(race_ids[valid_mask].tolist()))
+    candidate_validation_races = list(
+        map(int, dict.fromkeys(race_ids[valid_mask].tolist()))
+    )
+    validation_context_mask = training_pool_mask | valid_mask
+    validation_context_race_indices = build_race_indices(
+        race_ids, validation_context_mask
+    )
+    eligible_validation_races = eligible_query_race_ids_from_context(
+        candidate_validation_races,
+        list(validation_context_race_indices),
+        race_time_by_id,
+        effective_context_races_per_step,
+        competition_by_race_id,
+    )
+    skipped_early_validation_races = sorted(
+        set(candidate_validation_races) - set(eligible_validation_races)
+    )
+    if skipped_early_validation_races:
+        print(
+            "WARNING skipped_validation_races_without_earlier_same_competition_context "
+            f"count={len(skipped_early_validation_races)} "
+            f"required_context_races={effective_context_races_per_step} "
+            f"preview={skipped_early_validation_races[:10]}",
+            flush=True,
         )
-        validation_context_mask = training_pool_mask | valid_mask
-        validation_context_race_indices = build_race_indices(
-            race_ids, validation_context_mask
-        )
-        eligible_validation_races = eligible_query_race_ids_from_context(
-            candidate_validation_races,
-            list(validation_context_race_indices),
-            race_time_by_id,
-            effective_context_races_per_step,
-            competition_by_race_id,
-        )
-        skipped_early_validation_races = sorted(
-            set(candidate_validation_races) - set(eligible_validation_races)
-        )
-        if skipped_early_validation_races:
-            print(
-                "WARNING skipped_validation_races_without_earlier_same_competition_context "
-                f"count={len(skipped_early_validation_races)} "
-                f"required_context_races={effective_context_races_per_step} "
-                f"preview={skipped_early_validation_races[:10]}",
-                flush=True,
-            )
-        valid_mask &= np.isin(race_ids, eligible_validation_races)
-        selected_valid_races = eligible_validation_races
-        if not np.any(valid_mask):
-            raise ValueError(
-                "No validation races have enough strictly earlier "
-                "same-competition context races"
-            )
-    else:
-        validation_context_race_indices = build_race_indices(
-            race_ids, training_pool_mask | valid_mask
+    valid_mask &= np.isin(race_ids, eligible_validation_races)
+    selected_valid_races = eligible_validation_races
+    if not np.any(valid_mask):
+        raise ValueError(
+            "No validation races have enough strictly earlier "
+            "same-competition context races"
         )
     # Slice after all validation eligibility rules, including causal context.
     valid_fluc2 = market_fluc2[valid_mask].copy()
@@ -734,12 +890,13 @@ def run_training(args: argparse.Namespace) -> int:
         fixed_probe_row_race_ids,
         np.ones(len(fixed_probe_row_race_ids), dtype=bool),
     )
-    print(
-        "FIXED_PROBE_SELECTION "
-        f"races={len(fixed_probe_race_ids)} "
-        f"race_ids={fixed_probe_race_ids.tolist()}",
-        flush=True,
-    )
+    if debug_output:
+        print(
+            "FIXED_PROBE_SELECTION "
+            f"races={len(fixed_probe_race_ids)} "
+            f"race_ids={fixed_probe_race_ids.tolist()}",
+            flush=True,
+        )
     schedule_race_numbers.update(
         load_race_numbers(args.db, set(map(int, valid_race_ids)))
     )
@@ -828,12 +985,13 @@ def run_training(args: argparse.Namespace) -> int:
     excluded_early_query_races = len(training_race_ids) - len(
         chronological_query_race_ids
     )
-    print(
-        f"training_context_pool_races={len(training_race_ids)} "
-        f"chronological_query_eligible_races={len(chronological_query_race_ids)} "
-        f"excluded_early_query_races={excluded_early_query_races}",
-        flush=True,
-    )
+    if debug_output:
+        print(
+            f"training_context_pool_races={len(training_race_ids)} "
+            f"chronological_query_eligible_races={len(chronological_query_race_ids)} "
+            f"excluded_early_query_races={excluded_early_query_races}",
+            flush=True,
+        )
     if not chronological_query_race_ids:
         raise ValueError(
             "No training query races have enough strictly earlier "
@@ -856,59 +1014,71 @@ def run_training(args: argparse.Namespace) -> int:
                 True,
             )
         )
-        print(
-            "automatic_race_schedule "
-            f"chronological_query_eligible_races={len(chronological_query_race_ids)} "
-            f"steps_per_epoch={effective_steps_per_epoch} "
-            f"query_races_per_step={effective_query_races_per_step} "
-            f"query_slots={effective_steps_per_epoch * effective_query_races_per_step}",
-            flush=True,
-        )
+        if debug_output:
+            print(
+                "automatic_race_schedule "
+                f"chronological_query_eligible_races={len(chronological_query_race_ids)} "
+                f"steps_per_epoch={effective_steps_per_epoch} "
+                f"query_races_per_step={effective_query_races_per_step} "
+                f"query_slots={effective_steps_per_epoch * effective_query_races_per_step}",
+                flush=True,
+            )
     validation_race_id_set = set(int(race_id) for race_id in selected_valid_races)
     if progress_race_id in training_race_ids and not args.classroom_overfit_all_races:
         raise RuntimeError(
             "Progress race entered training; choose an is_validation = 1 race"
         )
 
-    print("RACE COUNTS", flush=True)
-    print(f"  Training races:   {len(training_race_indices):,}", flush=True)
-    print(f"  Validation races: {len(selected_valid_races):,}", flush=True)
-    print(
-        f"db={args.db.resolve()} features={len(feature_columns)} "
-        f"training_csv={args.training_csv.resolve()} "
-        f"validation_csv={args.validation_csv.resolve()} "
-        f"train_rows={len(train_y):,} train_races={len(training_race_indices):,} "
-        f"valid_rows={len(valid_y):,} valid_races={len(selected_valid_races):,} "
-        f"partition_source={partition_source} device={device}",
-        flush=True,
-    )
-    print(
-        f"train_top3_rate={train_y.mean():.4f} valid_top3_rate={valid_y.mean():.4f} "
-        f"all_non_top3_valid_accuracy={1.0 - valid_y.mean():.4f} "
-        f"class_weights=[{class_weights[0]:.3f}, {class_weights[1]:.3f}] "
-        "training_context=most_recent_strictly_earlier_same_competition_races_per_query "
-        "validation_context=most_recent_strictly_earlier_same_competition_races_per_query "
-        f"context_races_per_query={effective_context_races_per_step} "
-        f"independent_query_sequences_per_step={effective_query_races_per_step} "
-        f"auto_race_schedule={args.auto_race_schedule} "
-        f"min_race_number={args.min_race_number} "
-        f"race_context_mode={race_context_mode} "
-        f"context_prototype_branch={context_prototype_branch} "
-        f"pairwise_loss_weight={args.pairwise_loss_weight} "
-        f"attention_delta_pairwise_loss_weight="
-        f"{args.attention_delta_pairwise_loss_weight} "
-        f"context_prototype_loss_weight={args.context_prototype_loss_weight} "
-        f"cardinality_loss_weight={args.cardinality_loss_weight} "
-        f"validation_cohort_source={validation_cohort_source} "
-        f"validation_cohort_races={validation_cohort_race_counts} "
-        f"zeroed_features={zero_features} progress_race_id={progress_race_id}",
-        flush=True,
-    )
+    if debug_output:
+        print("RACE COUNTS", flush=True)
+        print(f"  Training races:   {len(training_race_indices):,}", flush=True)
+        print(f"  Validation races: {len(selected_valid_races):,}", flush=True)
+        print(
+            f"db={args.db.resolve()} features={len(feature_columns)} "
+            f"training_csv={args.training_csv.resolve()} "
+            f"validation_csv={args.validation_csv.resolve()} "
+            f"train_rows={len(train_y):,} train_races={len(training_race_indices):,} "
+            f"valid_rows={len(valid_y):,} valid_races={len(selected_valid_races):,} "
+            f"partition_source={partition_source} device={device}",
+            flush=True,
+        )
+        print(
+            f"train_top3_rate={train_y.mean():.4f} valid_top3_rate={valid_y.mean():.4f} "
+            f"all_non_top3_valid_accuracy={1.0 - valid_y.mean():.4f} "
+            f"class_weights=[{class_weights[0]:.3f}, {class_weights[1]:.3f}] "
+            "training_context=most_recent_strictly_earlier_same_competition_races_per_query "
+            "validation_context=most_recent_strictly_earlier_same_competition_races_per_query "
+            f"context_races_per_query={effective_context_races_per_step} "
+            f"independent_query_sequences_per_step={effective_query_races_per_step} "
+            f"auto_race_schedule={args.auto_race_schedule} "
+            f"min_race_number={args.min_race_number} "
+            f"race_context_mode={race_context_mode} "
+            f"race_head_scale={race_head_scale:g} "
+            f"context_prototype_branch={context_prototype_branch} "
+            f"label_context_branch={label_context_branch} "
+            f"label_context_labels_in_values_only="
+            f"{label_context_labels_in_values_only} "
+            f"pairwise_loss_weight={args.pairwise_loss_weight} "
+            f"attention_delta_pairwise_loss_weight="
+            f"{args.attention_delta_pairwise_loss_weight} "
+            f"context_prototype_loss_weight={args.context_prototype_loss_weight} "
+            f"label_context_loss_weight={args.label_context_loss_weight} "
+            f"cardinality_loss_weight={args.cardinality_loss_weight} "
+            f"validation_cohort_source={validation_cohort_source} "
+            f"validation_cohort_races={validation_cohort_race_counts} "
+            f"zeroed_features={zero_features} progress_race_id={progress_race_id}",
+            flush=True,
+        )
     if resume_bundle is not None:
         model = TabFM(**model_kwargs).to(device)
         architecture_unchanged = (
             source_race_mode == race_context_mode
             and source_context_prototype_branch == context_prototype_branch
+            and source_label_context_branch == label_context_branch
+            and source_label_context_labels_in_values_only
+            == label_context_labels_in_values_only
+            and float(source_model_kwargs.get("race_head_scale", 1.0))
+            == float(race_head_scale)
         )
         incompatible = model.load_state_dict(
             resume_bundle["model_state_dict"],
@@ -921,6 +1091,7 @@ def run_training(args: argparse.Namespace) -> int:
                 if not (
                     key.startswith("race_set_head.")
                     or key.startswith("context_prototype_head.")
+                    or key.startswith("label_context_head.")
                 )
             ]
             if unexpected or invalid_missing:
@@ -928,48 +1099,38 @@ def run_training(args: argparse.Namespace) -> int:
                     "Base checkpoint is incompatible with race-aware upgrade: "
                     f"missing={invalid_missing} unexpected={unexpected}"
                 )
-        print(
-            f"training_mode="
-            f"{'fine_tune_existing_output' if auto_resumed_output else 'fine_tune_explicit_resume'} "
-            f"resume_model={resume_model_path.resolve()} "
-            f"source_best_epoch={resume_bundle.get('best_epoch', '-')}",
-            flush=True,
-        )
+        if debug_output:
+            print(
+                f"training_mode="
+                f"{'fine_tune_existing_output' if auto_resumed_output else 'fine_tune_explicit_resume'} "
+                f"resume_model={resume_model_path.resolve()} "
+                f"source_best_epoch={resume_bundle.get('best_epoch', '-')}",
+                flush=True,
+            )
     else:
         model = TabFM(**model_kwargs).to(device)
         initialize_fourier_frequencies(model, args.seed)
         frequency_buffer = model.cell_embedder.fourier_frequencies
-        print(
-            f"fourier_frequencies=initialized "
-            f"abs_mean={frequency_buffer.abs().mean().item():.4f} "
-            f"abs_max={frequency_buffer.abs().max().item():.4f}",
-            flush=True,
-        )
+        if debug_output:
+            print(
+                f"fourier_frequencies=initialized "
+                f"abs_mean={frequency_buffer.abs().mean().item():.4f} "
+                f"abs_max={frequency_buffer.abs().max().item():.4f}",
+                flush=True,
+            )
     optimizer_parameters, trainable_parameter_count, total_parameter_count = (
         configure_trainable_parameters(model, training_scope)
     )
     trainable_names = trainable_parameter_names(model)
-    if training_scope == "decoder_and_race_head":
-        trainable_prefixes = ["icl_predictor.decoder", "race_set_head"]
-    elif training_scope == "attention_head_only":
-        trainable_prefixes = ["race_set_head"]
-    elif training_scope == "icl_and_race_head":
-        trainable_prefixes = ["icl_predictor", "race_set_head"]
-    elif training_scope == "race_aware_full":
-        trainable_prefixes = [
-            "pre_icl_race_encoder",
-            "icl_predictor",
-            "race_set_head",
-        ]
-    else:
-        trainable_prefixes = sorted({name.split(".", 1)[0] for name in trainable_names})
-    if (
-        model.context_prototype_head is not None
-        and training_scope != "full_model"
-    ):
-        trainable_prefixes.append("context_prototype_head")
+    trainable_prefixes = sorted({name.split(".", 1)[0] for name in trainable_names})
+    frozen_parameter_count = total_parameter_count - trainable_parameter_count
+    print("TRAINABLE PARAMETERS", flush=True)
+    print("  module_prefixes=" + ",".join(trainable_prefixes), flush=True)
+    for name in trainable_names:
+        print(f"  {name}", flush=True)
     print(
-        "trainable_module_prefixes=" + ",".join(trainable_prefixes),
+        f"  counts trainable={trainable_parameter_count:,} "
+        f"frozen={frozen_parameter_count:,} total={total_parameter_count:,}",
         flush=True,
     )
     optimizer = torch.optim.AdamW(
@@ -1008,6 +1169,7 @@ def run_training(args: argparse.Namespace) -> int:
         ("Gradient clipping", f"Maximum norm {args.max_grad_norm:g}"),
         ("Training scope", training_scope.replace("_", " ").title()),
         ("Trainable parameters", f"{trainable_parameter_count:,}"),
+        ("Frozen parameters", f"{frozen_parameter_count:,}"),
         ("Total parameters", f"{total_parameter_count:,}"),
         ("Device", str(device).upper()),
         ("Random seed", str(args.seed)),
@@ -1029,6 +1191,10 @@ def run_training(args: argparse.Namespace) -> int:
             "Context prototype direct loss",
             f"{args.context_prototype_loss_weight:g}",
         ),
+        (
+            "Label-context direct loss",
+            f"{args.label_context_loss_weight:g}",
+        ),
         ("Cardinality loss weight", f"{args.cardinality_loss_weight:g}"),
         (
             "Context dependence weight",
@@ -1042,6 +1208,7 @@ def run_training(args: argparse.Namespace) -> int:
         ("Stress recall maximum drop", f"{args.stress_top3_recall_max_drop:g}"),
         ("Early-stopping patience", f"{args.early_stopping_patience} epochs"),
         ("Race context mode", race_context_mode),
+        ("Race-head logit scale", f"{race_head_scale:g}"),
         ("Context prototype branch", str(context_prototype_branch)),
         (
             "Context prototype source",
@@ -1052,6 +1219,23 @@ def run_training(args: argparse.Namespace) -> int:
             "Context prototype max correction",
             f"{context_prototype_max_correction:g}",
         ),
+        ("Label-aware context branch", str(label_context_branch)),
+        ("Label-aware context heads", str(label_context_heads)),
+        ("Label-aware attention temperature", f"{label_context_temperature:g}"),
+        ("Label-aware attention top-k", str(label_context_top_k or "disabled")),
+        ("Checkpoint metric", args.checkpoint_metric),
+        (
+            "Label-aware retrieval",
+            (
+                "runner-only keys; label-aware values"
+                if label_context_labels_in_values_only
+                else "legacy label-aware keys and values"
+            ),
+        ),
+        (
+            "Label-aware context max correction",
+            f"{label_context_max_correction:g}",
+        ),
         (
             "Minimum race number",
             str(args.min_race_number) if args.min_race_number is not None else "None",
@@ -1059,26 +1243,103 @@ def run_training(args: argparse.Namespace) -> int:
         ("Zeroed features", ", ".join(zero_features) if zero_features else "None"),
         ("Number of features", str(len(feature_columns))),
     ]
-    parameter_name_width = max(len(name) for name, _ in parameter_rows)
-    parameter_value_width = max(len(value) for _, value in parameter_rows)
-    table_width = parameter_name_width + parameter_value_width + 7
-    print("TRAINING PARAMETERS", flush=True)
-    print(
-        f"  {'Parameter':<{parameter_name_width}} | {'Value':<{parameter_value_width}}",
-        flush=True,
+    objective_parts = [
+        f"classification({args.classification_loss_weight:g})",
+        f"pairwise({args.pairwise_loss_weight:g})",
+    ]
+    optional_objectives = (
+        ("attention_delta", args.attention_delta_pairwise_loss_weight),
+        ("prototype", args.context_prototype_loss_weight),
+        ("label_context", args.label_context_loss_weight),
+        ("cardinality", args.cardinality_loss_weight),
+        ("context_dependence", args.context_dependence_loss_weight),
     )
-    print(f"  {'-' * parameter_name_width}-+-{'-' * parameter_value_width}", flush=True)
-    for name, value in parameter_rows:
-        print(f"  {name:<{parameter_name_width}} | {value:<{parameter_value_width}}", flush=True)
-    print(f"  {'-' * table_width}", flush=True)
-    print(
-        f"optimizer_learning_rate={learning_rate:.8g} "
-        f"weight_decay={args.weight_decay:.8g} "
-        f"training_scope={training_scope} "
-        f"trainable_parameters={trainable_parameter_count:,} "
-        f"total_parameters={total_parameter_count:,}",
-        flush=True,
+    objective_parts.extend(
+        f"{name}({weight:g})"
+        for name, weight in optional_objectives
+        if weight > 0
     )
+    if debug_output:
+        parameter_name_width = max(len(name) for name, _ in parameter_rows)
+        parameter_value_width = max(len(value) for _, value in parameter_rows)
+        table_width = parameter_name_width + parameter_value_width + 7
+        print("TRAINING PARAMETERS", flush=True)
+        print(
+            f"  {'Parameter':<{parameter_name_width}} | {'Value':<{parameter_value_width}}",
+            flush=True,
+        )
+        print(f"  {'-' * parameter_name_width}-+-{'-' * parameter_value_width}", flush=True)
+        for name, value in parameter_rows:
+            print(f"  {name:<{parameter_name_width}} | {value:<{parameter_value_width}}", flush=True)
+        print(f"  {'-' * table_width}", flush=True)
+        print(
+            f"optimizer_learning_rate={learning_rate:.8g} "
+            f"weight_decay={args.weight_decay:.8g} "
+            f"training_scope={training_scope} "
+            f"trainable_parameters={trainable_parameter_count:,} "
+            f"total_parameters={total_parameter_count:,}",
+            flush=True,
+        )
+    else:
+        print("TRAINING OVERVIEW", flush=True)
+        print(
+            f"  mode={run_training_mode.lower().replace(' ', '_')} "
+            f"scope={training_scope} device={str(device).upper()} "
+            f"parameters={trainable_parameter_count:,} trainable / "
+            f"{frozen_parameter_count:,} frozen / {total_parameter_count:,} total",
+            flush=True,
+        )
+        print(
+            f"  data={len(chronological_query_race_ids):,} eligible query races "
+            f"({len(training_race_indices):,} context-pool races; "
+            f"{excluded_early_query_races:,} too early for context) "
+            f"features={len(feature_columns)} active={len(feature_columns) - len(zero_features)}",
+            flush=True,
+        )
+        print(
+            f"  schedule={args.epochs} epochs x {effective_steps_per_epoch} steps "
+            f"x {effective_query_races_per_step} races; "
+            f"context={effective_context_races_per_step} earlier same-competition races",
+            flush=True,
+        )
+        print(
+            f"  optimizer=AdamW lr={learning_rate:g} weight_decay={args.weight_decay:g} "
+            f"gradient_clip={args.max_grad_norm:g} patience={args.early_stopping_patience}",
+            flush=True,
+        )
+        if race_context_mode == "self_attention":
+            print(f"  race_head_scale={race_head_scale:g} (logit residual)", flush=True)
+        print(
+            "  objective=" + " + ".join(objective_parts),
+            flush=True,
+        )
+        if label_context_branch:
+            print(
+                "  label_context_retrieval="
+                + (
+                    "runner-only keys; label-aware values"
+                    if label_context_labels_in_values_only
+                    else "legacy label-aware keys and values"
+                )
+                + f" temperature={label_context_temperature:g} "
+                + f"top_k={label_context_top_k or 'disabled'}",
+                flush=True,
+            )
+        print(
+            "  checkpoint_metric=" + args.checkpoint_metric
+            + (
+                " composite_order=(top3_recall,ndcg3,exact_top3_set,"
+                "pairwise_ranking_accuracy,-logloss)"
+                if args.checkpoint_metric == "composite" else ""
+            ),
+            flush=True,
+        )
+        print(
+            "  reading: lower loss/logloss is better; higher top3_recall, "
+            "exact_top3_set, and AUC is better. Follow PROGRESS and EPOCH lines; "
+            "use --debug-training-output for every internal diagnostic.",
+            flush=True,
+        )
     loss_weights = torch.tensor(class_weights, dtype=torch.float32, device=device)
     market_scores = market_rank_scores(valid_fluc2)
     market_race_metrics = race_top3_metrics(valid_y, market_scores, valid_race_ids)
@@ -1089,15 +1350,25 @@ def run_training(args: argparse.Namespace) -> int:
             valid_y[cohort_mask], market_scores[cohort_mask], valid_race_ids[cohort_mask]
         )
     market_price_coverage = float(np.isfinite(market_scores).mean())
-    print(f"MARKET BASELINE fluc2 coverage={market_price_coverage:.4f}", flush=True)
+    if debug_output:
+        print(f"MARKET BASELINE fluc2 coverage={market_price_coverage:.4f}", flush=True)
     for cohort, metrics in market_metrics_by_cohort.items():
+        if not debug_output and cohort != "combined":
+            continue
         print(
-            f"  {cohort} races={metrics['complete_races']} "
+            f"  {'MARKET REFERENCE' if not debug_output else cohort} "
+            f"races={metrics['complete_races']} "
             f"top3_recall={metrics['top3_recall']:.4f} "
             f"exact_top3_set={metrics['exact_top3_set_rate']:.4f} "
             f"contained_top4={metrics['contained_top4_rate']:.4f} "
             f"contained_top5={metrics['contained_top5_rate']:.4f} "
             f"contained_top6={metrics['contained_top6_rate']:.4f}",
+            flush=True,
+        )
+    if not debug_output:
+        print(
+            "    comparison only: this ranks runners by final market price; "
+            "the model should move toward or above it as training improves.",
             flush=True,
         )
 
@@ -1143,18 +1414,31 @@ def run_training(args: argparse.Namespace) -> int:
         probe_metrics = probability_metrics(
             fixed_probe_y, probe_probability, fixed_probe_row_race_ids
         )
-        print(
-            f"FIXED_PROBE label={label} step={global_step} "
-            f"races={probe_metrics['complete_races']} "
-            f"top3_recall={probe_metrics['top3_recall']:.4f} "
-            f"exact_top3_set={probe_metrics['exact_top3_set_rate']:.4f} "
-            f"contained_top4={probe_metrics['contained_top4_rate']:.4f} "
-            f"contained_top5={probe_metrics['contained_top5_rate']:.4f} "
-            f"contained_top6={probe_metrics['contained_top6_rate']:.4f} "
-            f"auc={probe_metrics['roc_auc']:.4f} "
-            f"logloss={probe_metrics['logloss']:.5f}",
-            flush=True,
-        )
+        if debug_output:
+            print(
+                f"FIXED_PROBE label={label} step={global_step} "
+                f"races={probe_metrics['complete_races']} "
+                f"top3_recall={probe_metrics['top3_recall']:.4f} "
+                f"exact_top3_set={probe_metrics['exact_top3_set_rate']:.4f} "
+                f"contained_top4={probe_metrics['contained_top4_rate']:.4f} "
+                f"contained_top5={probe_metrics['contained_top5_rate']:.4f} "
+                f"contained_top6={probe_metrics['contained_top6_rate']:.4f} "
+                f"auc={probe_metrics['roc_auc']:.4f} "
+                f"logloss={probe_metrics['logloss']:.5f}",
+                flush=True,
+            )
+        else:
+            progress_label = "STARTING PROBE" if label == "before_training" else "PROGRESS"
+            print(
+                f"{progress_label} step={global_step}/"
+                f"{args.epochs * effective_steps_per_epoch} "
+                f"races={probe_metrics['complete_races']} "
+                f"top3_recall={probe_metrics['top3_recall']:.4f} "
+                f"exact_top3_set={probe_metrics['exact_top3_set_rate']:.4f} "
+                f"auc={probe_metrics['roc_auc']:.4f} "
+                f"logloss={probe_metrics['logloss']:.5f}",
+                flush=True,
+            )
         current_recall = float(probe_metrics["top3_recall"])
         current_auc = float(probe_metrics["roc_auc"])
         if label == "after_update" and global_step >= FIXED_PROBE_REGRESSION_WARNING_MIN_STEP:
@@ -1204,20 +1488,21 @@ def run_training(args: argparse.Namespace) -> int:
         baseline_metrics = probability_metrics(
             fixed_probe_y, baseline_probability, fixed_probe_row_race_ids
         )
-        print(
-            f"CONTEXT_ABLATION_PROBE label={label} step={global_step} "
-            f"variant=correct races={baseline_metrics['complete_races']} "
-            "max_probability_delta=0.00000000 "
-            "mean_probability_delta=0.00000000 "
-            "ranking_changed_races=0 top3_changed_races=0 "
-            "mean_rank_displacement=0.0000 "
-            f"top3_recall={baseline_metrics['top3_recall']:.4f} "
-            "top3_recall_delta=+0.0000 "
-            f"auc={baseline_metrics['roc_auc']:.4f} auc_delta=+0.0000 "
-            f"logloss={baseline_metrics['logloss']:.5f} "
-            "logloss_delta=+0.00000",
-            flush=True,
-        )
+        if debug_output:
+            print(
+                f"CONTEXT_ABLATION_PROBE label={label} step={global_step} "
+                f"variant=correct races={baseline_metrics['complete_races']} "
+                "max_probability_delta=0.00000000 "
+                "mean_probability_delta=0.00000000 "
+                "ranking_changed_races=0 top3_changed_races=0 "
+                "mean_rank_displacement=0.0000 "
+                f"top3_recall={baseline_metrics['top3_recall']:.4f} "
+                "top3_recall_delta=+0.0000 "
+                f"auc={baseline_metrics['roc_auc']:.4f} auc_delta=+0.0000 "
+                f"logloss={baseline_metrics['logloss']:.5f} "
+                "logloss_delta=+0.00000",
+                flush=True,
+            )
         for variant in ("permuted", "zeroed", "flipped"):
             ablated_probability = predict_with_causal_context(
                 fixed_probe_x,
@@ -1240,26 +1525,27 @@ def run_training(args: argparse.Namespace) -> int:
                 float(ablated_metrics["logloss"])
                 - float(baseline_metrics["logloss"])
             )
-            print(
-                f"CONTEXT_ABLATION_PROBE label={label} step={global_step} "
-                f"variant={variant} races={change['compared_races']} "
-                f"max_probability_delta={change['max_probability_delta']:.8f} "
-                f"mean_probability_delta={change['mean_probability_delta']:.8f} "
-                f"ranking_changed_races={change['ranking_changed_races']} "
-                f"top3_changed_races={change['top3_changed_races']} "
-                f"mean_rank_displacement="
-                f"{change['mean_absolute_rank_displacement']:.4f} "
-                f"top3_recall={ablated_metrics['top3_recall']:.4f} "
-                f"top3_recall_delta="
-                f"{float(ablated_metrics['top3_recall']) - float(baseline_metrics['top3_recall']):+.4f} "
-                f"auc={ablated_metrics['roc_auc']:.4f} "
-                f"auc_delta="
-                f"{auc_delta:+.4f} "
-                f"logloss={ablated_metrics['logloss']:.5f} "
-                f"logloss_delta="
-                f"{logloss_delta:+.5f}",
-                flush=True,
-            )
+            if debug_output:
+                print(
+                    f"CONTEXT_ABLATION_PROBE label={label} step={global_step} "
+                    f"variant={variant} races={change['compared_races']} "
+                    f"max_probability_delta={change['max_probability_delta']:.8f} "
+                    f"mean_probability_delta={change['mean_probability_delta']:.8f} "
+                    f"ranking_changed_races={change['ranking_changed_races']} "
+                    f"top3_changed_races={change['top3_changed_races']} "
+                    f"mean_rank_displacement="
+                    f"{change['mean_absolute_rank_displacement']:.4f} "
+                    f"top3_recall={ablated_metrics['top3_recall']:.4f} "
+                    f"top3_recall_delta="
+                    f"{float(ablated_metrics['top3_recall']) - float(baseline_metrics['top3_recall']):+.4f} "
+                    f"auc={ablated_metrics['roc_auc']:.4f} "
+                    f"auc_delta="
+                    f"{auc_delta:+.4f} "
+                    f"logloss={ablated_metrics['logloss']:.5f} "
+                    f"logloss_delta="
+                    f"{logloss_delta:+.5f}",
+                    flush=True,
+                )
             if variant == "permuted" and label == "after_update":
                 ineffective = context_permutation_is_ineffective(
                     float(change["mean_probability_delta"]),
@@ -1303,6 +1589,42 @@ def run_training(args: argparse.Namespace) -> int:
     best_observed_stress_recall: float | None = None
     epochs_without_improvement = 0
     step_loss_history: deque[float] = deque(maxlen=args.step_loss_window)
+    previous_epoch_train_loss: float | None = None
+    previous_epoch_metrics: dict[str, float | int] | None = None
+    feature_schema_hash = hashlib.sha256(
+        json.dumps(feature_columns, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    checkpoint_provenance = {
+        "training_pool_race_ids": list(map(int, training_race_indices)),
+        "eligible_training_query_race_ids": list(
+            map(int, chronological_query_race_ids)
+        ),
+        "validation_query_race_ids": list(map(int, selected_valid_races)),
+        "training_competition_ids": sorted({
+            int(competition_by_race_id[int(race_id)])
+            for race_id in chronological_query_race_ids
+        }),
+        "validation_competition_ids": sorted({
+            int(competition_by_race_id[int(race_id)])
+            for race_id in selected_valid_races
+        }),
+        "random_seed": int(args.seed),
+        "feature_schema_hash": feature_schema_hash,
+        "feature_schema_version": "ordered_feature_names_sha256_v1",
+        "preprocessing_version": "median_standard_scale_v1",
+        "training_csv_sha256": _sha256_file(args.training_csv),
+        "validation_csv_sha256": _sha256_file(args.validation_csv),
+        "partition_source": partition_source,
+        "experiment_only": bool(args.classroom_overfit_all_races),
+        "production_eligible": not bool(args.classroom_overfit_all_races),
+        "classroom_overfit_all_races": bool(args.classroom_overfit_all_races),
+        "checkpoint_metric": args.checkpoint_metric,
+        "checkpoint_metric_definition": (
+            "lexicographic(top3_recall,ndcg3,exact_top3_set_rate,"
+            "pairwise_ranking_accuracy,-logloss)"
+            if args.checkpoint_metric == "composite" else args.checkpoint_metric
+        ),
+    }
     if resume_bundle is not None:
         model.eval()
         baseline_probability = predict_with_causal_context(
@@ -1312,7 +1634,9 @@ def run_training(args: argparse.Namespace) -> int:
             valid_y, baseline_probability, valid_race_ids, valid_cohorts
         )
         baseline_race_metrics = baseline_metrics_by_cohort["combined"]
-        best_selection = cohort_checkpoint_selection(baseline_metrics_by_cohort)
+        best_selection = cohort_checkpoint_selection(
+            baseline_metrics_by_cohort, args.checkpoint_metric
+        )
         best_state = {
             key: value.detach().cpu().clone()
             for key, value in model.state_dict().items()
@@ -1325,9 +1649,36 @@ def run_training(args: argparse.Namespace) -> int:
         stress_metrics = baseline_metrics_by_cohort.get("market_miss_stress")
         if stress_metrics is not None:
             best_observed_stress_recall = float(stress_metrics["top3_recall"])
-        print("FINE-TUNE BASELINE epoch=0", flush=True)
-        for cohort, metrics in baseline_metrics_by_cohort.items():
-            print("  " + format_metric_line(cohort, metrics), flush=True)
+        previous_epoch_metrics = baseline_race_metrics
+        if debug_output:
+            print("FINE-TUNE BASELINE epoch=0", flush=True)
+            for cohort, metrics in baseline_metrics_by_cohort.items():
+                print("  " + format_metric_line(cohort, metrics), flush=True)
+        else:
+            selection_baseline = baseline_metrics_by_cohort[
+                "chronological_representative"
+            ]
+            print(
+                "STARTING MODEL all_races "
+                f"top3_recall={baseline_race_metrics['top3_recall']:.4f} "
+                f"exact_top3_set={baseline_race_metrics['exact_top3_set_rate']:.4f} "
+                f"auc={baseline_race_metrics['roc_auc']:.4f} "
+                f"logloss={baseline_race_metrics['logloss']:.5f}",
+                flush=True,
+            )
+            print(
+                "  checkpoint-selection cohort "
+                f"races={selection_baseline['complete_races']} "
+                f"top3_recall={selection_baseline['top3_recall']:.4f} "
+                f"contained_top5={selection_baseline['contained_top5_rate']:.4f} "
+                f"logloss={selection_baseline['logloss']:.5f}",
+                flush=True,
+            )
+            print(
+                "    this is epoch 0 before any update; epoch changes below are "
+                "compared with this starting model.",
+                flush=True,
+            )
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -1336,6 +1687,17 @@ def run_training(args: argparse.Namespace) -> int:
         pairwise_losses = []
         attention_delta_pairwise_losses = []
         context_prototype_pairwise_losses = []
+        label_context_pairwise_losses = []
+        label_context_abs_means = []
+        label_context_margin_abs_means = []
+        label_context_correction_spreads = []
+        label_context_gradient_norms = {
+            "query": [],
+            "key": [],
+            "value": [],
+            "label_embedding": [],
+            "output_projection": [],
+        }
         context_prototype_abs_means = []
         context_prototype_permutation_deltas = []
         cardinality_losses = []
@@ -1447,6 +1809,7 @@ def run_training(args: argparse.Namespace) -> int:
             return_auxiliary_deltas = (
                 args.attention_delta_pairwise_loss_weight > 0
                 or args.context_prototype_loss_weight > 0
+                or args.label_context_loss_weight > 0
             )
             model_output = model(
                 batch_x,
@@ -1462,10 +1825,12 @@ def run_training(args: argparse.Namespace) -> int:
                 context_prototype_delta = auxiliary_deltas[
                     "context_prototype_delta"
                 ]
+                label_context_delta = auxiliary_deltas["label_context_delta"]
             else:
                 logits = model_output
                 race_delta = None
                 context_prototype_delta = None
+                label_context_delta = None
             positions = torch.arange(logits.shape[1], device=logits.device).unsqueeze(0)
             query_mask = positions >= batch_train_sizes.unsqueeze(1)
             query_mask &= batch_valid_row_mask
@@ -1522,6 +1887,24 @@ def run_training(args: argparse.Namespace) -> int:
                 )
             else:
                 context_prototype_pairwise_loss = loss.new_zeros(())
+            if args.label_context_loss_weight > 0:
+                if label_context_delta is None:
+                    raise RuntimeError(
+                        "Label-context direct loss was enabled but the model "
+                        "returned no label-aware context correction"
+                    )
+                label_context_pairwise_loss = grouped_pairwise_loss(
+                    label_context_delta[query_mask][:, :2],
+                    query_targets,
+                    query_row_race_ids_tensor,
+                )
+                loss = (
+                    loss
+                    + args.label_context_loss_weight
+                    * label_context_pairwise_loss
+                )
+            else:
+                label_context_pairwise_loss = loss.new_zeros(())
             permuted_context_prototype_delta = None
             if permuted_batch_y is not None:
                 permuted_model_output = model(
@@ -1602,36 +1985,88 @@ def run_training(args: argparse.Namespace) -> int:
                 )
             else:
                 context_prototype_permutation_delta = 0.0
+            if label_context_delta is not None:
+                label_context_abs_mean = float(
+                    label_context_delta[query_mask].detach().abs().mean()
+                )
+                query_label_delta = label_context_delta[query_mask][:, :2]
+                query_label_margin = (
+                    query_label_delta[:, 1] - query_label_delta[:, 0]
+                )
+                label_context_margin_abs_mean = float(
+                    query_label_margin.detach().abs().mean()
+                )
+                step_spreads = []
+                for query_race_id in torch.unique(query_row_race_ids_tensor):
+                    race_margin = query_label_margin[
+                        query_row_race_ids_tensor == query_race_id
+                    ]
+                    step_spreads.append(race_margin.max() - race_margin.min())
+                label_context_correction_spread = float(
+                    torch.stack(step_spreads).detach().mean()
+                )
+            else:
+                label_context_abs_mean = 0.0
+                label_context_margin_abs_mean = 0.0
+                label_context_correction_spread = 0.0
             step_race_metrics = pre_update_training_batch_metrics(
                 query_targets.detach().cpu().numpy(),
                 query_logits,
                 query_row_race_ids_tensor.detach().cpu().numpy(),
             )
             step_loss_history.append(step_loss)
-            print(
-                f"pre_update_training_batch epoch={epoch:02d} "
-                f"step={step_index + 1}/{effective_steps_per_epoch} "
-                f"global_step={global_step} "
-                f"complete_races={step_race_metrics['complete_races']} "
-                f"loss={step_loss:.5f} "
-                f"rolling_loss={np.mean(step_loss_history):.5f} "
-                f"context_dependence_loss={context_loss_value:.5f} "
-                f"permuted_minus_correct_loss={context_loss_gap:+.5f} "
-                f"prototype_pairwise_loss="
-                f"{float(context_prototype_pairwise_loss.detach()):.5f} "
-                f"prototype_abs_mean={context_prototype_abs_mean:.6f} "
-                f"prototype_permutation_delta="
-                f"{context_prototype_permutation_delta:.6f} "
-                "{"
-                f"top3_recall={step_race_metrics['top3_recall']:.4f} "
-                f"exact_top3_set={step_race_metrics['exact_top3_set_rate']:.4f} "
-                f"contained_top4={step_race_metrics['contained_top4_rate']:.4f} "
-                f"contained_top5={step_race_metrics['contained_top5_rate']:.4f} "
-                f"contained_top6={step_race_metrics['contained_top6_rate']:.4f}"
-                "}",
-                flush=True,
-            )
+            if debug_output:
+                print(
+                    f"pre_update_training_batch epoch={epoch:02d} "
+                    f"step={step_index + 1}/{effective_steps_per_epoch} "
+                    f"global_step={global_step} "
+                    f"complete_races={step_race_metrics['complete_races']} "
+                    f"loss={step_loss:.5f} "
+                    f"rolling_loss={np.mean(step_loss_history):.5f} "
+                    f"context_dependence_loss={context_loss_value:.5f} "
+                    f"permuted_minus_correct_loss={context_loss_gap:+.5f} "
+                    f"prototype_pairwise_loss="
+                    f"{float(context_prototype_pairwise_loss.detach()):.5f} "
+                    f"prototype_abs_mean={context_prototype_abs_mean:.6f} "
+                    f"prototype_permutation_delta="
+                    f"{context_prototype_permutation_delta:.6f} "
+                    f"label_context_pairwise_loss="
+                    f"{float(label_context_pairwise_loss.detach()):.5f} "
+                    f"label_context_abs_mean={label_context_abs_mean:.6f} "
+                    "{"
+                    f"top3_recall={step_race_metrics['top3_recall']:.4f} "
+                    f"exact_top3_set={step_race_metrics['exact_top3_set_rate']:.4f} "
+                    f"contained_top4={step_race_metrics['contained_top4_rate']:.4f} "
+                    f"contained_top5={step_race_metrics['contained_top5_rate']:.4f} "
+                    f"contained_top6={step_race_metrics['contained_top6_rate']:.4f}"
+                    "}",
+                    flush=True,
+                )
             loss.backward()
+            base_model = model.module if hasattr(model, "module") else model
+            label_head = getattr(base_model, "label_context_head", None)
+            if label_head is not None:
+                packed_gradient = label_head.cross_attention.in_proj_weight.grad
+                if packed_gradient is None:
+                    projection_gradients = (0.0, 0.0, 0.0)
+                else:
+                    projection_gradients = tuple(
+                        float(part.detach().norm())
+                        for part in packed_gradient.chunk(3, dim=0)
+                    )
+                for name, value in zip(
+                    ("query", "key", "value"), projection_gradients
+                ):
+                    label_context_gradient_norms[name].append(value)
+                for name, parameter in (
+                    ("label_embedding", label_head.label_embedding.weight),
+                    ("output_projection", label_head.output_projection.weight),
+                ):
+                    label_context_gradient_norms[name].append(
+                        0.0
+                        if parameter.grad is None
+                        else float(parameter.grad.detach().norm())
+                    )
             gradient_norm = torch.nn.utils.clip_grad_norm_(
                 model.parameters(), args.max_grad_norm
             )
@@ -1644,7 +2079,6 @@ def run_training(args: argparse.Namespace) -> int:
             gradient_norms.append(gradient_norm_value)
             clipped_gradient_steps += int(gradient_norm_value > args.max_grad_norm)
             optimizer.step()
-            base_model = model.module if hasattr(model, "module") else model
             if hasattr(base_model, "mark_weights_updated"):
                 base_model.mark_weights_updated()
             if global_step % args.probe_every_steps == 0:
@@ -1662,6 +2096,14 @@ def run_training(args: argparse.Namespace) -> int:
             )
             context_prototype_pairwise_losses.append(
                 float(context_prototype_pairwise_loss.detach())
+            )
+            label_context_pairwise_losses.append(
+                float(label_context_pairwise_loss.detach())
+            )
+            label_context_abs_means.append(label_context_abs_mean)
+            label_context_margin_abs_means.append(label_context_margin_abs_mean)
+            label_context_correction_spreads.append(
+                label_context_correction_spread
             )
             context_prototype_abs_means.append(context_prototype_abs_mean)
             context_prototype_permutation_deltas.append(
@@ -1695,43 +2137,153 @@ def run_training(args: argparse.Namespace) -> int:
             valid_y, valid_prob, valid_race_ids, valid_cohorts
         )
         race_metrics = metrics_by_cohort["combined"]
-        print(
-            f"epoch={epoch:02d} weighted_train_loss={np.mean(losses):.5f} "
-            f"classification_loss={np.mean(classification_losses):.5f} "
-            f"pairwise_loss={np.mean(pairwise_losses):.5f} "
-            f"attention_delta_pairwise_loss="
-            f"{np.mean(attention_delta_pairwise_losses):.5f} "
-            f"context_prototype_pairwise_loss="
-            f"{np.mean(context_prototype_pairwise_losses):.5f} "
-            f"context_prototype_abs_mean="
-            f"{np.mean(context_prototype_abs_means):.6f} "
-            f"context_prototype_permutation_delta="
-            f"{np.mean(context_prototype_permutation_deltas):.6f} "
-            f"cardinality_loss={np.mean(cardinality_losses):.5f} "
-            f"context_dependence_loss={np.mean(context_dependence_losses):.5f} "
-            f"permuted_context_prediction_loss="
-            f"{np.mean(permuted_context_prediction_losses):.5f} "
-            f"context_margin_satisfied_steps="
-            f"{context_margin_satisfied_steps}/{len(losses)} "
-            f"avg_context_rows_per_query={np.mean(context_row_counts):.1f} "
-            f"avg_query_rows_per_race={np.mean(query_row_counts):.1f} "
-            f"valid_rows_per_step_min={min(batch_row_counts)} "
-            f"valid_rows_per_step_max={max(batch_row_counts)} "
-            f"avg_gradient_norm={np.mean(gradient_norms):.5f} "
-            f"max_gradient_norm={max(gradient_norms):.5f} "
-            f"gradient_clipped_steps={clipped_gradient_steps}/{len(gradient_norms)} "
-            f"unique_context_races={len(epoch_context_races)} "
-            f"unique_query_races={len(epoch_query_races)}",
-            flush=True,
+        epoch_train_loss = float(np.mean(losses))
+        if debug_output:
+            print(
+                f"epoch={epoch:02d} weighted_train_loss={epoch_train_loss:.5f} "
+                f"classification_loss={np.mean(classification_losses):.5f} "
+                f"pairwise_loss={np.mean(pairwise_losses):.5f} "
+                f"attention_delta_pairwise_loss="
+                f"{np.mean(attention_delta_pairwise_losses):.5f} "
+                f"context_prototype_pairwise_loss="
+                f"{np.mean(context_prototype_pairwise_losses):.5f} "
+                f"context_prototype_abs_mean="
+                f"{np.mean(context_prototype_abs_means):.6f} "
+                f"context_prototype_permutation_delta="
+                f"{np.mean(context_prototype_permutation_deltas):.6f} "
+                f"label_context_pairwise_loss="
+                f"{np.mean(label_context_pairwise_losses):.5f} "
+                f"label_context_abs_mean="
+                f"{np.mean(label_context_abs_means):.6f} "
+                f"label_context_margin_abs_mean="
+                f"{np.mean(label_context_margin_abs_means):.6f} "
+                f"label_context_correction_spread="
+                f"{np.mean(label_context_correction_spreads):.6f} "
+                f"cardinality_loss={np.mean(cardinality_losses):.5f} "
+                f"context_dependence_loss={np.mean(context_dependence_losses):.5f} "
+                f"permuted_context_prediction_loss="
+                f"{np.mean(permuted_context_prediction_losses):.5f} "
+                f"context_margin_satisfied_steps="
+                f"{context_margin_satisfied_steps}/{len(losses)} "
+                f"avg_context_rows_per_query={np.mean(context_row_counts):.1f} "
+                f"avg_query_rows_per_race={np.mean(query_row_counts):.1f} "
+                f"valid_rows_per_step_min={min(batch_row_counts)} "
+                f"valid_rows_per_step_max={max(batch_row_counts)} "
+                f"avg_gradient_norm={np.mean(gradient_norms):.5f} "
+                f"max_gradient_norm={max(gradient_norms):.5f} "
+                f"gradient_clipped_steps={clipped_gradient_steps}/{len(gradient_norms)} "
+                f"unique_context_races={len(epoch_context_races)} "
+                f"unique_query_races={len(epoch_query_races)}",
+                flush=True,
+            )
+            if label_context_branch:
+                label_head = (
+                    model.module.label_context_head
+                    if hasattr(model, "module") else model.label_context_head
+                )
+                print(
+                    "  label_context_gradients "
+                    + " ".join(
+                        f"{name}={np.mean(values):.6f}"
+                        for name, values in label_context_gradient_norms.items()
+                    )
+                    + f" output_weight_norm="
+                    f"{float(label_head.output_projection.weight.detach().norm()):.6f}",
+                    flush=True,
+                )
+            for cohort, metrics in metrics_by_cohort.items():
+                print("  " + format_metric_line(cohort, metrics), flush=True)
+            progress_probability = predict_with_causal_context(
+                progress_x,
+                {progress_race_id: np.arange(len(progress_x), dtype=np.int64)},
+            )
+            print_progress_race(progress_race_id, progress_rows, progress_probability)
+        else:
+            selection_metrics = metrics_by_cohort["chronological_representative"]
+            print(
+                f"EPOCH {epoch:02d}/{args.epochs} "
+                f"train_loss={epoch_train_loss:.5f} "
+                f"classification={np.mean(classification_losses):.5f} "
+                f"pairwise={np.mean(pairwise_losses):.5f} "
+                f"gradient_clipped={clipped_gradient_steps}/{len(gradient_norms)}",
+                flush=True,
+            )
+            if label_context_branch:
+                label_head = (
+                    model.module.label_context_head
+                    if hasattr(model, "module") else model.label_context_head
+                )
+                print(
+                    "  label_context "
+                    f"pairwise_loss={np.mean(label_context_pairwise_losses):.5f} "
+                    f"abs_logit_correction={np.mean(label_context_abs_means):.6f} "
+                    f"abs_margin_delta={np.mean(label_context_margin_abs_means):.6f} "
+                    f"within_race_spread={np.mean(label_context_correction_spreads):.6f} "
+                    "(lower loss is better; nonzero correction means the branch is active)",
+                    flush=True,
+                )
+                print(
+                    "  label_context_gradients "
+                    + " ".join(
+                        f"{name}={np.mean(values):.6f}"
+                        for name, values in label_context_gradient_norms.items()
+                    )
+                    + f" output_weight_norm="
+                    f"{float(label_head.output_projection.weight.detach().norm()):.6f}",
+                    flush=True,
+                )
+            print(
+                "  all_races "
+                f"top3_recall={race_metrics['top3_recall']:.4f} "
+                f"exact_top3_set={race_metrics['exact_top3_set_rate']:.4f} "
+                f"auc={race_metrics['roc_auc']:.4f} "
+                f"logloss={race_metrics['logloss']:.5f}",
+                flush=True,
+            )
+            print(
+                "  checkpoint-selection "
+                f"top3_recall={selection_metrics['top3_recall']:.4f} "
+                f"contained_top5={selection_metrics['contained_top5_rate']:.4f} "
+                f"logloss={selection_metrics['logloss']:.5f}",
+                flush=True,
+            )
+            if previous_epoch_metrics is None:
+                print(
+                    "  trend=first epoch; use the next epoch to establish direction.",
+                    flush=True,
+                )
+            else:
+                recall_delta = (
+                    float(race_metrics["top3_recall"])
+                    - float(previous_epoch_metrics["top3_recall"])
+                )
+                logloss_delta = (
+                    float(race_metrics["logloss"])
+                    - float(previous_epoch_metrics["logloss"])
+                )
+                if recall_delta > 0 and logloss_delta <= 0:
+                    trend = "improving"
+                elif recall_delta < 0 and logloss_delta >= 0:
+                    trend = "regressing"
+                elif abs(recall_delta) < 1e-12 and abs(logloss_delta) < 1e-12:
+                    trend = "unchanged"
+                else:
+                    trend = "mixed"
+                loss_change = (
+                    "first measured training loss"
+                    if previous_epoch_train_loss is None
+                    else f"train_loss_delta={epoch_train_loss - previous_epoch_train_loss:+.5f}"
+                )
+                print(
+                    f"  trend={trend}: top3_delta={recall_delta:+.4f} "
+                    f"logloss_delta={logloss_delta:+.5f} {loss_change}",
+                    flush=True,
+                )
+        previous_epoch_train_loss = epoch_train_loss
+        previous_epoch_metrics = race_metrics
+        selection = cohort_checkpoint_selection(
+            metrics_by_cohort, args.checkpoint_metric
         )
-        for cohort, metrics in metrics_by_cohort.items():
-            print("  " + format_metric_line(cohort, metrics), flush=True)
-        progress_probability = predict_with_causal_context(
-            progress_x,
-            {progress_race_id: np.arange(len(progress_x), dtype=np.int64)},
-        )
-        print_progress_race(progress_race_id, progress_rows, progress_probability)
-        selection = cohort_checkpoint_selection(metrics_by_cohort)
         guardrail_passed = stress_guardrail_passes(
             metrics_by_cohort,
             best_observed_stress_recall,
@@ -1748,7 +2300,8 @@ def run_training(args: argparse.Namespace) -> int:
         selection_improved = (
             best_selection is None
             or checkpoint_selection_improves(
-                metrics_by_cohort, best_metrics_by_cohort
+                metrics_by_cohort, best_metrics_by_cohort,
+                checkpoint_metric=args.checkpoint_metric,
             )
         )
         if selection_improved and guardrail_passed:
@@ -1760,7 +2313,7 @@ def run_training(args: argparse.Namespace) -> int:
             best_epoch = epoch
             best_metrics = {
                 **race_metrics,
-                "train_loss": float(np.mean(losses)),
+                "train_loss": epoch_train_loss,
             }
             best_metrics_by_cohort = metrics_by_cohort
             epochs_without_improvement = 0
@@ -1776,32 +2329,54 @@ def run_training(args: argparse.Namespace) -> int:
                 zeroed_features=zero_features,
                 metrics=best_metrics,
                 metrics_by_cohort=best_metrics_by_cohort,
+                provenance=checkpoint_provenance,
             )
-            print(
-                f"NEW BEST epoch={best_epoch} "
-                f"top3_recall={race_metrics['top3_recall']:.4f} "
-                f"contained_top5={race_metrics['contained_top5_rate']:.4f} "
-                f"contained_top4={race_metrics['contained_top4_rate']:.4f} "
-                f"exact_top3_set={race_metrics['exact_top3_set_rate']:.4f} "
-                f"auc={race_metrics['roc_auc']:.4f} "
-                f"logloss={race_metrics['logloss']:.5f} "
-                f"checkpoint={best_checkpoint_path}",
-                flush=True,
-            )
+            if debug_output:
+                print(
+                    f"NEW BEST epoch={best_epoch} "
+                    f"top3_recall={race_metrics['top3_recall']:.4f} "
+                    f"contained_top5={race_metrics['contained_top5_rate']:.4f} "
+                    f"contained_top4={race_metrics['contained_top4_rate']:.4f} "
+                    f"exact_top3_set={race_metrics['exact_top3_set_rate']:.4f} "
+                    f"auc={race_metrics['roc_auc']:.4f} "
+                    f"logloss={race_metrics['logloss']:.5f} "
+                    f"checkpoint={best_checkpoint_path}",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"  CHECKPOINT saved epoch={best_epoch}: the chronological "
+                    "selection metrics improved and the stress guardrail passed. "
+                    f"path={best_checkpoint_path}",
+                    flush=True,
+                )
         else:
             epochs_without_improvement += 1
-            if not guardrail_passed:
+            if not guardrail_passed and debug_output:
                 print(
                     "STRESS GUARDRAIL REJECTED "
                     f"max_drop={args.stress_top3_recall_max_drop:.4f} "
                     f"best_observed_stress_recall={best_observed_stress_recall:.4f}",
                     flush=True,
                 )
-            print(
-                f"no_improvement={epochs_without_improvement}/"
-                f"{args.early_stopping_patience} best_epoch={best_epoch}",
-                flush=True,
-            )
+            if debug_output:
+                print(
+                    f"no_improvement={epochs_without_improvement}/"
+                    f"{args.early_stopping_patience} best_epoch={best_epoch}",
+                    flush=True,
+                )
+            else:
+                reason = (
+                    "the one-race market-miss stress guardrail failed"
+                    if not guardrail_passed
+                    else "the chronological selection metrics did not beat the current best"
+                )
+                print(
+                    f"  CHECKPOINT unchanged best_epoch={best_epoch} "
+                    f"patience={epochs_without_improvement}/{args.early_stopping_patience}: "
+                    f"{reason}.",
+                    flush=True,
+                )
             if (
                 early_stopping_enabled
                 and epochs_without_improvement >= args.early_stopping_patience
@@ -1827,6 +2402,9 @@ def run_training(args: argparse.Namespace) -> int:
         if resume_model_path is not None
         else "from_scratch"
     )
+    training_csv_sha256 = _sha256_file(args.training_csv)
+    validation_csv_sha256 = _sha256_file(args.validation_csv)
+    training_completed_at = datetime.now().astimezone().isoformat()
     if args.classroom_overfit_all_races:
         training_filter = f"{TRAINING_ROWS_VIEW} (all complete races; overlaps validation)"
         validation_filter = f"{TRAINING_ROWS_VIEW} (all complete races; overlaps training)"
@@ -1848,6 +2426,10 @@ def run_training(args: argparse.Namespace) -> int:
             "partition_source": partition_source,
             "row_source": str(args.training_csv.resolve()),
             "validation_row_source": str(args.validation_csv.resolve()),
+            "training_csv_sha256": training_csv_sha256,
+            "validation_csv_sha256": validation_csv_sha256,
+            "checkpoint_saved_at": training_completed_at,
+            "checkpoint_kind": "selected_final_checkpoint",
             "source_training_view": TRAINING_ROWS_VIEW,
             "source_validation_view": VALIDATION_ROWS_VIEW,
             "training_filter": training_filter,
@@ -1895,11 +2477,18 @@ def run_training(args: argparse.Namespace) -> int:
             "requested_steps_per_epoch": args.steps_per_epoch,
             "auto_race_schedule": args.auto_race_schedule,
             "eligible_training_race_count": len(training_race_indices),
+            "training_pool_race_ids": list(map(int, training_race_indices)),
+            "eligible_training_query_race_ids": list(
+                map(int, chronological_query_race_ids)
+            ),
+            "validation_query_race_ids": list(map(int, selected_valid_races)),
             "max_grad_norm": args.max_grad_norm,
             "learning_rate": learning_rate,
             "weight_decay": args.weight_decay,
             "training_scope": training_scope,
             "trainable_parameter_count": trainable_parameter_count,
+            "frozen_parameter_count": frozen_parameter_count,
+            "total_parameter_count": total_parameter_count,
             "loss_aggregation": "equal_mean_per_query_race",
             "skipped_invalid_training_race_ids": skipped_training_race_ids,
             "skipped_invalid_validation_race_ids": skipped_validation_race_ids,
@@ -1919,10 +2508,8 @@ def run_training(args: argparse.Namespace) -> int:
             "allow_small_cohort_early_stopping": (
                 args.allow_small_cohort_early_stopping
             ),
-            "selection_metric": (
-                "chronological_top3_recall_then_contained_top5_then_logloss_"
-                "with_market_miss_stress_guardrail"
-            ),
+            "selection_metric": checkpoint_provenance["checkpoint_metric_definition"],
+            "checkpoint_metric": args.checkpoint_metric,
             "classification_loss_weight": args.classification_loss_weight,
             "label": "top3_mask",
             "race_context_mode": race_context_mode,
@@ -1931,6 +2518,7 @@ def run_training(args: argparse.Namespace) -> int:
             "race_context_heads": race_context_heads,
             "race_context_ff_dim": race_context_ff_dim,
             "race_context_residual": race_context_residual,
+            "race_head_scale": race_head_scale,
             "context_prototype_branch": context_prototype_branch,
             "context_prototype_source": (
                 "normalized_input_features" if context_prototype_branch else None
@@ -1942,6 +2530,14 @@ def run_training(args: argparse.Namespace) -> int:
             "context_prototype_max_correction": (
                 context_prototype_max_correction
             ),
+            "label_context_branch": label_context_branch,
+            "label_context_heads": label_context_heads,
+            "label_context_max_correction": label_context_max_correction,
+            "label_context_labels_in_values_only": (
+                label_context_labels_in_values_only
+            ),
+            "label_context_temperature": label_context_temperature,
+            "label_context_top_k": label_context_top_k,
             "pairwise_loss_weight": args.pairwise_loss_weight,
             "attention_delta_pairwise_loss_weight": (
                 args.attention_delta_pairwise_loss_weight
@@ -1949,6 +2545,7 @@ def run_training(args: argparse.Namespace) -> int:
             "context_prototype_loss_weight": (
                 args.context_prototype_loss_weight
             ),
+            "label_context_loss_weight": args.label_context_loss_weight,
             "cardinality_loss_weight": args.cardinality_loss_weight,
             "context_dependence_loss_weight": (
                 args.context_dependence_loss_weight
@@ -1971,6 +2568,7 @@ def run_training(args: argparse.Namespace) -> int:
             "source_best_epoch": (
                 resume_bundle.get("best_epoch") if resume_bundle is not None else None
             ),
+            **checkpoint_provenance,
         }
     temporary_output = args.output.with_suffix(args.output.suffix + ".tmp")
     torch.save(checkpoint, temporary_output)
@@ -1988,6 +2586,7 @@ def run_training(args: argparse.Namespace) -> int:
                 "race_context_heads": race_context_heads,
                 "race_context_ff_dim": race_context_ff_dim,
                 "race_context_residual": race_context_residual,
+                "race_head_scale": race_head_scale,
                 "context_prototype_branch": context_prototype_branch,
                 "context_prototype_source": (
                     "normalized_input_features" if context_prototype_branch else None
@@ -1999,6 +2598,14 @@ def run_training(args: argparse.Namespace) -> int:
                 "context_prototype_max_correction": (
                     context_prototype_max_correction
                 ),
+                "label_context_branch": label_context_branch,
+                "label_context_heads": label_context_heads,
+                "label_context_max_correction": label_context_max_correction,
+                "label_context_labels_in_values_only": (
+                    label_context_labels_in_values_only
+                ),
+                "label_context_temperature": label_context_temperature,
+                "label_context_top_k": label_context_top_k,
                 "pairwise_loss_weight": args.pairwise_loss_weight,
                 "attention_delta_pairwise_loss_weight": (
                     args.attention_delta_pairwise_loss_weight
@@ -2006,6 +2613,7 @@ def run_training(args: argparse.Namespace) -> int:
                 "context_prototype_loss_weight": (
                     args.context_prototype_loss_weight
                 ),
+                "label_context_loss_weight": args.label_context_loss_weight,
                 "cardinality_loss_weight": args.cardinality_loss_weight,
                 "context_dependence_loss_weight": (
                     args.context_dependence_loss_weight
@@ -2018,6 +2626,10 @@ def run_training(args: argparse.Namespace) -> int:
                 "partition_source": partition_source,
                 "row_source": str(args.training_csv.resolve()),
                 "validation_row_source": str(args.validation_csv.resolve()),
+                "training_csv_sha256": training_csv_sha256,
+                "validation_csv_sha256": validation_csv_sha256,
+                "checkpoint_saved_at": training_completed_at,
+                "checkpoint_kind": "selected_final_checkpoint",
                 "source_training_view": TRAINING_ROWS_VIEW,
                 "source_validation_view": VALIDATION_ROWS_VIEW,
                 "training_filter": training_filter,
@@ -2065,11 +2677,18 @@ def run_training(args: argparse.Namespace) -> int:
                 "requested_steps_per_epoch": args.steps_per_epoch,
                 "auto_race_schedule": args.auto_race_schedule,
                 "eligible_training_race_count": len(training_race_indices),
+                "training_pool_race_ids": list(map(int, training_race_indices)),
+                "eligible_training_query_race_ids": list(
+                    map(int, chronological_query_race_ids)
+                ),
+                "validation_query_race_ids": list(map(int, selected_valid_races)),
                 "max_grad_norm": args.max_grad_norm,
                 "learning_rate": learning_rate,
                 "weight_decay": args.weight_decay,
                 "training_scope": training_scope,
                 "trainable_parameter_count": trainable_parameter_count,
+                "frozen_parameter_count": frozen_parameter_count,
+                "total_parameter_count": total_parameter_count,
                 "loss_aggregation": "equal_mean_per_query_race",
                 "skipped_invalid_training_race_ids": skipped_training_race_ids,
                 "skipped_invalid_validation_race_ids": skipped_validation_race_ids,
@@ -2087,10 +2706,8 @@ def run_training(args: argparse.Namespace) -> int:
                 "allow_small_cohort_early_stopping": (
                     args.allow_small_cohort_early_stopping
                 ),
-                "selection_metric": (
-                    "chronological_top3_recall_then_contained_top5_then_logloss_"
-                    "with_market_miss_stress_guardrail"
-                ),
+                "selection_metric": checkpoint_provenance["checkpoint_metric_definition"],
+                "checkpoint_metric": args.checkpoint_metric,
                 "classification_loss_weight": args.classification_loss_weight,
                 "source_db": str(args.db.resolve()),
                 "feature_manifest": str(feature_manifest_path.resolve()),
@@ -2107,24 +2724,38 @@ def run_training(args: argparse.Namespace) -> int:
                     resume_bundle.get("best_epoch")
                     if resume_bundle is not None else None
                 ),
+                **checkpoint_provenance,
                 "output": str(args.output.resolve()),
             },
             indent=2,
         ) + "\n"
     )
-    print(
-        f"selected_epoch={best_epoch} "
-        f"combined_"
-        f"contained_top5={best_metrics['contained_top5_rate']:.4f} "
-        f"contained_top4={best_metrics['contained_top4_rate']:.4f} "
-        f"exact_top3_set={best_metrics['exact_top3_set_rate']:.4f} "
-        f"top3_recall={best_metrics['top3_recall']:.4f} "
-        f"auc={best_metrics['roc_auc']:.4f} "
-        f"logloss={best_metrics['logloss']:.5f}",
-        flush=True,
-    )
-    for cohort, metrics in best_metrics_by_cohort.items():
-        print("  selected_" + format_metric_line(cohort, metrics), flush=True)
-    print(f"saved_model={args.output.resolve()}", flush=True)
-    print(f"saved_metadata={metadata_path.resolve()}", flush=True)
+    if debug_output:
+        print(
+            f"selected_epoch={best_epoch} "
+            f"combined_"
+            f"contained_top5={best_metrics['contained_top5_rate']:.4f} "
+            f"contained_top4={best_metrics['contained_top4_rate']:.4f} "
+            f"exact_top3_set={best_metrics['exact_top3_set_rate']:.4f} "
+            f"top3_recall={best_metrics['top3_recall']:.4f} "
+            f"auc={best_metrics['roc_auc']:.4f} "
+            f"logloss={best_metrics['logloss']:.5f}",
+            flush=True,
+        )
+        for cohort, metrics in best_metrics_by_cohort.items():
+            print("  selected_" + format_metric_line(cohort, metrics), flush=True)
+        print(f"saved_model={args.output.resolve()}", flush=True)
+        print(f"saved_metadata={metadata_path.resolve()}", flush=True)
+    else:
+        print("TRAINING COMPLETE", flush=True)
+        print(
+            f"  selected_epoch={best_epoch} "
+            f"top3_recall={best_metrics['top3_recall']:.4f} "
+            f"exact_top3_set={best_metrics['exact_top3_set_rate']:.4f} "
+            f"auc={best_metrics['roc_auc']:.4f} "
+            f"logloss={best_metrics['logloss']:.5f}",
+            flush=True,
+        )
+        print(f"  model={args.output.resolve()}", flush=True)
+        print(f"  metadata={metadata_path.resolve()}", flush=True)
     return 0

@@ -21,7 +21,12 @@ try:
     from .tabfm_model.icl import ICLearning
     from .tabfm_model.normalisation import RMSNorm
     from .tabfm_model.positional import RoPE, rope_interleaved
-    from .tabfm_model.race_context import ContextPrototypeHead, RaceSetEncoder, RaceSetHead
+    from .tabfm_model.race_context import (
+        ContextPrototypeHead,
+        LabelAwareContextHead,
+        RaceSetEncoder,
+        RaceSetHead,
+    )
     from .tabfm_model.tabfm import (
         _CACHE_FORMAT_VERSION,
         _COL_CHUNK_SIZE,
@@ -63,7 +68,12 @@ except ImportError:
     from tabfm_model.icl import ICLearning
     from tabfm_model.normalisation import RMSNorm
     from tabfm_model.positional import RoPE, rope_interleaved
-    from tabfm_model.race_context import ContextPrototypeHead, RaceSetEncoder, RaceSetHead
+    from tabfm_model.race_context import (
+        ContextPrototypeHead,
+        LabelAwareContextHead,
+        RaceSetEncoder,
+        RaceSetHead,
+    )
     from tabfm_model.tabfm import (
     _CACHE_FORMAT_VERSION,
     _COL_CHUNK_SIZE,
@@ -86,5 +96,6 @@ __all__ = [
     "InducedSelfAttentionBlock", "Encoder", "SetTransformer", "MLP",
     "OneHotAndLinear", "CellEmbedder", "ColEmbedding", "RowInteraction",
     "QuantizedTensor", "ICLearningCache", "ICLearning", "RaceSetEncoder",
-    "RaceSetHead", "ContextPrototypeHead", "move_cache_to_device", "detach_cache", "get_activation",
+    "RaceSetHead", "ContextPrototypeHead", "LabelAwareContextHead",
+    "move_cache_to_device", "detach_cache", "get_activation",
 ]

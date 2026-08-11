@@ -107,3 +107,35 @@ def test_market_baseline_header_is_unique_when_fluc2_is_a_feature(tmp_path):
     x, _, _, _, _, _, market = load_rows_from_csv(csv_path, ["fluc2"])
     np.testing.assert_allclose(x[:, 0], [2.5])
     np.testing.assert_allclose(market, [2.5])
+
+
+def test_csv_handoff_can_suppress_debug_sql_and_load_messages(tmp_path, capsys):
+    database_path = tmp_path / "races.sqlite"
+    csv_path = tmp_path / "training.csv"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute(
+            "CREATE TABLE rows ("
+            "race_id INTEGER, start_time_iso TEXT, competition_id INTEGER, "
+            "is_validation INTEGER, runner_number INTEGER, speed REAL, "
+            "top3_mask INTEGER, fluc2 REAL)"
+        )
+        connection.execute(
+            "INSERT INTO rows VALUES "
+            "(1, '2026-01-01T00:00:00Z', 500, 0, 1, 2.5, 1, 3.0)"
+        )
+        connection.execute("CREATE VIEW training_rows AS SELECT * FROM rows")
+        connection.commit()
+    finally:
+        connection.close()
+
+    export_rows_to_csv(
+        database_path,
+        ["speed"],
+        "training_rows",
+        csv_path,
+        verbose=False,
+    )
+    load_rows_from_csv(csv_path, ["speed"], verbose=False)
+
+    assert capsys.readouterr().out == ""

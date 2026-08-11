@@ -15,9 +15,12 @@ from src.constants import (
 from src.utilities import parse_iso_timestamp
 
 
-def validate_feature_columns(db_path: Path, features: list[str]) -> None:
+def validate_feature_columns(
+    db_path: Path, features: list[str], *, verbose: bool = True
+) -> None:
     """Validate required and numeric feature columns in the source database."""
-    print(db_path)
+    if verbose:
+        print(db_path)
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
         schema = {
@@ -242,6 +245,8 @@ def export_rows_to_csv(
     feature_columns: list[str],
     view_name: str,
     csv_path: Path,
+    *,
+    verbose: bool = True,
 ) -> int:
     """Atomically export an ordered database view snapshot for model loading."""
     columns = training_csv_columns(feature_columns)
@@ -262,7 +267,8 @@ def export_rows_to_csv(
         f"SELECT {selected_columns} FROM {quote_identifier(view_name)} "
         "ORDER BY start_time_iso, race_id, runner_number"
     )
-    print(f"{view_name}_csv_export_sql:\n{sql}", flush=True)
+    if verbose:
+        print(f"{view_name}_csv_export_sql:\n{sql}", flush=True)
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
         require_rows_view(connection, view_name)
@@ -286,16 +292,19 @@ def export_rows_to_csv(
     finally:
         if temporary_path.exists():
             temporary_path.unlink()
-    print(
-        f"csv_export view={view_name} path={csv_path} rows={len(rows):,}",
-        flush=True,
-    )
+    if verbose:
+        print(
+            f"csv_export view={view_name} path={csv_path} rows={len(rows):,}",
+            flush=True,
+        )
     return len(rows)
 
 
 def load_rows_from_csv(
     csv_path: Path,
     feature_columns: list[str],
+    *,
+    verbose: bool = True,
 ) -> tuple[
     np.ndarray,
     np.ndarray,
@@ -357,7 +366,8 @@ def load_rows_from_csv(
         )
     except (TypeError, ValueError) as error:
         raise ValueError(f"Invalid typed value in training CSV {csv_path}: {error}") from error
-    print(f"csv_load path={csv_path.resolve()} rows={len(rows):,}", flush=True)
+    if verbose:
+        print(f"csv_load path={csv_path.resolve()} rows={len(rows):,}", flush=True)
     return x, y, race_ids, times, competition_ids, validation_flags, market_fluc2
 
 

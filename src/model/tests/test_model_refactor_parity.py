@@ -191,7 +191,7 @@ def test_regression_prefill_accepts_explicit_context_with_minus_100_target():
       x, y, train_size=torch.tensor([2]), feature_schema_hash="schema-v1",
       preprocessing_version="prep-v1")
   assert logits.shape[:2] == y.shape
-  assert cache["metadata"]["format_version"] == 4
+  assert cache["metadata"]["format_version"] == 5
 
 
 def test_decode_accepts_masked_padded_race_rows():

@@ -10,8 +10,9 @@ This repository contains a race-aware extension of **TabFM**, a transformer-base
 3. **In-context learning (ICL) from historical labelled races**
 4. **Race-level self-attention across runners in the same field**
 5. **A historical top-3 / non-top-3 prototype branch**
-6. **Race-aware ranking losses**
-7. **Chronological context sampling that matches inference-time use**
+6. **Label-aware cross-attention from query runners to historical runners**
+7. **Race-aware ranking losses**
+8. **Chronological context sampling that matches inference-time use**
 
 The prediction target is **`top3_mask`**:
 
@@ -304,16 +305,16 @@ RaceSetEncoder
         v
 In-Context Learning Transformer
         |
-        +----------------------+
-        |                      |
-        v                      v
-Base logits              Prototype branch
-        |                      |
-        v                      |
-RaceSetHead                   |
-(post-ICL race attention)     |
-        |                      |
-        +----------+-----------+
+        +----------------------+----------------------+
+        |                      |                      |
+        v                      v                      v
+Base logits              Prototype branch      Label-aware historical
+        |                                       cross-attention
+        v                                              |
+RaceSetHead                                             |
+(post-ICL race attention)                               |
+        |                                               |
+        +----------------------+------------------------+
                    |
                    v
              Final logits
@@ -325,12 +326,14 @@ RaceSetHead                   |
              P(finish top 3)
 ```
 
-The training configuration used for this model enables all three race/context extensions:
+The current implementation can enable all four race/context extensions:
 
 ```bash
 --race-context-mode self_attention
 --encode-races-before-icl
 --context-prototype-branch
+--label-context-branch
+--label-context-labels-in-values-only
 ```
 
 ---
@@ -598,6 +601,53 @@ Thus a runner that resembles historical top-3 examples more than historical non-
 
 The branch is deliberately bounded so it supplements rather than dominates the main model.
 
+## 11.1 Label-Aware Historical Cross-Attention
+
+With:
+
+```bash
+--label-context-branch
+--label-context-heads 2
+--label-context-max-correction 0.25
+--label-context-labels-in-values-only
+```
+
+the learned runner representations before ICL provide a second, explicit
+historical-label pathway. A query runner representation is used as an attention
+query. Each strictly earlier historical runner representation is used as an
+attention key. Its representation augmented by a learned embedding of its
+binary `top3_mask` label is used as the corresponding value:
+
+\[
+k_j = \operatorname{Norm}(r_j),
+\]
+
+\[
+v_j = \operatorname{Norm}(r_j + E_y(y_j)),
+\]
+
+\[
+h_i^{context} = \operatorname{MHA}(q=r_i,\;k=k_j,\;v=v_j).
+\]
+
+Consequently, changing historical labels changes the retrieved values and the
+resulting correction, but it does not change which historical runners receive
+attention for fixed runner representations.
+
+The attended result is normalized, projected to two logits, bounded with
+`tanh`, and emitted only for query rows:
+
+\[
+\Delta z_i^{label\_context}
+=
+c_{max}\tanh(W h_i^{context}).
+\]
+
+Query labels are never injected into this branch. Padded rows and historical
+rows receive zero correction. During cached inference, prefill stores detached
+historical representations, labels, and their validity mask; decode attends to
+that same memory.
+
 ---
 
 # 12. Final Prediction
@@ -784,6 +834,35 @@ Weight:
 
 This prevents the prototype branch from becoming an unused auxiliary pathway.
 
+## 17.1 Label-Context Pairwise Loss
+
+When label-aware historical cross-attention is enabled, its correction receives
+the same direct within-race positive-versus-negative supervision:
+
+```bash
+--label-context-loss-weight 0.25
+```
+
+This requires the retrieval branch itself to rank true top-three query runners
+above non-top-three runners instead of allowing it to learn only uniform
+confidence shifts. The final classification, pairwise, and context-dependence
+objectives still supervise the combined model output.
+
+The preferred retrieval mode separates attention addressing from outcome
+content:
+
+```text
+query runner representation -> query
+historical runner representation -> key
+historical runner representation + historical label embedding -> value
+```
+
+Enable it with `--label-context-labels-in-values-only`. Runner similarity
+therefore selects the historical evidence, while the known historical outcome
+changes only the information retrieved from that evidence. Legacy checkpoints
+that injected labels into both keys and values preserve that behavior until
+explicitly upgraded and retrained.
+
 ---
 
 # 18. Context-Dependence Loss
@@ -873,6 +952,27 @@ so this constraint was disabled.
 Therefore the runner probabilities in a race are **not explicitly forced to sum to 3**.
 
 This distinction should be stated clearly when discussing probability calibration.
+
+Before changing this objective, run `evaluate_model_stages.py` on genuinely
+held-out races. It reports the mean, median, p10, p90, and mean absolute error
+of the probability sum at the base, label-context, race-head, and final stages,
+plus its relationship with top-three recall. Do not repair the sum by inference
+normalisation: these are independent Bernoulli marginals, so such a transform
+would change their meaning without supplying a valid constrained model.
+
+## 19.1 Post-ICL race-head residual scale
+
+For self-attention race context, the additive path is:
+
+\[
+z_{after\ race}=z_{base}+s_{race}\,\Delta z_{race}.
+\]
+
+`--race-head-scale` controls \(s_{race}\). The default `1.0` preserves old
+checkpoint behaviour, and old trusted module checkpoints receive `1.0` while
+loading. The raw and scaled residuals are both retained in debugger/training
+auxiliary output so branch supervision can still inspect the raw head. Scale
+selection must use held-out stage ablations, not one illustrative race.
 
 ---
 
@@ -1111,6 +1211,8 @@ z_i^{ICL}
 +
 \Delta z_i^{race}
 +
+\Delta z_i^{label\_context}
++
 \Delta z_i^{prototype}.
 \]
 
@@ -1119,6 +1221,9 @@ The ICL term learns from historical labelled examples.
 The race term adjusts the runner relative to the current field.
 
 The prototype term directly measures similarity to historical positive and negative classes.
+
+The label-context term directly retrieves relevant historical runner/outcome
+associations using learned representations.
 
 ---
 
@@ -1190,7 +1295,7 @@ Features themselves must contain only information available before race start. C
 
 A concise methods description suitable for adaptation into a paper is:
 
-> We developed a race-aware extension of TabFM for binary top-three classification. Each runner was represented as a row of standardized tabular features. TabFM cell, column, and row transformations first produced runner-level representations. We introduced a pre-ICL race-set encoder that applied permutation-equivariant self-attention among runners belonging to the same historical or query race. The resulting field-aware representations were processed by the model's in-context learning transformer, which used labelled runners from the most recent strictly earlier same-competition races as contextual examples. A second race-set attention head generated field-relative corrections to query logits, while an auxiliary prototype branch compared query runners against learned historical top-three and non-top-three prototypes. Training combined equal-per-race weighted classification loss, within-race positive-versus-negative pairwise ranking loss, direct pairwise supervision of the race-attention and prototype corrections, and a context-dependence margin objective based on permutation of historical context labels. Predictions were obtained from the class-1 softmax probability and ranked within each race to identify the predicted top-three runners.
+> We developed a race-aware extension of TabFM for binary top-three classification. Each runner was represented as a row of standardized tabular features. TabFM cell, column, and row transformations first produced runner-level representations. We introduced a pre-ICL race-set encoder that applied permutation-equivariant self-attention among runners belonging to the same historical or query race. The resulting field-aware representations were processed by the model's in-context learning transformer, which used labelled runners from the most recent strictly earlier same-competition races as contextual examples. A label-aware retrieval branch additionally used each query representation to attend to keys formed from historical runner representations and values formed from those representations plus learned outcome-label embeddings. A second race-set attention head generated field-relative corrections to query logits, while an auxiliary prototype branch compared query runners against learned historical top-three and non-top-three prototypes. Training combined equal-per-race weighted classification loss, within-race positive-versus-negative pairwise ranking loss, direct pairwise supervision of each correction branch, and a context-dependence margin objective based on permutation of historical context labels. Predictions were obtained from the class-1 softmax probability and ranked within each race to identify the predicted top-three runners.
 
 ---
 
@@ -1231,7 +1336,7 @@ prototype max correction = 0.25
 
 # 30. Summary
 
-The race-aware TabFM model combines four forms of reasoning:
+The race-aware TabFM model combines five forms of reasoning:
 
 ```text
 1. Feature reasoning
@@ -1246,6 +1351,10 @@ The race-aware TabFM model combines four forms of reasoning:
 4. Prototype reasoning
    Does this runner resemble historical top-3 runners
    more than historical non-top-3 runners?
+
+5. Label-aware retrieval
+   Which historical runner representations are relevant to this query,
+   and what labelled outcomes were attached to them?
 ```
 
 The resulting model is therefore not simply an independent binary classifier.

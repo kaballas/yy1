@@ -1,5 +1,7 @@
 """Race-group representation and prediction context modules."""
 
+import math
+
 import torch
 from torch import nn
 
@@ -237,6 +239,238 @@ class ContextPrototypeHead(nn.Module):
       query_mask &= valid_row_mask
     return self.correction_from_prototypes(
         hidden, prototypes, prototype_valid, query_mask)
+
+
+class LabelAwareContextHead(nn.Module):
+  """Cross-attend query runners to labelled historical runner representations.
+
+  In the preferred mode, historical runner representations alone form the
+  attention keys, while their representations plus learned outcome embeddings
+  form the values. Thus runner similarity chooses the evidence and labels
+  determine what is retrieved. Query labels are never read, and corrections
+  are emitted only for valid query rows.
+  """
+
+  def __init__(self, input_dim, attention_heads=2, output_classes=2,
+               max_correction=0.5, labels_in_values_only=False,
+               temperature=1.0, top_k=0):
+    super().__init__()
+    if input_dim % attention_heads:
+      raise ValueError("label context input dimension must be divisible by its heads")
+    if attention_heads < 1:
+      raise ValueError("label_context_heads must be positive")
+    if output_classes != 2:
+      raise ValueError("label-aware context currently requires binary classification")
+    if not isinstance(max_correction, (int, float)) or max_correction <= 0:
+      raise ValueError("label_context_max_correction must be positive")
+    if (isinstance(temperature, bool)
+        or not isinstance(temperature, (int, float))
+        or not math.isfinite(float(temperature))
+        or temperature <= 0):
+      raise ValueError("label_context_temperature must be finite and positive")
+    if top_k is None:
+      top_k = 0
+    if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k < 0:
+      raise ValueError("label_context_top_k must be a non-negative integer")
+    self.input_dim = input_dim
+    self.attention_heads = attention_heads
+    self.output_classes = output_classes
+    self.max_correction = float(max_correction)
+    self.labels_in_values_only = bool(labels_in_values_only)
+    self.temperature = float(temperature)
+    self.top_k = int(top_k)
+    self.label_embedding = nn.Embedding(2, input_dim)
+    self.query_norm = nn.LayerNorm(input_dim)
+    self.memory_norm = nn.LayerNorm(input_dim)
+    self.cross_attention = nn.MultiheadAttention(
+        input_dim, attention_heads, dropout=0.0, batch_first=True)
+    self.output_norm = nn.LayerNorm(input_dim)
+    self.output_projection = nn.Linear(input_dim, output_classes)
+    nn.init.zeros_(self.output_projection.weight)
+    nn.init.zeros_(self.output_projection.bias)
+
+  def __setstate__(self, state):
+    """Preserve the original keys-and-values behavior for old module checkpoints."""
+    super().__setstate__(state)
+    if not hasattr(self, "labels_in_values_only"):
+      self.labels_in_values_only = False
+    if not hasattr(self, "temperature"):
+      self.temperature = 1.0
+    if not hasattr(self, "top_k"):
+      self.top_k = 0
+
+  @staticmethod
+  def _masks(labels, train_size, valid_row_mask):
+    positions = torch.arange(labels.shape[1], device=labels.device)[None, :]
+    context_mask = positions < train_size[:, None]
+    query_mask = positions >= train_size[:, None]
+    if valid_row_mask is not None:
+      if valid_row_mask.shape != labels.shape or valid_row_mask.dtype != torch.bool:
+        raise ValueError("valid_row_mask must be bool and match label context rows")
+      context_mask &= valid_row_mask
+      query_mask &= valid_row_mask
+    if torch.any(context_mask & ~((labels == 0) | (labels == 1))):
+      raise ValueError("label-aware context labels must be binary")
+    if torch.any(context_mask.sum(dim=1) == 0):
+      raise ValueError("label-aware context requires at least one historical row")
+    return context_mask, query_mask
+
+  def correction_from_context(self, query_representations,
+                              context_representations, context_labels,
+                              context_valid_mask=None,
+                              query_valid_mask=None,
+                              return_attention=False,
+                              return_attention_diagnostics=False,
+                              temperature=None,
+                              top_k=None,
+                              force_uniform_attention=False,
+                              zero_label_embedding=False):
+    if query_representations.ndim != 3 or context_representations.ndim != 3:
+      raise ValueError("label context representations must have shape [B, T, E]")
+    if query_representations.shape[0] != context_representations.shape[0]:
+      raise ValueError("label context query and history batch sizes must match")
+    if query_representations.shape[-1] != self.input_dim or context_representations.shape[-1] != self.input_dim:
+      raise ValueError("label context representation dimensions do not match the head")
+    if context_labels.shape != context_representations.shape[:2]:
+      raise ValueError("context_labels must match historical representations")
+    if context_valid_mask is None:
+      context_valid_mask = torch.ones_like(context_labels, dtype=torch.bool)
+    if (context_valid_mask.shape != context_labels.shape
+        or context_valid_mask.dtype != torch.bool):
+      raise ValueError("context_valid_mask must be bool and match context labels")
+    if query_valid_mask is None:
+      query_valid_mask = torch.ones(
+          query_representations.shape[:2], dtype=torch.bool,
+          device=query_representations.device)
+    if (query_valid_mask.shape != query_representations.shape[:2]
+        or query_valid_mask.dtype != torch.bool):
+      raise ValueError("query_valid_mask must be bool and match query representations")
+    if torch.any(context_valid_mask.sum(dim=1) == 0):
+      raise ValueError("every label context sequence needs historical rows")
+    if torch.any(context_valid_mask & ~((context_labels == 0) | (context_labels == 1))):
+      raise ValueError("valid label context rows must have binary labels")
+
+    effective_temperature = self.temperature if temperature is None else temperature
+    if (isinstance(effective_temperature, bool)
+        or not isinstance(effective_temperature, (int, float))
+        or not math.isfinite(float(effective_temperature))
+        or effective_temperature <= 0):
+      raise ValueError("label-context attention temperature must be finite and positive")
+    effective_top_k = self.top_k if top_k is None else top_k
+    if effective_top_k is None:
+      effective_top_k = 0
+    if (isinstance(effective_top_k, bool)
+        or not isinstance(effective_top_k, int)
+        or effective_top_k < 0):
+      raise ValueError("label-context attention top_k must be a non-negative integer")
+
+    safe_labels = torch.where(
+        context_valid_mask, context_labels, torch.zeros_like(context_labels)
+    ).long()
+    label_values = self.label_embedding(safe_labels)
+    if zero_label_embedding:
+      label_values = torch.zeros_like(label_values)
+    labelled_memory = self.memory_norm(context_representations + label_values)
+    attention_keys = (
+        self.memory_norm(context_representations)
+        if self.labels_in_values_only else labelled_memory
+    )
+    normalized_query = self.query_norm(query_representations)
+    projection_weight = self.cross_attention.in_proj_weight
+    projection_bias = self.cross_attention.in_proj_bias
+    query_weight, key_weight, value_weight = projection_weight.chunk(3, dim=0)
+    if projection_bias is None:
+      query_bias = key_bias = value_bias = None
+    else:
+      query_bias, key_bias, value_bias = projection_bias.chunk(3, dim=0)
+    projected_query = torch.nn.functional.linear(
+        normalized_query, query_weight, query_bias)
+    projected_key = torch.nn.functional.linear(
+        attention_keys, key_weight, key_bias)
+    projected_value = torch.nn.functional.linear(
+        labelled_memory, value_weight, value_bias)
+    head_dim = self.input_dim // self.attention_heads
+    query_heads = projected_query.reshape(
+        *projected_query.shape[:2], self.attention_heads, head_dim
+    ).transpose(1, 2)
+    key_heads = projected_key.reshape(
+        *projected_key.shape[:2], self.attention_heads, head_dim
+    ).transpose(1, 2)
+    value_heads = projected_value.reshape(
+        *projected_value.shape[:2], self.attention_heads, head_dim
+    ).transpose(1, 2)
+    base_attention_logits = torch.matmul(
+        query_heads, key_heads.transpose(-2, -1)
+    ) / math.sqrt(head_dim)
+    if force_uniform_attention:
+      attention_logits = torch.zeros_like(base_attention_logits)
+    else:
+      attention_logits = base_attention_logits / float(effective_temperature)
+    valid_attention = context_valid_mask[:, None, None, :].expand_as(
+        attention_logits)
+    attention_logits = attention_logits.masked_fill(
+        ~valid_attention, float("-inf"))
+    if not force_uniform_attention and effective_top_k > 0:
+      selection_count = min(effective_top_k, attention_logits.shape[-1])
+      selected_indices = torch.topk(
+          attention_logits, k=selection_count, dim=-1).indices
+      selected_mask = torch.zeros_like(valid_attention)
+      selected_mask.scatter_(-1, selected_indices, True)
+      attention_logits = attention_logits.masked_fill(
+          ~(selected_mask & valid_attention), float("-inf"))
+    attention = torch.softmax(attention_logits, dim=-1)
+    if self.cross_attention.dropout > 0:
+      attention = torch.nn.functional.dropout(
+          attention, p=self.cross_attention.dropout, training=self.training)
+    attended_heads = torch.matmul(attention, value_heads)
+    attended = attended_heads.transpose(1, 2).contiguous().reshape(
+        query_representations.shape[0], query_representations.shape[1], self.input_dim)
+    attended = self.cross_attention.out_proj(attended)
+    raw = self.output_projection(self.output_norm(attended))
+    correction = self.max_correction * torch.tanh(raw)
+    correction = torch.where(
+        query_valid_mask[..., None], correction, torch.zeros_like(correction))
+    if return_attention_diagnostics:
+      return correction, {
+          "attention": attention.mean(dim=1),
+          "attention_by_head": attention,
+          "attention_logits": attention_logits,
+          "base_attention_logits": base_attention_logits.masked_fill(
+              ~valid_attention, float("-inf")),
+          "projected_query": projected_query,
+          "projected_key": projected_key,
+          "projected_value": projected_value,
+          "query_heads": query_heads,
+          "key_heads": key_heads,
+          "context_before_norm": context_representations,
+          "attention_keys": attention_keys,
+          "temperature_scale": 1.0 / math.sqrt(head_dim),
+          "temperature": float(effective_temperature),
+          "top_k": int(effective_top_k),
+          "force_uniform_attention": bool(force_uniform_attention),
+      }
+    if return_attention:
+      # [batch, heads, query, context] -> mean attention across heads.
+      return correction, attention.mean(dim=1)
+    return correction
+
+  def forward(self, representations, labels, train_size, valid_row_mask=None):
+    if representations.shape[:2] != labels.shape:
+      raise ValueError("labels must match label-context representations")
+    if train_size.shape != (representations.shape[0],):
+      raise ValueError("train_size must have one value per label-context sequence")
+    context_mask, query_mask = self._masks(
+        labels, train_size, valid_row_mask)
+    # The batch layout has a contiguous context prefix but variable train sizes.
+    # Keeping the full sequence as memory lets the mask handle every batch item.
+    correction = self.correction_from_context(
+        representations,
+        representations,
+        labels,
+        context_valid_mask=context_mask,
+        query_valid_mask=query_mask,
+    )
+    return correction
 
 
 # Always-on activation-chunk sizes. TabFM runs the whole training fold as one

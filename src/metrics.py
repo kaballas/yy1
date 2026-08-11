@@ -40,6 +40,10 @@ def race_top3_metrics(
     contained_in_top4 = 0
     contained_in_top5 = 0
     contained_in_top6 = 0
+    ndcg3_total = 0.0
+    pairwise_correct_total = 0.0
+    pairwise_count_total = 0
+    actual_top3_reciprocal_rank_total = 0.0
 
     for race_id in np.unique(race_ids):
         indices = np.flatnonzero(race_ids == race_id)
@@ -58,6 +62,21 @@ def race_top3_metrics(
         contained_in_top4 += int(actual_set.issubset(set(ranked[:4].tolist())))
         contained_in_top5 += int(actual_set.issubset(set(ranked[:5].tolist())))
         contained_in_top6 += int(actual_set.issubset(set(ranked[:6].tolist())))
+        gains = target[ranked[:3]].astype(np.float64)
+        discounts = 1.0 / np.log2(np.arange(2, 5, dtype=np.float64))
+        ndcg3_total += float(np.dot(gains, discounts) / discounts.sum())
+        negative = indices[target[indices] == 0]
+        for positive_index in actual:
+            differences = probability[positive_index] - probability[negative]
+            pairwise_correct_total += float(
+                np.sum(differences > 0) + 0.5 * np.sum(differences == 0)
+            )
+            pairwise_count_total += len(negative)
+        # ``ranked`` contains global indices, so map them to within-race ranks.
+        local_rank = {int(global_index): rank for rank, global_index in enumerate(ranked, 1)}
+        actual_top3_reciprocal_rank_total += float(
+            np.mean([1.0 / local_rank[int(index)] for index in actual])
+        )
         complete_races += 1
 
     if complete_races == 0:
@@ -67,6 +86,9 @@ def race_top3_metrics(
             "contained_top4_rate": float("nan"),
             "contained_top5_rate": float("nan"),
             "contained_top6_rate": float("nan"),
+            "ndcg3": float("nan"),
+            "pairwise_ranking_accuracy": float("nan"),
+            "actual_top3_mrr": float("nan"),
             "complete_races": 0,
         }
 
@@ -76,6 +98,12 @@ def race_top3_metrics(
         "contained_top4_rate": contained_in_top4 / complete_races,
         "contained_top5_rate": contained_in_top5 / complete_races,
         "contained_top6_rate": contained_in_top6 / complete_races,
+        "ndcg3": ndcg3_total / complete_races,
+        "pairwise_ranking_accuracy": (
+            pairwise_correct_total / pairwise_count_total
+            if pairwise_count_total else float("nan")
+        ),
+        "actual_top3_mrr": actual_top3_reciprocal_rank_total / complete_races,
         "complete_races": complete_races,
     }
 
@@ -250,6 +278,7 @@ def validation_metrics_by_cohort(
 
 def cohort_checkpoint_selection(
     metrics_by_cohort: dict[str, dict[str, float | int]],
+    checkpoint_metric: str = "legacy",
 ) -> tuple[float, ...]:
     """Return the chronological ranking used for checkpoint selection.
 
@@ -267,9 +296,27 @@ def cohort_checkpoint_selection(
         raise ValueError(
             "Checkpoint selection requires at least one complete chronological race"
         )
+    if checkpoint_metric == "legacy":
+        return (
+            float(representative["top3_recall"]),
+            float(representative["contained_top5_rate"]),
+            -float(representative["logloss"]),
+        )
+    if checkpoint_metric == "loss":
+        return (-float(representative["logloss"]),)
+    if checkpoint_metric == "top3_recall":
+        return (float(representative["top3_recall"]),)
+    if checkpoint_metric == "ndcg3":
+        return (float(representative["ndcg3"]),)
+    if checkpoint_metric != "composite":
+        raise ValueError(f"Unknown checkpoint metric: {checkpoint_metric}")
+    # This deliberately uses a documented lexicographic order, not a hidden
+    # weighted sum whose units would be difficult to interpret.
     return (
         float(representative["top3_recall"]),
-        float(representative["contained_top5_rate"]),
+        float(representative["ndcg3"]),
+        float(representative["exact_top3_set_rate"]),
+        float(representative["pairwise_ranking_accuracy"]),
         -float(representative["logloss"]),
     )
 
@@ -278,6 +325,7 @@ def checkpoint_selection_improves(
     candidate_metrics: dict[str, dict[str, float | int]],
     best_metrics: dict[str, dict[str, float | int]],
     recall_tolerance_runners: int = 2,
+    checkpoint_metric: str = "legacy",
 ) -> bool:
     """Return whether chronological ranking selection prefers the candidate.
 
@@ -286,8 +334,8 @@ def checkpoint_selection_improves(
     combined cohort and market-miss cohort cannot affect this decision.
     """
     del recall_tolerance_runners  # retained for compatibility with older callers
-    candidate = cohort_checkpoint_selection(candidate_metrics)
-    best = cohort_checkpoint_selection(best_metrics)
+    candidate = cohort_checkpoint_selection(candidate_metrics, checkpoint_metric)
+    best = cohort_checkpoint_selection(best_metrics, checkpoint_metric)
     return candidate > best
 
 
@@ -313,5 +361,7 @@ def format_metric_line(
         f"exact_top3_set={metrics['exact_top3_set_rate']:.4f} "
         f"contained_top4={metrics['contained_top4_rate']:.4f} "
         f"contained_top5={metrics['contained_top5_rate']:.4f} "
+        f"ndcg3={metrics['ndcg3']:.4f} "
+        f"pairwise={metrics['pairwise_ranking_accuracy']:.4f} "
         f"auc={metrics['roc_auc']:.4f} logloss={metrics['logloss']:.5f}"
     )

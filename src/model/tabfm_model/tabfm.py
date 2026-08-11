@@ -6,7 +6,12 @@ from torch import nn
 from .cache import ICLearningCache, QuantizedTensor, detach_cache
 from .embeddings import CellEmbedder, ColEmbedding, RowInteraction
 from .icl import ICLearning
-from .race_context import ContextPrototypeHead, RaceSetEncoder, RaceSetHead
+from .race_context import (
+    ContextPrototypeHead,
+    LabelAwareContextHead,
+    RaceSetEncoder,
+    RaceSetHead,
+)
 from .validation import (
     _validate_cache_depth,
     _validate_classification_labels,
@@ -18,7 +23,7 @@ from .validation import (
 _ROW_CHUNK_SIZE = 4096   # rows per chunk (Fourier cell embedding + row interaction)
 _COL_CHUNK_SIZE = 16     # feature-instances per chunk (column set-transformer)
 _FFN_CHUNK_SIZE = 8192   # tokens per chunk (feed-forward expansion in every block)
-_CACHE_FORMAT_VERSION = 4
+_CACHE_FORMAT_VERSION = 5
 
 
 class TabFM(nn.Module):
@@ -29,10 +34,16 @@ class TabFM(nn.Module):
                is_classifier=True, race_context_mode="none", race_context_dim=32,
                race_context_layers=1, race_context_heads=2,
                race_context_ff_dim=64, race_context_residual=True,
+               race_head_scale=1.0,
                encode_races_before_icl=False,
                context_prototype_branch=False, context_prototype_dim=16,
                context_prototype_max_correction=0.5,
                context_prototype_input_dim=None,
+               label_context_branch=False, label_context_heads=2,
+               label_context_max_correction=0.5,
+               label_context_labels_in_values_only=False,
+               label_context_temperature=1.0,
+               label_context_top_k=0,
                strict_input_validation=False, max_runners_per_race=256,
                checkpoint_id=None, feature_schema_hash=None,
                preprocessing_version=None):
@@ -48,6 +59,7 @@ class TabFM(nn.Module):
         "race_context_heads": race_context_heads,
         "race_context_ff_dim": race_context_ff_dim,
         "context_prototype_dim": context_prototype_dim,
+        "label_context_heads": label_context_heads,
         "max_runners_per_race": max_runners_per_race,
     }
     for name, value in positive_integer_args.items():
@@ -77,8 +89,15 @@ class TabFM(nn.Module):
     self.weights_version = 0
     if race_context_mode not in {"none", "self_attention"}:
       raise ValueError("race_context_mode must be 'none' or 'self_attention'")
+    if (isinstance(race_head_scale, bool)
+        or not isinstance(race_head_scale, (int, float))
+        or not torch.isfinite(torch.tensor(float(race_head_scale)))
+        or race_head_scale < 0):
+      raise ValueError("race_head_scale must be a finite non-negative number")
     if race_context_mode == "self_attention" and not is_classifier:
       raise ValueError("race self-attention is currently classification-only")
+    if label_context_branch and not is_classifier:
+      raise ValueError("label-aware context is currently classification-only")
     if (encode_races_before_icl or race_context_mode == "self_attention") and not race_context_residual:
       raise ValueError(
           "race_context_residual=False is incompatible with zero-initialised "
@@ -89,8 +108,10 @@ class TabFM(nn.Module):
       raise ValueError("race context layers and heads must be positive")
     self.race_context_mode = race_context_mode
     self.race_context_residual = race_context_residual
+    self.race_head_scale = float(race_head_scale)
     self.encode_races_before_icl = bool(encode_races_before_icl)
     self.context_prototype_branch = bool(context_prototype_branch)
+    self.label_context_branch = bool(label_context_branch)
     if context_prototype_input_dim is not None:
       if (isinstance(context_prototype_input_dim, bool)
           or not isinstance(context_prototype_input_dim, int)
@@ -130,6 +151,15 @@ class TabFM(nn.Module):
             context_prototype_max_correction)
         if self.context_prototype_branch else None
     )
+    self.label_context_head = (
+        LabelAwareContextHead(
+            icl_dim, label_context_heads, max_classes,
+            label_context_max_correction,
+            labels_in_values_only=label_context_labels_in_values_only,
+            temperature=label_context_temperature,
+            top_k=label_context_top_k)
+        if self.label_context_branch else None
+    )
 
     # Enable activation chunking by default (see the module constants above).
     # The per-block knobs stay settable (e.g. to None) for benchmarking.
@@ -140,6 +170,16 @@ class TabFM(nn.Module):
         module.col_chunk_size = _COL_CHUNK_SIZE
       if hasattr(module, "ffn_chunk_size"):
         module.ffn_chunk_size = _FFN_CHUNK_SIZE
+
+  def __setstate__(self, state):
+    """Keep trusted full-module checkpoints created before new branches usable."""
+    super().__setstate__(state)
+    if not hasattr(self, "label_context_branch"):
+      self.label_context_branch = False
+    if not hasattr(self, "label_context_head"):
+      self.label_context_head = None
+    if not hasattr(self, "race_head_scale"):
+      self.race_head_scale = 1.0
 
   def _validate_race_groups(self, x, train_size, race_group_ids,
                             valid_row_mask=None):
@@ -183,7 +223,10 @@ class TabFM(nn.Module):
   def _race_condition(self, base_logits, hidden, race_group_ids,
                       return_race_delta=False):
     delta = self.race_set_head(hidden, race_group_ids)
-    conditioned = base_logits + delta if self.race_context_residual else delta
+    scaled_delta = self.race_head_scale * delta
+    conditioned = (
+        base_logits + scaled_delta if self.race_context_residual else scaled_delta
+    )
     return (conditioned, delta) if return_race_delta else conditioned
 
   def _validate_targets(self, y, train_size, *, require_padding_after_context):
@@ -226,6 +269,7 @@ class TabFM(nn.Module):
         "race_context_ff_dim": (None if race_module is None else
                                  race_module.encoder.layers[0].linear1.out_features),
         "race_context_residual": self.race_context_residual,
+        "race_head_scale": self.race_head_scale,
         "context_prototype_branch": self.context_prototype_head is not None,
         "context_prototype_dim": (
             None if self.context_prototype_head is None else
@@ -236,6 +280,22 @@ class TabFM(nn.Module):
         "context_prototype_max_correction": (
             None if self.context_prototype_head is None else
             self.context_prototype_head.max_correction),
+        "label_context_branch": self.label_context_head is not None,
+        "label_context_heads": (
+            None if self.label_context_head is None else
+            self.label_context_head.attention_heads),
+        "label_context_max_correction": (
+            None if self.label_context_head is None else
+            self.label_context_head.max_correction),
+        "label_context_labels_in_values_only": (
+            None if self.label_context_head is None else
+            self.label_context_head.labels_in_values_only),
+        "label_context_temperature": (
+            None if self.label_context_head is None else
+            self.label_context_head.temperature),
+        "label_context_top_k": (
+            None if self.label_context_head is None else
+            self.label_context_head.top_k),
     }
 
   def _model_state_id(self):
@@ -275,6 +335,8 @@ class TabFM(nn.Module):
     required = {"col1", "col2", "icl", "metadata"}
     if self.context_prototype_head is not None:
       required.add("context_prototypes")
+    if self.label_context_head is not None:
+      required.add("label_context")
     if set(cache) != required:
       raise ValueError(f"cache must contain exactly {sorted(required)}, got {sorted(cache)}.")
     metadata = cache["metadata"]
@@ -292,7 +354,9 @@ class TabFM(nn.Module):
       raise ValueError("cache pre_icl_race_context does not match the current model configuration.")
     expected_label_mode = (
         "icl_only"
-        if expected_race_context or self.context_prototype_head is not None
+        if (expected_race_context
+            or self.context_prototype_head is not None
+            or self.label_context_head is not None)
         else "cell_and_icl"
     )
     if metadata.get("label_injection_mode") != expected_label_mode:
@@ -327,6 +391,30 @@ class TabFM(nn.Module):
           or prototype_valid.dtype != torch.bool
           or prototype_valid.device != x.device):
         raise ValueError("cached context prototype validity has incompatible shape or device")
+    if self.label_context_head is not None:
+      label_cache = cache["label_context"]
+      if (not isinstance(label_cache, dict)
+          or set(label_cache) != {"representations", "labels", "valid_mask"}):
+        raise ValueError(
+            "cache label_context must contain representations, labels, and valid_mask")
+      context_representations = label_cache["representations"]
+      context_labels = label_cache["labels"]
+      context_valid_mask = label_cache["valid_mask"]
+      if (not isinstance(context_representations, torch.Tensor)
+          or context_representations.ndim != 3
+          or context_representations.shape[0] != x.shape[0]
+          or context_representations.shape[-1] != self.label_context_head.input_dim
+          or context_representations.device != x.device):
+        raise ValueError("cached label-context representations are incompatible")
+      if (not isinstance(context_labels, torch.Tensor)
+          or context_labels.shape != context_representations.shape[:2]
+          or context_labels.device != x.device):
+        raise ValueError("cached label-context labels are incompatible")
+      if (not isinstance(context_valid_mask, torch.Tensor)
+          or context_valid_mask.shape != context_labels.shape
+          or context_valid_mask.dtype != torch.bool
+          or context_valid_mask.device != x.device):
+        raise ValueError("cached label-context valid mask is incompatible")
     batch_size, _, feature_count = x.shape
     if metadata.get("batch_size") != batch_size:
       raise ValueError(f"Cache batch size {metadata.get('batch_size')} does not match decode batch size {batch_size}.")
@@ -446,7 +534,9 @@ class TabFM(nn.Module):
     emb = self.cell_embedder(
         x, y, train_size, cat_mask, d=d,
         inject_context_labels=not (
-            self.encode_races_before_icl or self.context_prototype_head is not None),
+            self.encode_races_before_icl
+            or self.context_prototype_head is not None
+            or self.label_context_head is not None),
     )
     emb = self.col_embedder(emb, train_size)
     b, t, _, e = emb.shape
@@ -457,6 +547,11 @@ class TabFM(nn.Module):
     reps = self.row_interactor_2(emb, d=d)
     if self.pre_icl_race_encoder is not None:
       reps = self.pre_icl_race_encoder(reps, race_group_ids)
+    label_context_delta = (
+        self.label_context_head(
+            reps, y, train_size, valid_row_mask=valid_row_mask)
+        if self.label_context_head is not None else None
+    )
     prototype_delta = (
         self.context_prototype_head(
             x, y, train_size, valid_row_mask=valid_row_mask)
@@ -466,6 +561,8 @@ class TabFM(nn.Module):
       if return_race_delta:
         raise ValueError("return_race_delta requires race_context_mode=self_attention")
       out = self.icl_predictor(reps, y, train_size)
+      if label_context_delta is not None:
+        out = out + label_context_delta
       if prototype_delta is not None:
         out = out + prototype_delta
       if valid_row_mask is not None:
@@ -473,7 +570,9 @@ class TabFM(nn.Module):
       if return_auxiliary_deltas:
         return out, {
             "race_delta": None,
+            "scaled_race_delta": None,
             "context_prototype_delta": prototype_delta,
+            "label_context_delta": label_context_delta,
         }
       return out
     base_logits, hidden = self.icl_predictor(
@@ -487,8 +586,12 @@ class TabFM(nn.Module):
     out = self._race_condition(base_logits, hidden, post_groups,
                                return_race_delta=need_race_delta)
     race_delta = None
+    scaled_race_delta = None
     if need_race_delta:
       out, race_delta = out
+      scaled_race_delta = self.race_head_scale * race_delta
+    if label_context_delta is not None:
+      out = out + label_context_delta
     if prototype_delta is not None:
       out = out + prototype_delta
     if valid_row_mask is not None:
@@ -496,10 +599,15 @@ class TabFM(nn.Module):
       out = torch.where(mask, out, torch.zeros_like(out))
       if race_delta is not None:
         race_delta = torch.where(mask, race_delta, torch.zeros_like(race_delta))
+        scaled_race_delta = torch.where(
+            mask, scaled_race_delta, torch.zeros_like(scaled_race_delta)
+        )
     if return_auxiliary_deltas:
       return out, {
           "race_delta": race_delta,
+          "scaled_race_delta": scaled_race_delta,
           "context_prototype_delta": prototype_delta,
+          "label_context_delta": label_context_delta,
       }
     if return_race_delta:
       return out, race_delta
@@ -561,7 +669,9 @@ class TabFM(nn.Module):
     cell = self.cell_embedder(
         x, y, train_size, cat_mask, d=d,
         inject_context_labels=not (
-            self.encode_races_before_icl or self.context_prototype_head is not None),
+            self.encode_races_before_icl
+            or self.context_prototype_head is not None
+            or self.label_context_head is not None),
     )
     emb, cache_col1 = self.col_embedder(cell, train_size, return_repr=True)
     b1, t1, _, e = emb.shape
@@ -573,6 +683,14 @@ class TabFM(nn.Module):
     if self.pre_icl_race_encoder is not None:
       reps = self.pre_icl_race_encoder(reps, race_group_ids)
     logits, cache_icl = self.icl_predictor(reps, y, train_size, return_cache=True)
+
+    label_context_cache = None
+    if self.label_context_head is not None:
+      label_context_cache = {
+          "representations": reps,
+          "labels": y,
+          "valid_mask": is_valid,
+      }
 
     context_prototype_cache = None
     if self.context_prototype_head is not None:
@@ -606,7 +724,8 @@ class TabFM(nn.Module):
             "label_injection_mode": (
                 "icl_only"
                 if (self.pre_icl_race_encoder is not None
-                    or self.context_prototype_head is not None)
+                    or self.context_prototype_head is not None
+                    or self.label_context_head is not None)
                 else "cell_and_icl"
             ),
             "architecture": self._cache_architecture_metadata(),
@@ -614,6 +733,8 @@ class TabFM(nn.Module):
     }
     if context_prototype_cache is not None:
       cache["context_prototypes"] = context_prototype_cache
+    if label_context_cache is not None:
+      cache["label_context"] = label_context_cache
     return logits[:, :t_orig, :], detach_cache(cache)
 
   def decode(self, x, cache, cat_mask=None, d=None, race_group_ids=None,
@@ -665,7 +786,9 @@ class TabFM(nn.Module):
     cell = self.cell_embedder(
         x, y, train_size_zero, cat_mask, d=d,
         inject_context_labels=not (
-            self.encode_races_before_icl or self.context_prototype_head is not None),
+            self.encode_races_before_icl
+            or self.context_prototype_head is not None
+            or self.label_context_head is not None),
     )
     emb = self.col_embedder(cell, None, cached_repr=cache["col1"])
     b1, t1, _, e = emb.shape
@@ -693,6 +816,17 @@ class TabFM(nn.Module):
           valid_row_mask,
       )
       out = out + prototype_delta
+
+    if self.label_context_head is not None:
+      label_cache = cache["label_context"]
+      label_context_delta = self.label_context_head.correction_from_context(
+          reps,
+          label_cache["representations"],
+          label_cache["labels"],
+          context_valid_mask=label_cache["valid_mask"],
+          query_valid_mask=valid_row_mask,
+      )
+      out = out + label_context_delta
 
     out = out[:, :t_orig, :]
     return torch.where(original_valid_row_mask[..., None], out, torch.zeros_like(out))

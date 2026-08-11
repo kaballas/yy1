@@ -11,7 +11,10 @@ from torch import nn
 
 from src.cli import parse_args
 from src.model import TabFM
-from src.model.tabfm_model.race_context import ContextPrototypeHead
+from src.model.tabfm_model.race_context import (
+    ContextPrototypeHead,
+    LabelAwareContextHead,
+)
 from src.prediction import (
     ablate_context_labels,
     predict,
@@ -110,6 +113,25 @@ def test_cli_accepts_race_aware_full(monkeypatch):
     assert parse_args().fine_tune_scope == "race_aware_full"
 
 
+def test_cli_accepts_label_context_retrieval_controls_and_scopes(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train_model.py",
+            "--label-context-temperature", "0.5",
+            "--label-context-top-k", "20",
+            "--fine-tune-scope", "icl_race_and_label_context",
+            "--checkpoint-metric", "ndcg3",
+        ],
+    )
+    args = parse_args()
+    assert args.label_context_temperature == 0.5
+    assert args.label_context_top_k == 20
+    assert args.fine_tune_scope == "icl_race_and_label_context"
+    assert args.checkpoint_metric == "ndcg3"
+
+
 def test_cli_accepts_context_prototype_direct_loss(monkeypatch):
     monkeypatch.setattr(
         sys,
@@ -126,9 +148,41 @@ def test_cli_accepts_context_prototype_direct_loss(monkeypatch):
     assert args.context_prototype_loss_weight == pytest.approx(0.4)
 
 
+def test_cli_accepts_label_aware_context_branch(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train_model.py",
+            "--historical-cross-attention",
+            "--label-context-heads",
+            "4",
+            "--label-context-loss-weight",
+            "0.3",
+            "--label-context-labels-in-values-only",
+            "--race-head-scale",
+            "0.25",
+        ],
+    )
+    args = parse_args()
+    assert args.label_context_branch
+    assert args.label_context_heads == 4
+    assert args.label_context_loss_weight == pytest.approx(0.3)
+    assert args.label_context_labels_in_values_only
+    assert args.race_head_scale == pytest.approx(0.25)
+
+
 def test_cli_can_explicitly_enable_small_cohort_early_stopping(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["train_model.py", "--allow-small-cohort-early-stopping"])
     assert parse_args().allow_small_cohort_early_stopping
+
+
+def test_training_output_defaults_to_concise_and_debug_is_opt_in(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["train_model.py"])
+    assert not parse_args().debug_training_output
+
+    monkeypatch.setattr(sys, "argv", ["train_model.py", "--debug-training-output"])
+    assert parse_args().debug_training_output
 
 
 def test_resumed_self_attention_defaults_to_narrow_fine_tune_scope():
@@ -322,6 +376,7 @@ def test_independent_padded_batch_matches_separate_model_sequences():
         race_context_dim=8,
         race_context_heads=2,
         race_context_ff_dim=12,
+        race_head_scale=0.25,
         context_prototype_branch=True,
         context_prototype_dim=8,
         context_prototype_max_correction=0.25,
@@ -329,6 +384,7 @@ def test_independent_padded_batch_matches_separate_model_sequences():
     ).eval()
 
     with torch.no_grad():
+        model.race_set_head.output_projection.weight.normal_(std=0.1)
         batched, auxiliary_deltas = model(
             batch_x,
             batch_y,
@@ -338,6 +394,10 @@ def test_independent_padded_batch_matches_separate_model_sequences():
             return_auxiliary_deltas=True,
         )
         assert auxiliary_deltas["race_delta"] is not None
+        torch.testing.assert_close(
+            auxiliary_deltas["scaled_race_delta"],
+            0.25 * auxiliary_deltas["race_delta"],
+        )
         assert auxiliary_deltas["context_prototype_delta"] is not None
         assert auxiliary_deltas["context_prototype_delta"].shape == batched.shape
         for batch_index in range(batch_x.shape[0]):
@@ -453,6 +513,265 @@ def test_context_prototype_prefill_cache_drives_decode_and_is_detached():
     )
     assert decoded.shape == (1, 2, 2)
     assert torch.isfinite(decoded).all()
+
+
+def test_label_aware_context_head_is_query_only_bounded_and_label_sensitive():
+    torch.manual_seed(52)
+    head = LabelAwareContextHead(
+        input_dim=8,
+        attention_heads=2,
+        output_classes=2,
+        max_correction=0.2,
+        labels_in_values_only=True,
+    ).eval()
+    with torch.no_grad():
+        head.output_projection.weight.normal_(std=0.1)
+    representations = torch.randn(1, 7, 8)
+    correct_labels = torch.tensor([[0, 1, 0, 1, -100, -100, -100]])
+    flipped_labels = torch.tensor([[1, 0, 1, 0, -100, -100, -100]])
+    train_size = torch.tensor([4])
+    valid = torch.tensor([[True, True, True, True, True, True, False]])
+
+    correct = head(representations, correct_labels, train_size, valid)
+    flipped = head(representations, flipped_labels, train_size, valid)
+    traced_correction, attention = head.correction_from_context(
+        representations[:, 4:6],
+        representations[:, :4],
+        correct_labels[:, :4],
+        return_attention=True,
+    )
+    flipped_correction, flipped_attention = head.correction_from_context(
+        representations[:, 4:6],
+        representations[:, :4],
+        flipped_labels[:, :4],
+        return_attention=True,
+    )
+    diagnostic_correction, diagnostic = head.correction_from_context(
+        representations[:, 4:6],
+        representations[:, :4],
+        correct_labels[:, :4],
+        return_attention_diagnostics=True,
+    )
+
+    assert torch.equal(correct[:, :4], torch.zeros_like(correct[:, :4]))
+    assert torch.equal(correct[:, 6], torch.zeros_like(correct[:, 6]))
+    assert torch.max(torch.abs(correct)) <= 0.2
+    assert not torch.allclose(correct[:, 4:6], flipped[:, 4:6])
+    torch.testing.assert_close(traced_correction, correct[:, 4:6])
+    assert attention.shape == (1, 2, 4)
+    torch.testing.assert_close(
+        attention.sum(dim=-1), torch.ones((1, 2)), rtol=0, atol=1e-6
+    )
+    torch.testing.assert_close(attention, flipped_attention, rtol=0, atol=0)
+    assert not torch.allclose(traced_correction, flipped_correction)
+    torch.testing.assert_close(diagnostic_correction, traced_correction)
+    torch.testing.assert_close(diagnostic["attention"], attention)
+    assert diagnostic["attention_by_head"].shape == (1, 2, 2, 4)
+    assert diagnostic["attention_logits"].shape == (1, 2, 2, 4)
+    assert diagnostic["projected_query"].shape == (1, 2, 8)
+    assert diagnostic["projected_key"].shape == (1, 4, 8)
+    assert diagnostic["projected_value"].shape == (1, 4, 8)
+
+
+def test_label_context_default_attention_matches_torch_multihead_attention():
+    torch.manual_seed(520)
+    head = LabelAwareContextHead(
+        8, attention_heads=2, max_correction=0.25,
+        labels_in_values_only=True, temperature=1.0, top_k=0,
+    ).eval()
+    with torch.no_grad():
+        head.output_projection.weight.normal_(std=0.1)
+    query = torch.randn(1, 3, 8)
+    context = torch.randn(1, 6, 8)
+    labels = torch.tensor([[0, 1, 0, 1, 0, 1]])
+    valid = torch.tensor([[True, True, True, True, False, False]])
+
+    correction, diagnostic = head.correction_from_context(
+        query, context, labels, context_valid_mask=valid,
+        return_attention_diagnostics=True,
+    )
+    safe_labels = torch.where(valid, labels, torch.zeros_like(labels)).long()
+    values = head.memory_norm(context + head.label_embedding(safe_labels))
+    keys = head.memory_norm(context)
+    normalized_query = head.query_norm(query)
+    attended, attention = head.cross_attention(
+        normalized_query, keys, values,
+        key_padding_mask=~valid,
+        need_weights=True,
+        average_attn_weights=False,
+    )
+    expected = head.max_correction * torch.tanh(
+        head.output_projection(head.output_norm(attended))
+    )
+    torch.testing.assert_close(correction, expected, rtol=1e-5, atol=1e-6)
+    torch.testing.assert_close(
+        diagnostic["attention_by_head"], attention, rtol=1e-5, atol=1e-6
+    )
+
+
+def test_label_context_top_k_is_per_head_per_query_and_respects_padding():
+    torch.manual_seed(521)
+    head = LabelAwareContextHead(
+        8, attention_heads=2, labels_in_values_only=True, top_k=2
+    ).eval()
+    query = torch.randn(1, 3, 8)
+    context = torch.randn(1, 7, 8)
+    labels = torch.tensor([[0, 1, 0, 1, 0, 1, 0]])
+    valid = torch.tensor([[True, True, True, True, True, False, False]])
+    _, diagnostic = head.correction_from_context(
+        query, context, labels, context_valid_mask=valid,
+        return_attention_diagnostics=True,
+    )
+    attention = diagnostic["attention_by_head"]
+    assert attention.shape == (1, 2, 3, 7)
+    assert torch.all((attention > 0).sum(dim=-1) == 2)
+    assert torch.equal(attention[..., 5:], torch.zeros_like(attention[..., 5:]))
+    torch.testing.assert_close(
+        attention.sum(dim=-1), torch.ones((1, 2, 3)), rtol=0, atol=1e-6
+    )
+    base_logits = diagnostic["base_attention_logits"]
+    expected_indices = torch.topk(base_logits, 2, dim=-1).indices.sort(dim=-1).values
+    actual_indices = torch.topk(attention, 2, dim=-1).indices.sort(dim=-1).values
+    torch.testing.assert_close(actual_indices, expected_indices)
+
+    _, unmasked = head.correction_from_context(
+        query, context, labels, context_valid_mask=valid,
+        return_attention_diagnostics=True, top_k=0,
+    )
+    _, oversized = head.correction_from_context(
+        query, context, labels, context_valid_mask=valid,
+        return_attention_diagnostics=True, top_k=99,
+    )
+    torch.testing.assert_close(
+        unmasked["attention_by_head"], oversized["attention_by_head"]
+    )
+
+
+def test_lower_label_context_temperature_sharpens_attention():
+    torch.manual_seed(522)
+    head = LabelAwareContextHead(8, attention_heads=2).eval()
+    query = torch.randn(1, 4, 8)
+    context = torch.randn(1, 12, 8)
+    labels = torch.randint(0, 2, (1, 12))
+    _, normal = head.correction_from_context(
+        query, context, labels, return_attention_diagnostics=True, temperature=1.0
+    )
+    _, sharp = head.correction_from_context(
+        query, context, labels, return_attention_diagnostics=True, temperature=0.25
+    )
+    normal_weights = normal["attention_by_head"]
+    sharp_weights = sharp["attention_by_head"]
+    normal_entropy = -(normal_weights * normal_weights.clamp_min(1e-12).log()).sum(-1)
+    sharp_entropy = -(sharp_weights * sharp_weights.clamp_min(1e-12).log()).sum(-1)
+    assert torch.all(sharp_entropy <= normal_entropy + 1e-6)
+
+
+def test_new_label_context_fine_tune_scopes_are_exact():
+    model = _FakeModel()
+    model.label_context_head = nn.Linear(2, 2)
+    model.context_prototype_head = nn.Linear(2, 2)
+    configure_trainable_parameters(model, "label_context_only")
+    assert all(
+        name.startswith("label_context_head.")
+        for name in trainable_parameter_names(model)
+    )
+    configure_trainable_parameters(model, "icl_race_and_label_context")
+    names = trainable_parameter_names(model)
+    assert all(
+        name.startswith("icl_predictor.")
+        or name.startswith("race_set_head.")
+        or name.startswith("label_context_head.")
+        for name in names
+    )
+    assert not any(name.startswith("context_prototype_head.") for name in names)
+
+
+def test_label_aware_context_direct_loss_reaches_attention_and_label_embedding():
+    torch.manual_seed(53)
+    head = LabelAwareContextHead(
+        8,
+        attention_heads=2,
+        max_correction=0.25,
+        labels_in_values_only=True,
+    )
+    with torch.no_grad():
+        head.output_projection.weight.normal_(std=0.1)
+    representations = torch.randn(1, 8, 8)
+    labels = torch.tensor([[0, 1, 0, 1, 0, 1, -100, -100]])
+    correction = head(representations, labels, torch.tensor([6]))
+    positive_score = correction[0, 6, 1] - correction[0, 6, 0]
+    negative_score = correction[0, 7, 1] - correction[0, 7, 0]
+    torch.nn.functional.softplus(-(positive_score - negative_score)).backward()
+
+    assert head.label_embedding.weight.grad is not None
+    assert torch.any(head.label_embedding.weight.grad != 0)
+    assert head.cross_attention.in_proj_weight.grad is not None
+    assert torch.any(head.cross_attention.in_proj_weight.grad != 0)
+    for projection_gradient in head.cross_attention.in_proj_weight.grad.chunk(3):
+        assert torch.any(projection_gradient != 0)
+    assert head.output_projection.weight.grad is not None
+    assert torch.any(head.output_projection.weight.grad != 0)
+
+
+def test_label_aware_context_full_forward_and_prefill_decode_contract():
+    torch.manual_seed(54)
+    model = TabFM(
+        embed_dim=8,
+        max_classes=2,
+        col_num_blocks=1,
+        col_nhead=2,
+        col_num_inds=2,
+        row_num_blocks=1,
+        row_nhead=2,
+        row_num_cls=2,
+        icl_num_blocks=1,
+        icl_nhead=2,
+        ff_factor=2,
+        feature_group_size=1,
+        num_freq=4,
+        decoder_hidden=6,
+        label_context_branch=True,
+        label_context_heads=2,
+        label_context_max_correction=0.2,
+        label_context_labels_in_values_only=True,
+    ).eval()
+    with torch.no_grad():
+        model.label_context_head.output_projection.weight.normal_(std=0.1)
+    context_x = torch.randn(1, 5, 3)
+    context_y = torch.tensor([[0.0, 1.0, 0.0, 1.0, 0.0]])
+    query_x = torch.randn(1, 2, 3)
+    combined_x = torch.cat([context_x, query_x], dim=1)
+    combined_y = torch.cat([context_y, torch.full((1, 2), -100.0)], dim=1)
+    with torch.no_grad():
+        full, auxiliary = model(
+            combined_x,
+            combined_y,
+            torch.tensor([5]),
+            return_auxiliary_deltas=True,
+        )
+        assert auxiliary["label_context_delta"] is not None
+        assert torch.equal(
+            auxiliary["label_context_delta"][:, :5],
+            torch.zeros_like(auxiliary["label_context_delta"][:, :5]),
+        )
+        _, cache = model.prefill(
+            context_x,
+            context_y,
+            feature_schema_hash="schema-v1",
+            preprocessing_version="prep-v1",
+        )
+        assert set(cache["label_context"]) == {
+            "representations", "labels", "valid_mask"
+        }
+        assert not cache["label_context"]["representations"].requires_grad
+        decoded = model.decode(
+            query_x,
+            cache,
+            feature_schema_hash="schema-v1",
+            preprocessing_version="prep-v1",
+        )
+    assert decoded.shape == (1, 2, 2)
+    torch.testing.assert_close(decoded, full[:, 5:], rtol=0, atol=2e-5)
 
 
 def test_query_schedule_has_no_within_step_duplicates_across_cycles():

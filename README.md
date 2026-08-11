@@ -75,6 +75,11 @@ python train_model.py \
   --context-prototype-dim 16 \
   --context-prototype-max-correction 0.25 \
   --context-prototype-loss-weight 0.25 \
+  --label-context-branch \
+  --label-context-heads 2 \
+  --label-context-max-correction 0.25 \
+  --label-context-labels-in-values-only \
+  --label-context-loss-weight 0.25 \
   --seed 42 \
   --device cpu \
   --classification-loss-weight 1.0 \
@@ -93,6 +98,9 @@ Context prototype source         | Normalized input features
 Context prototype dimension      | 16
 Context prototype max correction | 0.25
 Context prototype direct loss    | 0.25
+Label-aware context branch       | True
+Label-aware context heads        | 2
+Label-aware context direct loss  | 0.25
 ```
 
 The input-feature prototype architecture is incompatible with the obsolete
@@ -125,7 +133,7 @@ corresponding feature.
 
 | Parameter | Default | Detailed behavior |
 |---|---|---|
-| `--fine-tune-scope SCOPE` | `full_model` from scratch; `icl_and_race_head` for a resumed self-attention model | Selects trainable parameters. `attention_head_only` trains the race head and enabled prototype head; `decoder_and_race_head` also trains the ICL decoder; `icl_and_race_head` trains the complete ICL predictor plus both context heads; `full_model` updates every parameter. The recommended model-5 fine-tune uses `icl_and_race_head`. |
+| `--fine-tune-scope SCOPE` | `full_model` from scratch; `icl_and_race_head` for a resumed self-attention model | Selects exact trainable modules. `attention_head_only` trains only `race_set_head`; `decoder_and_race_head` trains the ICL decoder and race head; `icl_and_race_head` trains the full ICL predictor and race head; `icl_race_and_label_context` additionally trains the explicit label-context branch; `label_context_only` trains only that branch; `race_aware_full` also trains the pre-ICL encoder and enabled auxiliary heads; `full_model` updates everything. Every trainable parameter name and trainable/frozen/total count is printed before training. |
 | `--fine-tune-attention-head-only` | false | Shortcut for the legacy attention-head-only mode. It requires a resumed self-attention checkpoint and conflicts with any different explicit `--fine-tune-scope`. Prefer the scope option in new commands. |
 
 ### Epoch and race scheduling
@@ -138,6 +146,7 @@ corresponding feature.
 | `--context-races-per-step N` | number of races in `--context-json` | Number of most-recent, complete, strictly earlier same-competition races assigned independently to each query. Increasing it changes the context distribution and should be validated rather than assumed beneficial. |
 | `--query-races-per-step N` | `80` | Maximum complete query races in one optimizer step. Smaller values reduce memory use and give more updates per epoch; the prototype runs use `5`. |
 | `--print-race-schedule` | false | Prints `race_id:race_number` for context and query races in chronological step order. Enable it when auditing causal membership or investigating unexpected scheduling. |
+| `--debug-training-output` | false | Prints the full legacy diagnostics: parameter table, every optimizer batch, context ablations, all validation cohorts, and progress-race rankings. Without it, training prints concise setup, probe, epoch, trend, and checkpoint summaries. |
 | `--batch-rows N` | `256` | Deprecated compatibility argument. Current batches are composed of complete races and therefore have variable row counts; this value does not control the active race scheduler. |
 | `--min-race-number N` | none | Restricts optimizer-step context and query pools to races whose `race_number` is at least `N`. Validation and its fixed context are unchanged, so this is an experimental training filter rather than a validation filter. |
 
@@ -177,6 +186,10 @@ corresponding feature.
 | `--race-context-heads N` | `2` | Number of attention heads. It must be positive and divide the context dimension exactly. |
 | `--race-context-ff-dim N` | `64` | Hidden width of the race-context feed-forward sublayer. Larger values increase parameters and CPU cost. |
 | `--race-context-residual` / `--no-race-context-residual` | enabled | Controls whether the race-head correction is added residually to the base logits. Resumed models inherit their stored setting when neither form is supplied. |
+| `--race-head-scale VALUE` | `1.0` from scratch; inherited on resume | Multiplies the post-ICL race-head logit residual before it is added to the base logits. `1.0` reproduces existing checkpoints; use held-out scale sweeps such as `0,0.1,0.25,0.5,0.75,1` to measure whether the branch improves ranking rather than assuming it does. |
+| `--label-context-temperature VALUE` | `1.0` from scratch; inherited on resume | Divides the explicit label-context attention logits. Values below `1` sharpen retrieval; values above `1` flatten it. This does not alter the main ICL mechanism. |
+| `--label-context-top-k K` | `0` from scratch; inherited on resume | Applies top-k masking independently to each label-context head and query runner before softmax. `0` disables masking; padded runners are always excluded. |
+| `--checkpoint-metric METRIC` | `composite` | Selects checkpoints by `loss`, `top3_recall`, `ndcg3`, or the logged lexicographic composite `(top3_recall, ndcg3, exact_top3_set, pairwise_ranking_accuracy, -logloss)`. |
 | `--encode-races-before-icl` / `--no-encode-races-before-icl` | disabled from scratch; inherited on resume | Applies the representation-level race encoder before the ICL predictor. It changes the architecture and therefore requires compatible weights or scratch retraining. |
 | `--context-prototype-branch` / `--no-context-prototype-branch` | disabled from scratch; inherited on resume | Enables the positive/negative historical feature prototypes and bounded query-logit correction. A prototype checkpoint cannot be resumed with this branch disabled. |
 | `--context-prototype-dim N` | `16` | Width of the learned prototype metric space. It must be positive and is part of checkpoint tensor compatibility. |
@@ -191,7 +204,8 @@ For compatibility with older commands, the loss flags also accept these exact
 underscore aliases: `--classification_loss_weight`,
 `--auxiliary_row_loss_weight`, `--pairwise_loss_weight`,
 `--attention_delta_pairwise_loss_weight`,
-`--context_prototype_loss_weight`, `--cardinality_loss_weight`,
+`--context_prototype_loss_weight`, `--label_context_loss_weight`,
+`--cardinality_loss_weight`,
 `--context_dependence_loss_weight`, and `--context_dependence_margin`. They are
 identical to the hyphenated forms documented below; do not supply both forms in
 one command.
@@ -202,6 +216,7 @@ one command.
 | `--pairwise-loss-weight VALUE` | `0.0` | Weight on the softplus ranking loss between every top-three and non-top-three runner within each complete query race. The recommended prototype runs use `0.25`. |
 | `--attention-delta-pairwise-loss-weight VALUE` | `0.0` | Applies pairwise ranking loss directly to the self-attention race-head correction, ensuring that branch learns ranking information rather than letting base logits do all the work. It requires self-attention; the recommended value is `0.05`. |
 | `--context-prototype-loss-weight VALUE` | `0.25` when the prototype branch is enabled, otherwise `0` | Applies pairwise ranking loss directly to prototype-only query corrections. This is the direct supervision that connects historical labels and runner features to rankings. |
+| `--label-context-loss-weight VALUE` | `0.25` when label-aware context is enabled, otherwise `0` | Applies pairwise ranking loss directly to the historical cross-attention correction so the branch must learn within-race ranking rather than only confidence shifts. |
 | `--cardinality-loss-weight VALUE` | `0.0` | Penalizes the squared difference between the sum of runner top-three probabilities and three, normalized by three, within each race. Leave it at zero when independent binary probabilities are preferred. |
 | `--context-dependence-loss-weight VALUE` | `0.1` | Weight on the contrastive context objective comparing correct context with a deterministic label-permuted version. It teaches correct context to outperform incorrect label-feature associations. |
 | `--context-dependence-margin VALUE` | `0.02` | Required loss advantage of correct context over permuted context. Once the advantage reaches the margin, the context-dependence penalty becomes zero. Prototype runs use the gentler value `0.005`. |
@@ -256,6 +271,31 @@ If either historical label class is absent, the correction fails closed to
 zero. `--context-prototype-loss-weight` directly applies pairwise ranking loss
 to prototype-only query corrections. It defaults to `0.25` when the branch is
 enabled and to zero otherwise.
+
+## Label-aware historical cross-attention
+
+Enable the learned-representation context path with:
+
+```bash
+--label-context-branch \
+--label-context-heads 2 \
+--label-context-max-correction 0.25 \
+--label-context-labels-in-values-only \
+--label-context-loss-weight 0.25
+```
+
+Each query runner representation acts as an attention query. Historical runner
+representations alone act as keys, so feature similarity chooses which examples
+to retrieve. Historical representations plus a learned `top3_mask` embedding
+act as values, so outcomes affect the retrieved information without shortcutting
+the similarity search. The resulting query-only correction is bounded before it
+is added to the final logits. Query labels are never read.
+The branch supports full forward training and checkpoint prefill/decode caching.
+Existing checkpoints inherit the branch as disabled, but it can be added during
+full-model fine-tuning by explicitly passing `--label-context-branch` and saving
+to a new output path. Label-context checkpoints created before this retrieval
+change retain their legacy behavior unless explicitly upgraded with
+`--label-context-labels-in-values-only` and retrained.
 
 ## Current prototype models
 
@@ -396,6 +436,106 @@ python predict_race.py \
 
 The predictor prints the selected context strategy and race IDs. It also warns
 when the inference context window exceeds the context size used in training.
+
+## Single-race model debugger
+
+Explain one checkpoint's prediction runner by runner:
+
+```bash
+python debug_race.py \
+  --checkpoint outputs/classroom_competition_590_overfit.best-epoch-001.pt \
+  --race-id 10147278 \
+  --device cpu
+```
+
+The report shows the exact same-competition chronological context, preprocessing
+outliers, pre-ICL field-encoder movement, and every additive logit transition:
+base, label context, raw and scaled race-head residual, prototype, and final
+score. It also reports market and actual results, context-label
+counterfactuals, stage-by-stage top-three accuracy, the stage at which a correct
+runner was displaced, probability cardinality, controlled feature-family
+ablations, integrated-gradients attribution, branch influence, attention
+entropy/effective retrieval count, and runner-order invariance. Use
+`--no-base-attribution` or `--no-context-ablation` for a faster report, or
+`--output-csv path.csv` to save the runner stage table.
+
+For label-context checkpoints, Stage 4 reports every attention head separately,
+historical-runner and historical-race effective counts, per-race attention mass,
+positive-label lift, query-to-query cosine/JS/Jaccard overlap, projection norms,
+and the branch output-projection norm. `--debug-attention-details` prints full
+race-mass and pairwise matrices. The debugger also runs label-context-only
+uniform/top-5/top-10/top-20 counterfactuals and an inference-only temperature
+sweep (default `0.25,0.5,1,2`). An old
+checkpoint such as `outputs/1.pt` correctly reports this branch as `OFF` and a
+zero `LabelCtx Δp`; debug a checkpoint produced by a run using
+`--label-context-branch` to inspect the new path.
+
+Evaluate branch usefulness across the exposed race cohort before changing the
+architecture:
+
+```bash
+python evaluate_model_stages.py \
+  --checkpoint outputs/model.pt \
+  --race-source checkpoint_validation \
+  --race-head-scales 0,0.1,0.25,0.5,0.75,1 \
+  --summary-json outputs/model_stage_summary.json \
+  --output-csv outputs/model_stage_ablation.csv
+```
+
+This reports all eight additive branch combinations, sequential stage improve/
+degrade counts, NDCG@3, pairwise ranking accuracy, race-head usefulness,
+cardinality distributions, per-head retrieval quality, and inference-only
+market/race-relative feature ablations. A validation cohort that overlaps the
+embedded training manifest fails unless `--allow-evaluation-leakage` is passed;
+the override remains visibly watermarked. A classroom checkpoint is
+explicitly marked as provenance-unsafe: if its exact training race manifest was
+not embedded, a later database view may mix seen and unseen races.
+New checkpoints embed their training/query and validation race IDs; use
+`checkpoint_validation` so later view changes cannot silently change the target
+cohort. They also record SHA-256 hashes for the exported training and validation
+CSVs; keep those snapshots immutable when exact context-row reproducibility is
+required.
+
+Audit the exact checkpoint preprocessing without modifying it:
+
+```bash
+python audit_standardized_features.py \
+  --checkpoint outputs/model.pt \
+  --training-csv outputs/training_records.csv \
+  --validation-csv outputs/validation_records.csv \
+  --output-csv outputs/model_feature_scaling_audit.csv
+```
+
+Any proposed transform from this audit must become a versioned preprocessing
+contract fitted on training data and reused unchanged for validation and live
+prediction.
+
+For the controlled label-context A/B/C experiment, keep the split, seed,
+features, optimiser, schedule, losses, context size, and `--race-head-scale 0.1`
+identical. Change only these arguments:
+
+```text
+A: --label-context-branch --label-context-temperature 1 --label-context-top-k 0
+B: --no-label-context-branch --label-context-loss-weight 0
+C: --label-context-branch --label-context-temperature <chosen-from-diagnostics>
+   --label-context-top-k <chosen-from-diagnostics>
+```
+
+Choose C from clean-validation ranking evidence, not from a desired effective
+retrieval count alone. Evaluate each saved checkpoint with
+`--race-source checkpoint_validation`; compare the stage and retrieval tables.
+No evaluator performs training or modifies a checkpoint.
+
+After producing summaries for all three models, build the requested clean
+comparison table with:
+
+```bash
+python compare_label_context_reports.py \
+  --model A=outputs/A_summary.json \
+  --model B=outputs/B_summary.json \
+  --model C=outputs/C_summary.json \
+  --output-csv outputs/label_context_abc.csv
+```
 
 ## Prediction backtests
 

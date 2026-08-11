@@ -95,14 +95,19 @@ def parse_args() -> argparse.Namespace:
             "attention_head_only",
             "decoder_and_race_head",
             "icl_and_race_head",
+            "icl_race_and_label_context",
+            "label_context_only",
             "race_aware_full",
         ),
         default=None,
         help=(
-            "Parameters to optimize: attention_head_only trains race_set_head "
-            "and an enabled context-prototype head; decoder_and_race_head also "
+            "Parameters to optimize: attention_head_only trains only race_set_head; "
+            "decoder_and_race_head trains the ICL decoder and race_set_head; "
             "trains icl_predictor.decoder; icl_and_race_head trains the complete "
-            "icl_predictor plus the post-ICL race and prototype heads; "
+            "icl_predictor plus the post-ICL race and enabled auxiliary heads; "
+            "icl_race_and_label_context trains only icl_predictor, race_set_head, "
+            "and label_context_head; label_context_only trains only the explicit "
+            "label-context branch; "
             "race_aware_full additionally trains the pre-ICL race encoder; "
             "full_model trains all parameters. "
             "A resumed self-attention model defaults to icl_and_race_head."
@@ -127,6 +132,15 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=10,
         help="Number of recent optimizer-step losses used for the rolling mean.",
+    )
+    parser.add_argument(
+        "--debug-training-output",
+        action="store_true",
+        help=(
+            "Print the full parameter table, every optimizer batch, context "
+            "ablations, cohort details, and progress-race rankings. The default "
+            "output is a concise training summary."
+        ),
     )
     parser.add_argument(
         "--auto-race-schedule",
@@ -227,6 +241,15 @@ def parse_args() -> argparse.Namespace:
         help="Add the race-head correction to base logits (default: true).",
     )
     parser.add_argument(
+        "--race-head-scale",
+        type=float,
+        default=None,
+        help=(
+            "Non-negative multiplier applied to the post-ICL race-head logit "
+            "delta. Existing checkpoints inherit 1.0 when absent."
+        ),
+    )
+    parser.add_argument(
         "--encode-races-before-icl", action=argparse.BooleanOptionalAction,
         default=None,
         help="Experimental representation-level race encoder before ICL; requires retraining.",
@@ -249,6 +272,49 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Maximum absolute per-class logit correction from context prototypes "
             "(default: 0.5)."
+        ),
+    )
+    parser.add_argument(
+        "--label-context-branch", "--historical-cross-attention",
+        dest="label_context_branch",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Let query runner representations cross-attend to historical runner "
+            "representations augmented with learned binary label embeddings. "
+            "Resumed models inherit their saved setting when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--label-context-heads", type=int, default=None,
+        help="Attention heads in the label-aware historical context branch (default: 2).",
+    )
+    parser.add_argument(
+        "--label-context-max-correction", type=float, default=None,
+        help="Maximum absolute per-class logit correction from label-aware context (default: 0.5).",
+    )
+    parser.add_argument(
+        "--label-context-labels-in-values-only",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Use historical runner representations as attention keys and inject "
+            "outcome labels only into attention values. New label-context models "
+            "default to enabled; resumed models inherit their saved behavior."
+        ),
+    )
+    parser.add_argument(
+        "--label-context-temperature", type=float, default=None,
+        help=(
+            "Additional explicit-branch attention temperature: logits are divided "
+            "by this value, so values below 1 sharpen retrieval (default: 1)."
+        ),
+    )
+    parser.add_argument(
+        "--label-context-top-k", type=int, default=None,
+        help=(
+            "Per-head, per-query historical runner top-k before softmax; 0 disables "
+            "masking (default: 0)."
         ),
     )
     parser.add_argument(
@@ -285,6 +351,25 @@ def parse_args() -> argparse.Namespace:
             "Direct pairwise ranking loss applied to prototype-only query "
             "corrections. Requires --context-prototype-branch and defaults to "
             "0.25 when that branch is enabled, otherwise 0."
+        ),
+    )
+    parser.add_argument(
+        "--label-context-loss-weight", "--label_context_loss_weight",
+        dest="label_context_loss_weight",
+        type=float,
+        default=None,
+        help=(
+            "Direct pairwise ranking loss on the label-aware cross-attention "
+            "correction. Defaults to 0.25 when the branch is enabled."
+        ),
+    )
+    parser.add_argument(
+        "--checkpoint-metric",
+        choices=("loss", "top3_recall", "ndcg3", "composite"),
+        default="composite",
+        help=(
+            "Validation checkpoint rule. composite is lexicographic: top3 recall, "
+            "NDCG@3, exact top3, pairwise accuracy, then lower log loss."
         ),
     )
     parser.add_argument(

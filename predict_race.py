@@ -42,12 +42,12 @@ import numpy as np
 import pandas as pd
 import torch
 from torch import nn
+from tqdm.auto import tqdm
 
 from src.config import DEFAULT_DB
 from src.constants import TRAINING_ROWS_VIEW
 from src.database import quote_identifier, require_training_rows_view
 from src.preprocessing import transform as transform_training_features
-from src.preprocessing import zero_feature_columns
 from src.metrics import probability_metrics, race_top3_metrics
 from src.prediction import market_rank_scores
 
@@ -262,14 +262,13 @@ def load_competition_context_race_ids(
             f"No finished historical races found for competition_id={int(competition_id)} "
             f"strictly before target race {int(target_race_id)}."
         )
-    print(
+    tqdm.write(
         "competition_context_selection "
         f"target_race_id={int(target_race_id)} "
         f"competition_id={int(competition_id)} "
         f"target_race_number={int(target_race_number)} "
         f"eligible_previous_races={len(context_race_ids)} "
         f"race_ids={context_race_ids}",
-        flush=True,
     )
     return context_race_ids, int(competition_id), int(target_race_number)
 
@@ -393,7 +392,7 @@ def load_training_context_for_target(
             .drop_duplicates()
             .sort_values(["start_time_iso", "race_id"], kind="stable")["race_id"]
         ]
-        print(
+        tqdm.write(
             "competition_history_context_augmented "
             f"target_race_id={int(target_race_id)} "
             f"checkpoint_context_races={context_size} "
@@ -401,7 +400,6 @@ def load_training_context_for_target(
             f"new_competition_races={len(added_ids)} "
             f"combined_context_races={len(selected_ids)} "
             f"race_ids={selected_ids}",
-            flush=True,
         )
     return context, query, selected_ids
 
@@ -411,7 +409,7 @@ def apply_checkpoint_preprocessing(
     feature_columns: Sequence[str],
     metadata: Mapping[str, Any],
 ) -> np.ndarray:
-    """Apply the median/scale and zero-feature contract saved by training."""
+    """Normalize every checkpoint feature without inference-time masking."""
     median = metadata.get("median")
     scale = metadata.get("scale")
     if median is None or scale is None:
@@ -429,10 +427,7 @@ def apply_checkpoint_preprocessing(
         raise ValueError(
             "Checkpoint preprocessing dimensions do not match its feature columns."
         )
-    transformed = transform_training_features(values, median, scale)
-    return zero_feature_columns(
-        transformed, list(feature_columns), list(metadata.get("zeroed_features", []))
-    )
+    return transform_training_features(values, median, scale)
 
 
 def torch_load_trusted(path: Path, device: torch.device) -> Any:
@@ -518,7 +513,7 @@ def load_model(checkpoint_path: Path, device: torch.device, strict: bool) -> tup
             model = TabFM(**model_config)
             incompatible = model.load_state_dict(state_dict, strict=strict)
             if not strict and (incompatible.missing_keys or incompatible.unexpected_keys):
-                print(
+                tqdm.write(
                     "WARNING: non-strict checkpoint load. "
                     f"Missing={incompatible.missing_keys}, unexpected={incompatible.unexpected_keys}",
                     file=sys.stderr,
@@ -570,6 +565,38 @@ def read_feature_columns(args: argparse.Namespace, metadata: Mapping[str, Any]) 
     if len(columns) != len(set(columns)):
         raise ValueError("Feature-column list contains duplicates.")
     return columns
+
+
+def describe_feature_source(
+    args: argparse.Namespace,
+    metadata: Mapping[str, Any],
+    feature_count: int,
+) -> str:
+    """Describe the real source of the ordered inference feature schema."""
+    if args.feature_columns:
+        return (
+            f"source=command_line feature_count={feature_count} json_file=none "
+            "zero_feature_masking=disabled"
+        )
+    if args.feature_columns_file:
+        source = args.feature_columns_file.resolve()
+        source_kind = "json_file" if source.suffix.lower() == ".json" else "text_file"
+        return (
+            f"source={source_kind} feature_count={feature_count} file={source} "
+            "zero_feature_masking=disabled"
+        )
+    recorded_manifest = metadata.get("feature_manifest")
+    if recorded_manifest:
+        return (
+            f"source=checkpoint_embedded feature_count={feature_count} "
+            f"recorded_training_json={recorded_manifest} json_loaded_at_prediction=false "
+            "zero_feature_masking=disabled"
+        )
+    return (
+        f"source=checkpoint_embedded feature_count={feature_count} "
+        "recorded_training_json=none json_loaded_at_prediction=false "
+        "zero_feature_masking=disabled"
+    )
 
 
 def load_preprocessor(path: Path | None) -> Any | None:
@@ -809,22 +836,20 @@ def predict_one(
                 if getattr(args, "include_competition_history_context", False)
                 else "most_recent_earlier_training_races"
             )
-            print(
+            tqdm.write(
                 "PREDICTION CONTEXT "
                 f"checkpoint={checkpoint.name} strategy={context_strategy} "
                 f"races={len(ordered_context_race_ids)} rows={len(context)} "
                 f"race_ids={ordered_context_race_ids}",
-                flush=True,
             )
             if len(ordered_context_race_ids) > checkpoint_context_size(metadata):
-                print(
+                tqdm.write(
                     "WARNING context_window_out_of_distribution "
                     f"checkpoint={checkpoint.name} "
                     f"trained_context_races={checkpoint_context_size(metadata)} "
                     f"prediction_context_races={len(ordered_context_race_ids)} "
                     "reason=include_competition_history_context",
                     file=sys.stderr,
-                    flush=True,
                 )
         context_values = matrix_from_frame(context, feature_columns, None)
     else:
@@ -989,15 +1014,28 @@ def predict(args: argparse.Namespace) -> pd.DataFrame:
     used_columns: set[str] = set()
     skipped: list[tuple[Path, str]] = []
     key_columns = [args.race_id_column, args.runner_id_column]
-    for path in checkpoint_paths(args):
-        print(f"PREDICTING checkpoint={path}", flush=True)
+    paths = checkpoint_paths(args)
+    checkpoint_progress = tqdm(
+        paths,
+        desc="Predicting checkpoints",
+        unit="model",
+        dynamic_ncols=True,
+    )
+    for path in checkpoint_progress:
+        checkpoint_progress.set_description(f"Predicting {path.name}")
         try:
-            result = predict_one(args, path)
+            model, metadata = load_model(path, torch.device(args.device), args.strict_load)
+            feature_columns = read_feature_columns(args, metadata)
+            tqdm.write(
+                f"FEATURES checkpoint={path.name} "
+                + describe_feature_source(args, metadata, len(feature_columns))
+            )
+            result = predict_one(args, path, model, metadata)
         except Exception as exc:
             skipped.append((path, str(exc)))
-            print(
+            tqdm.write(
                 f"WARNING skipped_checkpoint={path.name} reason={exc}",
-                file=sys.stderr, flush=True,
+                file=sys.stderr,
             )
             continue
         score_source = "ranking_probability" if "ranking_probability" in result else "prediction"
@@ -1019,10 +1057,9 @@ def predict(args: argparse.Namespace) -> pd.DataFrame:
         details = "; ".join(f"{path.name}: {reason}" for path, reason in skipped)
         raise ValueError(f"No checkpoint could score race {args.race_id}. {details}")
     if skipped:
-        print(
+        tqdm.write(
             f"PREDICTION SUMMARY compatible_models={len(score_columns)} "
             f"skipped_models={len(skipped)}",
-            flush=True,
         )
     combined["ensemble_score"] = combined[score_columns].mean(axis=1)
     combined = combined.sort_values(
@@ -1146,14 +1183,30 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
     all_predictions: list[pd.DataFrame] = []
     metric_rows: list[dict[str, Any]] = []
     device = torch.device(args.device)
-    for checkpoint in checkpoint_paths(args):
+    checkpoints = checkpoint_paths(args)
+    checkpoint_progress = tqdm(
+        checkpoints,
+        desc="Backtesting checkpoints",
+        unit="model",
+        dynamic_ncols=True,
+        position=0,
+    )
+    for checkpoint in checkpoint_progress:
+        checkpoint_progress.set_description(f"Backtesting {checkpoint.name}")
         checkpoint_started_at = time.perf_counter()
         try:
             model, metadata = load_model(checkpoint, device, args.strict_load)
         except Exception as exc:
-            print(f"WARNING skipped_checkpoint={checkpoint.name} reason={exc}", file=sys.stderr)
+            tqdm.write(
+                f"WARNING skipped_checkpoint={checkpoint.name} reason={exc}",
+                file=sys.stderr,
+            )
             continue
         feature_columns = read_feature_columns(args, metadata)
+        tqdm.write(
+            f"FEATURES checkpoint={checkpoint.name} "
+            + describe_feature_source(args, metadata, len(feature_columns))
+        )
         context_by_race, target_by_race, ordered_context = prepare_backtest_native_data(
             args.db,
             feature_columns,
@@ -1170,9 +1223,19 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
             raise ValueError(f"No status='finished' race was found{detail}.")
         model_predictions: list[pd.DataFrame] = []
         skipped = 0
+        top1_hits = 0
+        top1_races = 0
         skip_examples: list[str] = []
         inference_started_at = time.perf_counter()
-        for race_id in race_ids:
+        race_progress = tqdm(
+            race_ids,
+            desc=f"Backtesting {checkpoint.name}",
+            unit="race",
+            dynamic_ncols=True,
+            position=1,
+            leave=False,
+        )
+        for race_id in race_progress:
             race_args = copy.copy(args)
             race_args.race_id = str(race_id)
             try:
@@ -1190,10 +1253,23 @@ def backtest(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
                 prediction = prediction.rename(columns={score_column: "model_score"})
                 prediction["checkpoint"] = checkpoint.name
                 model_predictions.append(prediction)
+                winners = pd.to_numeric(prediction["is_winner"], errors="coerce")
+                scores = pd.to_numeric(prediction["model_score"], errors="coerce")
+                if int(winners.eq(1).sum()) == 1 and scores.notna().any():
+                    top1_hits += int(winners.loc[scores.idxmax()] == 1)
+                    top1_races += 1
+            race_progress.set_postfix(
+                scored=len(model_predictions),
+                skipped=skipped,
+                top1_hits=top1_hits,
+                top1=(f"{top1_hits / top1_races:.3f}" if top1_races else "-"),
+                refresh=False,
+            )
+        race_progress.close()
         inference_seconds = time.perf_counter() - inference_started_at
         if not model_predictions:
             detail = " | ".join(skip_examples)
-            print(
+            tqdm.write(
                 f"WARNING skipped_checkpoint={checkpoint.name} reason=no scoreable races"
                 + (f" examples={detail}" if detail else ""),
                 file=sys.stderr,
