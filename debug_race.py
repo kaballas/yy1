@@ -22,6 +22,8 @@ from predict_race import (
     read_feature_columns,
 )
 from src.config import DEFAULT_DB
+from src.config import DEFAULT_CONTEXT
+from src.context import load_context_race_ids
 from src.constants import TRAINING_ROWS_VIEW
 from src.database import quote_identifier, require_training_rows_view
 from src.prediction import ablate_context_labels
@@ -46,6 +48,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--race-id", required=True, type=int)
     parser.add_argument("--checkpoint", required=True, type=Path)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument(
+        "--fallback-context-json",
+        type=Path,
+        default=DEFAULT_CONTEXT,
+        help=(
+            "Ordered context race IDs to use when no complete, strictly earlier "
+            "same-competition races exist (default: tabfm_context.json)."
+        ),
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument(
         "--feature-columns-file", type=Path,
@@ -115,6 +126,7 @@ def load_race_and_context(
     race_id: int,
     feature_columns: Sequence[str],
     context_races: int,
+    fallback_context_json: Path | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Load the target and its exact most-recent same-competition context."""
     if not db_path.exists():
@@ -155,6 +167,35 @@ def load_race_and_context(
             params=(int(competition_id), str(target_time), race_id),
         )
         selected = summary.tail(context_races).copy()
+        context_relation = TRAINING_ROWS_VIEW
+        used_fallback = False
+        if selected.empty and fallback_context_json is not None:
+            fallback_ids = load_context_race_ids(fallback_context_json)
+            if len(fallback_ids) != context_races:
+                raise ValueError(
+                    f"Fallback {fallback_context_json} contains {len(fallback_ids)} "
+                    f"races; checkpoint requires exactly {context_races}."
+                )
+            placeholders = ", ".join("?" for _ in fallback_ids)
+            fallback_summary = pd.read_sql_query(
+                f"SELECT race_id, MIN(start_time_iso) AS start_time_iso, "
+                "COUNT(*) AS runners, SUM(top3_mask) AS top3 "
+                "FROM race_runners "
+                f"WHERE race_id IN ({placeholders}) AND top3_mask IN (0, 1) "
+                "GROUP BY race_id HAVING COUNT(*) >= 4 AND SUM(top3_mask) = 3",
+                connection,
+                params=fallback_ids,
+            )
+            by_id = fallback_summary.set_index("race_id")
+            missing = [race for race in fallback_ids if race not in by_id.index]
+            if missing:
+                raise ValueError(
+                    f"Fallback {fallback_context_json} has races that are missing or "
+                    f"incomplete in {db_path}: {missing}"
+                )
+            selected = by_id.loc[fallback_ids].reset_index()
+            context_relation = "race_runners"
+            used_fallback = True
         if len(selected) < context_races:
             raise ValueError(
                 f"Race {race_id} has only {len(selected)} complete, strictly earlier "
@@ -168,7 +209,7 @@ def load_race_and_context(
         ])
         context = pd.read_sql_query(
             f"SELECT {', '.join(quote_identifier(c) for c in context_columns)} "
-            f"FROM {quote_identifier(TRAINING_ROWS_VIEW)} "
+            f"FROM {quote_identifier(context_relation)} "
             f"WHERE race_id IN ({placeholders})",
             connection,
             params=selected_ids,
@@ -180,6 +221,7 @@ def load_race_and_context(
     context["__order"] = context["race_id"].map(order)
     context = context.sort_values(["__order", "runner_number"], kind="stable")
     context = context.drop(columns="__order").reset_index(drop=True)
+    selected["context_source"] = "fallback manifest" if used_fallback else "chronological"
     return target.reset_index(drop=True), context, selected.reset_index(drop=True)
 
 
@@ -1555,7 +1597,11 @@ def main() -> None:
     feature_columns = read_feature_columns(args, metadata)
     context_count = checkpoint_context_size(metadata)
     query, context, context_summary = load_race_and_context(
-        args.db, args.race_id, feature_columns, context_count
+        args.db,
+        args.race_id,
+        feature_columns,
+        context_count,
+        args.fallback_context_json,
     )
     if query["competition_id"].nunique(dropna=False) != 1:
         raise ValueError("Target race has inconsistent competition_id values")
@@ -1570,8 +1616,8 @@ def main() -> None:
         f"competition={query.iloc[0]['competition_id']} "
         f"start={query.iloc[0]['start_time_iso']}\n"
         f"architecture: {architecture_description(model)}\n"
-        f"contract: {context_count} most-recent complete, strictly earlier, "
-        "same-competition context races"
+        f"context: {context_count} races from "
+        f"{context_summary.iloc[0]['context_source']}"
     )
     print_context(context_summary, context)
     print_feature_diagnostics(
