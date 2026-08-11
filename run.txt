@@ -132,13 +132,13 @@
 
 python train_model.py \
   --overwrite-existing \
-  --output outputs/x3_selective.pt \
+  --output outputs/x2.pt \
   --training-csv outputs/training_records_C.csv \
   --validation-csv outputs/validation_records_C.csv \
   --features-json tabfm_features.json \
   --epochs 30 \
   --auto-race-schedule \
-  --query-races-per-step 5 \
+  --query-races-per-step 15 \
   --learning-rate 0.00005 \
   --early-stopping-patience 10 \
   --fine-tune-scope full_model \
@@ -152,7 +152,7 @@ python train_model.py \
   --race-context-ff-dim 64 \
   --race-head-scale 0.1 \
   --encode-races-before-icl \
-  --context-prototype-branch \
+  --context-prototype-branch\
   --context-prototype-dim 16 \
   --context-prototype-max-correction 0.25 \
   --label-context-branch \
@@ -170,4 +170,11 @@ python train_model.py \
   --context-dependence-margin 0.005 \
   --cardinality-loss-weight 0.05 \
   --checkpoint-metric composite \
-  --max-grad-norm 5
+  --max-grad-norm 5 \
+  --debug-training-output
+
+
+
+git add /home/theo/yy1/db/race_runners.sqlite
+git commit -m "Add design file"
+git push origin main

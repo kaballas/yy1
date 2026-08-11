@@ -197,8 +197,10 @@ def load_native_query(
     """Load one target race directly from the training SQLite database."""
     if not db_path.exists():
         raise FileNotFoundError(db_path)
-    selected = ["race_id", "start_time_iso", "runner_number", *feature_columns,
-                "top3_mask", "is_winner"]
+    selected = list(dict.fromkeys([
+        "race_id", "start_time_iso", "competition_id", "race_number",
+        "runner_number", *feature_columns, "top3_mask", "is_winner",
+    ]))
     sql = (
         f"SELECT {', '.join(quote_identifier(column) for column in selected)} "
         f"FROM race_runners WHERE race_id = ? ORDER BY start_time_iso, race_id, runner_number"
@@ -320,30 +322,58 @@ def load_training_context_for_target(
     """Use the exact chronological context policy used by training and validation."""
     query = prepared_query.copy() if prepared_query is not None else load_native_query(db_path, target_race_id, feature_columns)
     target_time = pd.to_datetime(query["start_time_iso"], utc=True, errors="raise").min()
+    target_competitions = pd.to_numeric(
+        query["competition_id"], errors="raise"
+    ).dropna().unique()
+    if len(target_competitions) != 1:
+        raise ValueError(
+            f"Target race {target_race_id} has missing or inconsistent competition_id values."
+        )
+    target_competition_id = int(target_competitions[0])
     context_size = checkpoint_context_size(metadata)
     if prepared_context is not None:
         context_by_race, ordered_context = prepared_context
         cutoff = bisect.bisect_left(ordered_context, (target_time, -1))
-        selected_ids = [race_id for _, race_id in ordered_context[max(0, cutoff - context_size):cutoff]]
+        eligible_ids = []
+        for _, race_id in ordered_context[:cutoff]:
+            race_competitions = pd.to_numeric(
+                context_by_race[race_id]["competition_id"], errors="raise"
+            ).dropna().unique()
+            if len(race_competitions) != 1:
+                raise ValueError(
+                    f"Context race {race_id} has missing or inconsistent competition_id values."
+                )
+            if int(race_competitions[0]) == target_competition_id:
+                eligible_ids.append(race_id)
+        selected_ids = eligible_ids[-context_size:]
         if len(selected_ids) < context_size:
             raise ValueError(
-                f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier training context races; "
+                f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier "
+                f"same-competition training context races; "
                 f"checkpoint requires {context_size}."
             )
         context = pd.concat(
             [context_by_race[race_id] for race_id in selected_ids], ignore_index=True
         )
         return context, query, selected_ids
-    selected = ["race_id", "start_time_iso", "runner_number", "race_number", *feature_columns, "top3_mask"]
+    selected = list(dict.fromkeys([
+        "race_id", "start_time_iso", "competition_id", "runner_number",
+        "race_number", *feature_columns, "top3_mask",
+    ]))
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
         require_training_rows_view(connection)
         sql = (
             f"SELECT {', '.join(quote_identifier(column) for column in selected)} "
             f"FROM {quote_identifier(TRAINING_ROWS_VIEW)} "
-            "WHERE start_time_iso < ? AND race_id <> ? ORDER BY start_time_iso, race_id, runner_number"
+            "WHERE start_time_iso < ? AND race_id <> ? AND competition_id = ? "
+            "ORDER BY start_time_iso, race_id, runner_number"
         )
-        frame = pd.read_sql_query(sql, connection, params=(target_time.isoformat(), int(target_race_id)))
+        frame = pd.read_sql_query(
+            sql,
+            connection,
+            params=(target_time.isoformat(), int(target_race_id), target_competition_id),
+        )
     finally:
         connection.close()
     minimum_race_number = metadata.get("optimizer_min_race_number")
@@ -356,7 +386,8 @@ def load_training_context_for_target(
     selected_ids = [int(value) for value in summary.tail(context_size).index]
     if len(selected_ids) < context_size:
         raise ValueError(
-            f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier training context races; "
+            f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier "
+            f"same-competition training context races; "
             f"checkpoint requires {context_size}."
         )
     context = frame.loc[frame["race_id"].isin(selected_ids)].copy()
@@ -832,9 +863,9 @@ def predict_one(
         )
         if not args.backtest:
             context_strategy = (
-                "most_recent_earlier_training_races_plus_all_earlier_same_competition"
+                "most_recent_earlier_same_competition_training_races_plus_all_earlier_same_competition"
                 if getattr(args, "include_competition_history_context", False)
-                else "most_recent_earlier_training_races"
+                else "most_recent_earlier_same_competition_training_races"
             )
             tqdm.write(
                 "PREDICTION CONTEXT "
@@ -1123,7 +1154,10 @@ def prepare_backtest_native_data(
     """Load finished targets and the eligible training context pool once."""
     if maximum < 0:
         raise ValueError("--backtest-max-races must be zero or positive.")
-    selected = ["race_id", "start_time_iso", "runner_number", "race_number", *feature_columns, "top3_mask", "is_winner"]
+    selected = list(dict.fromkeys([
+        "race_id", "start_time_iso", "competition_id", "runner_number",
+        "race_number", *feature_columns, "top3_mask", "is_winner",
+    ]))
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
         require_training_rows_view(connection)

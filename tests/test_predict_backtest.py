@@ -117,6 +117,36 @@ def test_competition_context_uses_all_complete_strictly_earlier_races(tmp_path):
     assert target_race_number == 1
 
 
+def test_single_race_context_uses_only_same_competition(tmp_path):
+    path = _database(tmp_path)
+
+    context, _, race_ids = load_training_context_for_target(
+        path, "3", ["feature"], {"context_races_per_step": 1}
+    )
+
+    assert race_ids == [1]
+    assert context["competition_id"].unique().tolist() == [590]
+
+
+def test_prepared_context_uses_only_same_competition(tmp_path):
+    path = _database(tmp_path)
+    context_by_race, targets, ordered_context = prepare_backtest_native_data(
+        path, ["feature"], {}, maximum=0, target_race_id="3"
+    )
+
+    context, _, race_ids = load_training_context_for_target(
+        path,
+        "3",
+        ["feature"],
+        {"context_races_per_step": 1},
+        prepared_context=(context_by_race, ordered_context),
+        prepared_query=targets[3],
+    )
+
+    assert race_ids == [1]
+    assert context["competition_id"].unique().tolist() == [590]
+
+
 def test_single_race_context_can_be_augmented_with_competition_history(tmp_path):
     path = _database(tmp_path)
 
