@@ -130,3 +130,44 @@
 
   Run them sequentially on CPU. The trainer regenerates each CSV from the database views, so the different filenames do not alter the cohort; they preserve an auditable snapshot for each run.
 
+python train_model.py \
+  --overwrite-existing \
+  --output outputs/x3_selective.pt \
+  --training-csv outputs/training_records_C.csv \
+  --validation-csv outputs/validation_records_C.csv \
+  --features-json tabfm_features.json \
+  --epochs 30 \
+  --auto-race-schedule \
+  --query-races-per-step 5 \
+  --learning-rate 0.00005 \
+  --early-stopping-patience 10 \
+  --fine-tune-scope full_model \
+  --seed 42 \
+  --device cpu \
+  --context-races-per-step 9 \
+  --race-context-mode self_attention \
+  --race-context-dim 32 \
+  --race-context-layers 1 \
+  --race-context-heads 2 \
+  --race-context-ff-dim 64 \
+  --race-head-scale 0.1 \
+  --encode-races-before-icl \
+  --context-prototype-branch \
+  --context-prototype-dim 16 \
+  --context-prototype-max-correction 0.25 \
+  --label-context-branch \
+  --label-context-heads 2 \
+  --label-context-max-correction 0.25 \
+  --label-context-labels-in-values-only \
+  --label-context-temperature 0.5 \
+  --label-context-top-k 20 \
+  --classification-loss-weight 1.0 \
+  --pairwise-loss-weight 0.25 \
+  --attention-delta-pairwise-loss-weight 0.05 \
+  --context-prototype-loss-weight 0.25 \
+  --label-context-loss-weight 0.10 \
+  --context-dependence-loss-weight 0.10 \
+  --context-dependence-margin 0.005 \
+  --cardinality-loss-weight 0.05 \
+  --checkpoint-metric composite \
+  --max-grad-norm 5
