@@ -1,4 +1,4 @@
-db/race_runners.sqlite
 *.sqlite
+!db/race_runners.sqlite
 *.sqlite-wal
 *.sqlite-shm
