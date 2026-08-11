@@ -69,7 +69,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--attribution-runner-number", type=int,
-        help="Runner to attribute; defaults to the worst-ranked actual top-three miss.",
+        help=(
+            "Runner to attribute; defaults to the worst-ranked actual top-three "
+            "miss, or the model's top-ranked runner when outcomes are unavailable."
+        ),
     )
     parser.add_argument(
         "--attribution-steps", type=int, default=24,
@@ -915,9 +918,12 @@ def print_base_attribution(
         raise ValueError("--attribution-steps must be at least 2")
     actual_top3 = table.loc[pd.to_numeric(table["Actual"], errors="coerce") <= 3]
     if requested_runner_number is None:
-        misses = actual_top3.loc[actual_top3["Base rank"] > 3]
-        candidates = misses if not misses.empty else actual_top3
-        selected = candidates.sort_values("Base rank", ascending=False).iloc[0]
+        if actual_top3.empty:
+            selected = table.sort_values("Base rank", ascending=True).iloc[0]
+        else:
+            misses = actual_top3.loc[actual_top3["Base rank"] > 3]
+            candidates = misses if not misses.empty else actual_top3
+            selected = candidates.sort_values("Base rank", ascending=False).iloc[0]
         runner_number = int(selected["No."])
     else:
         runner_number = requested_runner_number

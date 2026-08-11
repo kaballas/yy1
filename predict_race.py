@@ -319,7 +319,7 @@ def load_training_context_for_target(
     prepared_query: pd.DataFrame | None = None,
     include_competition_history: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
-    """Use the exact chronological context policy used by training and validation."""
+    """Use the causal same-competition context policy used for validation."""
     query = prepared_query.copy() if prepared_query is not None else load_native_query(db_path, target_race_id, feature_columns)
     target_time = pd.to_datetime(query["start_time_iso"], utc=True, errors="raise").min()
     target_competitions = pd.to_numeric(
@@ -349,7 +349,7 @@ def load_training_context_for_target(
         if len(selected_ids) < context_size:
             raise ValueError(
                 f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier "
-                f"same-competition training context races; "
+                f"same-competition completed context races; "
                 f"checkpoint requires {context_size}."
             )
         context = pd.concat(
@@ -362,11 +362,11 @@ def load_training_context_for_target(
     ]))
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
-        require_training_rows_view(connection)
         sql = (
             f"SELECT {', '.join(quote_identifier(column) for column in selected)} "
-            f"FROM {quote_identifier(TRAINING_ROWS_VIEW)} "
-            "WHERE start_time_iso < ? AND race_id <> ? AND competition_id = ? "
+            "FROM race_runners "
+            "WHERE status = 'finished' AND start_time_iso < ? AND race_id <> ? "
+            "AND competition_id = ? AND top3_mask IN (0, 1) "
             "ORDER BY start_time_iso, race_id, runner_number"
         )
         frame = pd.read_sql_query(
@@ -387,7 +387,7 @@ def load_training_context_for_target(
     if len(selected_ids) < context_size:
         raise ValueError(
             f"Target race {target_race_id} has only {len(selected_ids)} eligible earlier "
-            f"same-competition training context races; "
+            f"same-competition completed context races; "
             f"checkpoint requires {context_size}."
         )
     context = frame.loc[frame["race_id"].isin(selected_ids)].copy()
@@ -1151,7 +1151,7 @@ def prepare_backtest_native_data(
     competition_id: int | None = None,
     target_race_id: str | None = None,
 ) -> tuple[dict[int, pd.DataFrame], dict[int, pd.DataFrame], list[tuple[pd.Timestamp, int]]]:
-    """Load finished targets and the eligible training context pool once."""
+    """Load finished targets and the eligible causal context pool once."""
     if maximum < 0:
         raise ValueError("--backtest-max-races must be zero or positive.")
     selected = list(dict.fromkeys([
@@ -1160,7 +1160,6 @@ def prepare_backtest_native_data(
     ]))
     connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
     try:
-        require_training_rows_view(connection)
         target_where = "status = 'finished'"
         target_params: list[int] = []
         if competition_id is not None:
@@ -1182,7 +1181,8 @@ def prepare_backtest_native_data(
         )
         pool = pd.read_sql_query(
             f"SELECT {', '.join(quote_identifier(column) for column in selected[:-1])} "
-            f"FROM {quote_identifier(TRAINING_ROWS_VIEW)} ORDER BY start_time_iso, race_id, runner_number",
+            "FROM race_runners WHERE status = 'finished' AND top3_mask IN (0, 1) "
+            "ORDER BY start_time_iso, race_id, runner_number",
             connection,
         )
     finally:

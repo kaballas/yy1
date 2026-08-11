@@ -128,6 +128,26 @@ def test_single_race_context_uses_only_same_competition(tmp_path):
     assert context["competition_id"].unique().tolist() == [590]
 
 
+def test_single_race_context_can_use_prior_validation_partition_races(tmp_path):
+    path = _database(tmp_path)
+    connection = sqlite3.connect(path)
+    connection.execute("DROP VIEW tabfm_trainable_validation_runners")
+    connection.execute(
+        "CREATE VIEW tabfm_trainable_validation_runners AS "
+        "SELECT * FROM race_runners WHERE top3_mask IN (0, 1) "
+        "AND competition_id <> 590"
+    )
+    connection.commit()
+    connection.close()
+
+    context, _, race_ids = load_training_context_for_target(
+        path, "3", ["feature"], {"context_races_per_step": 1}
+    )
+
+    assert race_ids == [1]
+    assert context["competition_id"].unique().tolist() == [590]
+
+
 def test_prepared_context_uses_only_same_competition(tmp_path):
     path = _database(tmp_path)
     context_by_race, targets, ordered_context = prepare_backtest_native_data(
