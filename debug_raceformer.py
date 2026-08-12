@@ -152,6 +152,11 @@ def integrated_gradients(
 
 def print_checkpoint(model: RaceFormerTop3, checkpoint: dict[str, Any]) -> None:
     parameters = sum(parameter.numel() for parameter in model.parameters())
+    preprocessing = checkpoint.get("preprocessing") or {}
+    price_transforms = [
+        name for name in ("open_price", "fluc1", "fluc2")
+        if name in preprocessing.get("log1p_features", [])
+    ]
     print("RACEFORMER RACE DEBUGGER")
     print(
         f"variant={model.variant} features={model.feature_count} parameters={parameters:,} "
@@ -161,6 +166,31 @@ def print_checkpoint(model: RaceFormerTop3, checkpoint: dict[str, Any]) -> None:
         f"best_epoch={checkpoint.get('best_epoch', '-')} "
         f"checkpoint_metric={checkpoint.get('checkpoint_metric', '-')} "
         "historical_context=OFF icl=OFF"
+    )
+    print(
+        f"preprocessing_version={preprocessing.get('version', 1)} "
+        f"standardized_clip={preprocessing.get('clip', 'none')} "
+        f"log1p_current_prices={price_transforms or 'none'} "
+        f"zeroed_features={checkpoint.get('zeroed_features', [])}"
+    )
+
+
+def print_provenance(race_id: int, checkpoint: dict[str, Any]) -> None:
+    partition = checkpoint.get("partition", {})
+    training_ids = partition.get("training_race_ids")
+    validation_ids = partition.get("validation_race_ids")
+    membership = "not_recorded"
+    if training_ids is not None and race_id in set(map(int, training_ids)):
+        membership = "training"
+    elif validation_ids is not None and race_id in set(map(int, validation_ids)):
+        membership = "validation"
+    elif training_ids is not None or validation_ids is not None:
+        membership = "outside_checkpoint_partition"
+    print(
+        f"checkpoint_partition={partition.get('mode', 'not_recorded')} "
+        f"race_membership={membership} "
+        f"training_competitions={partition.get('training_competition_ids')} "
+        f"validation_competitions={partition.get('validation_competition_ids')}"
     )
 
 
@@ -222,7 +252,9 @@ def print_inputs(
                 "(use --top-clipped-values 0 to show all)"
             )
     else:
-        print("No base-feature values reached the checkpoint clipping threshold.")
+        clip = diagnostics.get("clip")
+        threshold = "none" if clip is None or not np.isfinite(clip) else f"+/-{clip:g}"
+        print(f"No base-feature values reached the checkpoint clipping threshold ({threshold}).")
 
 
 def representation_report(
@@ -235,7 +267,8 @@ def representation_report(
         print("field self-attention=OFF; every score depends only on that runner's features")
         return
     transformed = trace["transformer_output"]
-    runner_context = transformed[1:] if model.variant == "race_token" else transformed
+    uses_race_token = model.variant in {"race_token", "market_residual"}
+    runner_context = transformed[1:] if uses_race_token else transformed
     delta = np.linalg.norm(runner_context - encoded, axis=1)
     shown = pd.DataFrame({
         "No.": frame["runner_number"].to_numpy(),
@@ -243,12 +276,17 @@ def representation_report(
         "context_shift_norm": delta,
     })
     print(f"transformer output={transformed.shape}")
-    if model.variant == "race_token":
+    if uses_race_token:
         print(f"race_token_norm={np.linalg.norm(transformed[0]):.4f}")
     print(shown.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
 
 
-def prediction_report(frame: pd.DataFrame, logits: np.ndarray) -> pd.DataFrame:
+def prediction_report(
+    frame: pd.DataFrame,
+    logits: np.ndarray,
+    anchor_logits: np.ndarray | None = None,
+    residual_logits: np.ndarray | None = None,
+) -> pd.DataFrame:
     probability = 1.0 / (1.0 + np.exp(-logits))
     result = frame[[
         "runner_number", "runner_name", "fluc2", "finish_place", "top3_mask"
@@ -258,6 +296,9 @@ def prediction_report(frame: pd.DataFrame, logits: np.ndarray) -> pd.DataFrame:
     result["model_rank"] = ranks(probability)
     market = pd.to_numeric(result["fluc2"], errors="coerce").to_numpy()
     result["market_rank"] = ranks(market_rank_scores(market))
+    if anchor_logits is not None and residual_logits is not None:
+        result["anchor_logit"] = anchor_logits
+        result["residual_logit"] = residual_logits
     print("\nSTAGE 3 — FINAL SCORES")
     print(
         result.sort_values(["model_rank", "runner_number"]).to_string(
@@ -265,6 +306,11 @@ def prediction_report(frame: pd.DataFrame, logits: np.ndarray) -> pd.DataFrame:
         )
     )
     print(f"sum_probability={probability.sum():.4f} (training target is approximately 3.0)")
+    if residual_logits is not None:
+        print(
+            f"mean_abs_residual_logit={np.abs(residual_logits).mean():.6f} "
+            f"max_abs_residual_logit={np.abs(residual_logits).max():.6f}"
+        )
     return result
 
 
@@ -389,6 +435,7 @@ def main() -> None:
     probability = 1.0 / (1.0 + np.exp(-logits))
 
     print_checkpoint(model, checkpoint)
+    print_provenance(args.race_id, checkpoint)
     print(
         f"race={args.race_id} {frame.iloc[0]['race_name']} "
         f"competition={int(frame.iloc[0]['competition_id'])} "
@@ -399,7 +446,15 @@ def main() -> None:
         diagnostics, args.top_clipped_values,
     )
     representation_report(frame, trace, model)
-    result = prediction_report(frame, logits)
+    anchor_logits = residual_logits = None
+    if model.variant == "market_residual":
+        with torch.inference_mode():
+            x = torch.from_numpy(values).unsqueeze(0).to(device)
+            valid = torch.ones((1, len(values)), dtype=torch.bool, device=device)
+            _, anchor, residual = model.forward_parts(x, valid)
+            anchor_logits = anchor[0].cpu().numpy()
+            residual_logits = residual[0].cpu().numpy()
+    result = prediction_report(frame, logits, anchor_logits, residual_logits)
     attribution_report(
         model, frame, values, probability, expanded_features,
         args.attribution_runner_number, args.attribution_steps,

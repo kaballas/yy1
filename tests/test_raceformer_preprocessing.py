@@ -11,7 +11,7 @@ from src.raceformer_preprocessing import (
 )
 
 
-def test_v2_preprocessing_logs_clips_and_adds_relative_features():
+def test_v3_preprocessing_logs_clips_and_adds_relative_features():
     features = ["career_starts", "win_percentage", "active_field_size"]
     raw = np.array([
         [0.0, 0.1, 4.0],
@@ -32,6 +32,31 @@ def test_v2_preprocessing_logs_clips_and_adds_relative_features():
         "career_starts__race_percentile", "win_percentage__race_percentile",
     ]
     assert np.allclose(result[:3, 3], [-1.0, 0.0, 1.0])
+
+
+def test_v3_current_prices_are_logged_clipped_and_race_relative():
+    features = ["open_price", "fluc1", "fluc2"]
+    raw = np.array([
+        [2.0, 3.0, 4.0],
+        [10.0, 20.0, 30.0],
+        [1_000_000.0, 1_000_000.0, 1_000_000.0],
+    ], dtype=np.float32)
+    race_ids = np.ones(3, dtype=np.int64)
+
+    contract = fit_raceformer_preprocessor(raw, features, clip=2.0)
+    result = transform_raceformer(raw, race_ids, features, [], contract)
+
+    assert contract["version"] == 3
+    assert contract["log1p_features"] == features
+    assert contract["relative_features"] == features
+    assert np.max(np.abs(result[:, :3])) <= 2.0
+    assert model_feature_columns(features, contract) == [
+        "open_price", "fluc1", "fluc2",
+        "open_price__race_percentile",
+        "fluc1__race_percentile",
+        "fluc2__race_percentile",
+    ]
+    assert np.allclose(result[:, 3:], [[-1.0] * 3, [0.0] * 3, [1.0] * 3])
 
 
 def test_race_percentiles_ties_and_missing_are_neutral():

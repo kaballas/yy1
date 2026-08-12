@@ -1,0 +1,215 @@
+{
+  "training": [
+    {
+      "race_id": 10168707,
+      "runners": 8,
+      "top3": 2
+    },
+    {
+      "race_id": 10168713,
+      "runners": 9,
+      "top3": 2
+    },
+    {
+      "race_id": 10172357,
+      "runners": 14,
+      "top3": 4
+    },
+    {
+      "race_id": 10172612,
+      "runners": 10,
+      "top3": 4
+    },
+    {
+      "race_id": 10176034,
+      "runners": 11,
+      "top3": 4
+    },
+    {
+      "race_id": 10176204,
+      "runners": 8,
+      "top3": 2
+    },
+    {
+      "race_id": 10197968,
+      "runners": 9,
+      "top3": 4
+    },
+    {
+      "race_id": 10218844,
+      "runners": 2,
+      "top3": 2
+    },
+    {
+      "race_id": 10241751,
+      "runners": 10,
+      "top3": 4
+    },
+    {
+      "race_id": 10248328,
+      "runners": 3,
+      "top3": 3
+    },
+    {
+      "race_id": 10251661,
+      "runners": 11,
+      "top3": 4
+    },
+    {
+      "race_id": 10255518,
+      "runners": 3,
+      "top3": 3
+    },
+    {
+      "race_id": 10269138,
+      "runners": 12,
+      "top3": 4
+    },
+    {
+      "race_id": 10273228,
+      "runners": 8,
+      "top3": 4
+    },
+    {
+      "race_id": 10302110,
+      "runners": 9,
+      "top3": 4
+    },
+    {
+      "race_id": 10322917,
+      "runners": 9,
+      "top3": 4
+    },
+    {
+      "race_id": 10323069,
+      "runners": 3,
+      "top3": 3
+    },
+    {
+      "race_id": 10323514,
+      "runners": 9,
+      "top3": 4
+    },
+    {
+      "race_id": 10343947,
+      "runners": 9,
+      "top3": 4
+    },
+    {
+      "race_id": 10368400,
+      "runners": 8,
+      "top3": 4
+    },
+    {
+      "race_id": 10380308,
+      "runners": 7,
+      "top3": 4
+    },
+    {
+      "race_id": 10427030,
+      "runners": 15,
+      "top3": 4
+    },
+    {
+      "race_id": 10501182,
+      "runners": 11,
+      "top3": 4
+    },
+    {
+      "race_id": 10509733,
+      "runners": 7,
+      "top3": 4
+    },
+    {
+      "race_id": 10531387,
+      "runners": 7,
+      "top3": 4
+    },
+    {
+      "race_id": 10535320,
+      "runners": 8,
+      "top3": 4
+    },
+    {
+      "race_id": 10572817,
+      "runners": 2,
+      "top3": 2
+    },
+    {
+      "race_id": 10575703,
+      "runners": 1,
+      "top3": 1
+    },
+    {
+      "race_id": 10575746,
+      "runners": 11,
+      "top3": 4
+    },
+    {
+      "race_id": 10580493,
+      "runners": 8,
+      "top3": 4
+    },
+    {
+      "race_id": 10580503,
+      "runners": 13,
+      "top3": 4
+    },
+    {
+      "race_id": 10605201,
+      "runners": 12,
+      "top3": 4
+    },
+    {
+      "race_id": 10605669,
+      "runners": 16,
+      "top3": 4
+    },
+    {
+      "race_id": 10612813,
+      "runners": 7,
+      "top3": 4
+    },
+    {
+      "race_id": 10629904,
+      "runners": 9,
+      "top3": 4
+    },
+    {
+      "race_id": 10633820,
+      "runners": 3,
+      "top3": 3
+    },
+    {
+      "race_id": 10680821,
+      "runners": 10,
+      "top3": 4
+    },
+    {
+      "race_id": 10706286,
+      "runners": 11,
+      "top3": 4
+    },
+    {
+      "race_id": 10706499,
+      "runners": 9,
+      "top3": 2
+    },
+    {
+      "race_id": 10733171,
+      "runners": 13,
+      "top3": 4
+    },
+    {
+      "race_id": 10740368,
+      "runners": 12,
+      "top3": 4
+    },
+    {
+      "race_id": 10786132,
+      "runners": 8,
+      "top3": 4
+    }
+  ],
+  "validation": []
+}

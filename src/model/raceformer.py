@@ -37,9 +37,10 @@ class RaceFormerTop3(nn.Module):
       * ``independent``: runner MLP only (Model A)
       * ``transformer``: runner MLP plus field self-attention (Model B)
       * ``race_token``: field self-attention plus a learned race summary (Model C)
+      * ``market_residual``: Model C learns a correction to a fixed market anchor
     """
 
-    VARIANTS = {"independent", "transformer", "race_token"}
+    VARIANTS = {"independent", "transformer", "race_token", "market_residual"}
 
     def __init__(
         self,
@@ -51,6 +52,10 @@ class RaceFormerTop3(nn.Module):
         layers: int = 2,
         feedforward_dim: int = 256,
         dropout: float = 0.1,
+        market_feature_index: int | None = None,
+        market_anchor_bias: float = 0.0,
+        market_anchor_scale: float = 1.0,
+        market_residual_scale: float = 0.25,
     ) -> None:
         super().__init__()
         if feature_count < 1:
@@ -65,6 +70,15 @@ class RaceFormerTop3(nn.Module):
             raise ValueError("transformer variants require at least one layer")
         if not 0 <= dropout < 1:
             raise ValueError("dropout must be in [0, 1)")
+        if variant == "market_residual":
+            if market_feature_index is None or not 0 <= market_feature_index < feature_count:
+                raise ValueError(
+                    "market_residual requires a valid market_feature_index"
+                )
+            if market_anchor_scale <= 0:
+                raise ValueError("market_anchor_scale must be positive")
+            if market_residual_scale <= 0:
+                raise ValueError("market_residual_scale must be positive")
 
         self.feature_count = int(feature_count)
         self.variant = variant
@@ -74,6 +88,10 @@ class RaceFormerTop3(nn.Module):
         self.layers = int(layers)
         self.feedforward_dim = int(feedforward_dim)
         self.dropout = float(dropout)
+        self.market_feature_index = market_feature_index
+        self.market_anchor_bias = float(market_anchor_bias)
+        self.market_anchor_scale = float(market_anchor_scale)
+        self.market_residual_scale = float(market_residual_scale)
         self.feature_encoder = RunnerFeatureEncoder(
             feature_count, hidden_dim, model_dim, dropout
         )
@@ -94,11 +112,13 @@ class RaceFormerTop3(nn.Module):
                 encoder_layer, num_layers=layers, norm=nn.LayerNorm(model_dim),
                 enable_nested_tensor=False,
             )
-        if variant == "race_token":
+        if variant in {"race_token", "market_residual"}:
             self.race_token = nn.Parameter(torch.empty(1, 1, model_dim))
             nn.init.normal_(self.race_token, std=1.0 / math.sqrt(model_dim))
 
-        prediction_width = model_dim * (2 if variant == "race_token" else 1)
+        prediction_width = model_dim * (
+            2 if variant in {"race_token", "market_residual"} else 1
+        )
         self.prediction_head = nn.Sequential(
             nn.LayerNorm(prediction_width),
             nn.Linear(prediction_width, model_dim),
@@ -106,9 +126,16 @@ class RaceFormerTop3(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(model_dim, 1),
         )
+        if variant == "market_residual":
+            # Start from the fitted market exactly. The network must learn every
+            # departure from that ordering from zero.
+            final = self.prediction_head[-1]
+            assert isinstance(final, nn.Linear)
+            nn.init.zeros_(final.weight)
+            nn.init.zeros_(final.bias)
 
-    def config(self) -> dict[str, int | float | str]:
-        return {
+    def config(self) -> dict[str, int | float | str | None]:
+        result: dict[str, int | float | str | None] = {
             "feature_count": self.feature_count,
             "variant": self.variant,
             "hidden_dim": self.hidden_dim,
@@ -118,8 +145,19 @@ class RaceFormerTop3(nn.Module):
             "feedforward_dim": self.feedforward_dim,
             "dropout": self.dropout,
         }
+        if self.variant == "market_residual":
+            result.update({
+                "market_feature_index": self.market_feature_index,
+                "market_anchor_bias": self.market_anchor_bias,
+                "market_anchor_scale": self.market_anchor_scale,
+                "market_residual_scale": self.market_residual_scale,
+            })
+        return result
 
-    def forward(self, x: torch.Tensor, valid_mask: torch.Tensor) -> torch.Tensor:
+    def forward_parts(
+        self, x: torch.Tensor, valid_mask: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return final logits, fixed anchor logits, and residual corrections."""
         if x.ndim != 3 or x.shape[-1] != self.feature_count:
             raise ValueError(
                 f"x must have shape [batch, runners, {self.feature_count}]"
@@ -151,8 +189,26 @@ class RaceFormerTop3(nn.Module):
             summary = encoded[:, :1].expand(-1, x.shape[1], -1)
             contextual = torch.cat((encoded[:, 1:], summary), dim=-1)
 
-        logits = self.prediction_head(contextual).squeeze(-1)
-        return logits.masked_fill(~valid_mask, 0.0)
+        raw_prediction = self.prediction_head(contextual).squeeze(-1)
+        if self.variant == "market_residual":
+            assert self.market_feature_index is not None
+            anchor = (
+                self.market_anchor_bias
+                - self.market_anchor_scale * x[..., self.market_feature_index]
+            )
+            correction = self.market_residual_scale * raw_prediction
+            logits = anchor + correction
+        else:
+            anchor = torch.zeros_like(raw_prediction)
+            correction = raw_prediction
+            logits = raw_prediction
+        return tuple(
+            value.masked_fill(~valid_mask, 0.0)
+            for value in (logits, anchor, correction)
+        )
+
+    def forward(self, x: torch.Tensor, valid_mask: torch.Tensor) -> torch.Tensor:
+        return self.forward_parts(x, valid_mask)[0]
 
 
 def raceformer_losses(

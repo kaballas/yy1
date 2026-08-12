@@ -568,4 +568,93 @@ python finetune_raceformer.py \
     --save-strategy source_guarded \
     --device cpu
 
+      python finetune_raceformer.py \
+      --checkpoint outputs/raceformer_competition_mf.pt \
+      --output outputs/raceformer_competition_mf1.pt \
+      --training-competition-id 570,335,580,351,488,279,231,330,207,366,585 \
+      --validation-competition-id 317,340,410,638,602,505,588,635,520 \
+      --scope head_only \
+      --features-json tabfm_features.json \
+      --layoff-bucket-mode none \
+      --learning-rate 3e-6 \
+      --races-per-batch 32 \
+      --epochs 15 \
+      --early-stopping-patience 5 \
+      --save-strategy source_guarded \
+      --device cpu
 
+### Retrain RaceFormer with robust current-price preprocessing
+
+Scratch RaceFormer checkpoints now use preprocessing contract v3: `open_price`,
+`fluc1`, and always-available `fluc2` are signed-`log1p` transformed, robustly
+scaled, clipped to `+/-5`, and accompanied by within-race percentile features.
+`competition_id` and `race_number` are neutralized by `tabfm_features.json`.
+
+```bash
+python train_raceformer.py \
+  --no-export \
+  --training-csv outputs/raceformer_training.csv \
+  --validation-csv outputs/raceformer_validation.csv \
+  --features-json tabfm_features.json \
+  --output outputs/raceformer_v3.pt \
+  --training-competition-id 570,335,580,351,488,279,231,330,207,366,585 \
+  --validation-competition-id 317,340,410,638,602,505,588,635,520 \
+  --chronological-validation-races 0 \
+  --standardized-clip 5 \
+  --races-per-batch 32 \
+  --epochs 40 \
+  --early-stopping-patience 8 \
+  --checkpoint-metric composite \
+  --device cpu
+```
+
+The run prints the held-out `fluc2` market baseline before training and a final
+`deployment_gate_model_beats_market=yes|no`. Do not promote a checkpoint whose
+gate is `no`.
+
+If the unconstrained v3 model does not beat that gate, run the market-anchored
+residual experiment. It fits a monotonic anchor from the within-race `fluc2`
+percentile on training races only, starts with zero residual (therefore the
+exact market ranking), and regularizes all learned logit corrections toward zero:
+
+```bash
+python train_raceformer.py \
+  --no-export \
+  --training-csv outputs/raceformer_training.csv \
+  --validation-csv outputs/raceformer_validation.csv \
+  --features-json tabfm_features.json \
+  --output outputs/raceformer_market_residual_v3.pt \
+  --variant market_residual \
+  --market-residual-scale 0.25 \
+  --market-residual-weight 0.05 \
+  --training-competition-id 570,335,580,351,488,279,231,330,207,366,585 \
+  --validation-competition-id 317,340,410,638,602,505,588,635,520 \
+  --chronological-validation-races 0 \
+  --standardized-clip 5 \
+  --races-per-batch 32 \
+  --epochs 60 \
+  --early-stopping-patience 12 \
+  --checkpoint-metric composite \
+  --seed 42 \
+  --device cpu
+```
+
+Epoch zero is retained as the exact market-ranking fallback. A trained epoch is
+saved only when its held-out composite exceeds that fallback; promotion still
+requires `deployment_gate_model_beats_market=yes`.
+
+
+python finetune_raceformer.py \
+      --checkpoint outputs/raceformer_competition.pt \
+      --output outputs/raceformer_competition_x1.pt \
+      --training-competition-id 570,335,580,351,488,279,231,330,207,366,585 \
+      --validation-competition-id 317,340,410,638,602,505,588,635,520 \
+      --scope head_only \
+      --features-json tabfm_features.json \
+      --layoff-bucket-mode none \
+      --learning-rate 3e-6 \
+      --races-per-batch 32 \
+      --epochs 15 \
+      --early-stopping-patience 5 \
+      --save-strategy source_guarded \
+      --device cpu

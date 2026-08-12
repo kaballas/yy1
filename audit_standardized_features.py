@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import torch
 
+from src.raceformer_preprocessing import raceformer_base_diagnostics
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -43,17 +45,31 @@ def standardize(
     median: np.ndarray,
     scale: np.ndarray,
     zeroed: set[str],
+    preprocessing: dict[str, Any] | None,
 ) -> tuple[np.ndarray, np.ndarray]:
     raw = frame[features].apply(pd.to_numeric, errors="coerce").to_numpy(np.float64)
-    filled = np.where(np.isnan(raw), median, raw)
-    standardized = (filled - median) / scale
+    if preprocessing and int(preprocessing.get("version", 1)) >= 2:
+        diagnostics = raceformer_base_diagnostics(
+            raw,
+            features,
+            preprocessing,
+            legacy_median=median,
+            legacy_scale=scale,
+        )
+        # Audit pre-clipping tails while honoring every saved feature transform.
+        standardized = diagnostics["unclipped_standardized"].astype(np.float64)
+    else:
+        filled = np.where(np.isnan(raw), median, raw)
+        standardized = (filled - median) / scale
     for index, feature in enumerate(features):
         if feature in zeroed:
             standardized[:, index] = 0.0
     return raw, standardized
 
 
-def recommendation(feature: str, raw: np.ndarray, z: np.ndarray) -> str:
+def recommendation(
+    feature: str, raw: np.ndarray, z: np.ndarray, *, already_log_transformed: bool
+) -> str:
     finite_raw = raw[np.isfinite(raw)]
     if not len(finite_raw):
         return "remove or zero: no observed finite values"
@@ -72,6 +88,10 @@ def recommendation(feature: str, raw: np.ndarray, z: np.ndarray) -> str:
     bounded_rate = any(
         token in feature for token in ("percentage", "_rate", "percentile", "_pct")
     )
+    if already_log_transformed:
+        if extreme5 > 0:
+            return "retain saved log1p; held-out evidence may justify tighter clipping"
+        return "retain saved log1p plus robust scaling"
     if nonnegative and (count_like or p99_raw > 10 * max(abs(median_raw), 1e-6)):
         if extreme5 > 0:
             return "log1p before fitted scaling; compare robust scaling on held-out races"
@@ -89,6 +109,7 @@ def dataset_rows(
     features: list[str],
     raw: np.ndarray,
     z: np.ndarray,
+    log1p_features: set[str],
 ) -> list[dict[str, Any]]:
     rows = []
     for index, feature in enumerate(features):
@@ -109,7 +130,12 @@ def dataset_rows(
             "pct_abs_z_gt_10": 100 * float(np.mean(np.abs(values) > 10)),
             "raw_missing_pct": 100 * float(np.mean(~np.isfinite(raw_values))),
             "raw_unique": int(len(np.unique(raw_values[np.isfinite(raw_values)]))),
-            "recommendation": recommendation(feature, raw_values, values),
+            "recommendation": recommendation(
+                feature,
+                raw_values,
+                values,
+                already_log_transformed=feature in log1p_features,
+            ),
         })
     return rows
 
@@ -121,6 +147,10 @@ def main() -> None:
     median = np.asarray(bundle["median"], dtype=np.float64)
     scale = np.asarray(bundle["scale"], dtype=np.float64)
     zeroed = set(bundle.get("zeroed_features", []))
+    preprocessing = bundle.get("preprocessing")
+    log1p_features = set(
+        preprocessing.get("log1p_features", []) if preprocessing else []
+    )
     if median.shape != (len(features),) or scale.shape != (len(features),):
         raise ValueError("Checkpoint preprocessing vectors do not match feature count")
     if np.any(scale <= 0) or not np.isfinite(scale).all():
@@ -135,15 +165,20 @@ def main() -> None:
         missing = sorted(set(features) - set(frame.columns))
         if missing:
             raise ValueError(f"{dataset} CSV is missing features: {missing[:10]}")
-        raw, z = standardize(frame, features, median, scale, zeroed)
-        rows.extend(dataset_rows(dataset, features, raw, z))
+        raw, z = standardize(
+            frame, features, median, scale, zeroed, preprocessing
+        )
+        rows.extend(dataset_rows(dataset, features, raw, z, log1p_features))
 
     report = pd.DataFrame(rows)
     print("STANDARDIZED FEATURE DISTRIBUTION AUDIT")
     print(f"checkpoint={args.checkpoint.resolve()} features={len(features)}")
+    version = int(preprocessing.get("version", 1)) if preprocessing else 1
+    clip = preprocessing.get("clip") if preprocessing else None
     print(
-        "preprocessing_contract=checkpoint median imputation followed by fitted "
-        "standard-deviation scaling; this audit makes no preprocessing changes."
+        f"preprocessing_contract=checkpoint_version_{version} clip={clip}; "
+        "tail statistics are measured before clipping after all saved transforms; "
+        "this audit makes no preprocessing changes."
     )
     shown = report if args.show_all else report.loc[
         (report["pct_abs_z_gt_3"] > 0)

@@ -16,6 +16,7 @@ LOG1P_FEATURES = {
     "recent_2_starting_price", "recent_3_starting_price",
     "recent_same_distance_runs", "recent_same_track_runs",
     "recent_same_condition_runs", "recent_days_since_last_run",
+    "open_price", "fluc1", "fluc2",
 }
 
 RELATIVE_FEATURES = {
@@ -28,6 +29,7 @@ RELATIVE_FEATURES = {
     "recent_3_starting_price", "recent_avg_place", "recent_best_place",
     "recent_same_distance_runs", "recent_same_track_runs",
     "recent_same_condition_runs", "recent_days_since_last_run",
+    "open_price", "fluc1", "fluc2",
 }
 
 LAYOFF_BUCKETS = (
@@ -132,7 +134,7 @@ def fit_raceformer_preprocessor(
     scale = np.where(scale < 1e-6, fallback, scale).astype(np.float32)
     scale[scale < 1e-6] = 1.0
     return {
-        "version": 2,
+        "version": 3,
         "log1p_features": log1p_features,
         "relative_features": relative_features,
         "relative_suffix": "__race_percentile",
@@ -266,4 +268,5 @@ def raceformer_base_diagnostics(
         "clipped_standardized": clipped,
         "was_missing": missing,
         "was_clipped": np.abs(unclipped) > clip,
+        "clip": np.asarray(clip, dtype=np.float32),
     }

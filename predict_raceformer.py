@@ -15,6 +15,7 @@ import torch
 from src.config import DEFAULT_DB
 from src.constants import VALIDATION_ROWS_VIEW
 from src.database import quote_identifier, require_rows_view
+from src.dataset import load_feature_manifest
 from src.metrics import probability_metrics
 from src.model.raceformer import RaceFormerTop3
 from src.prediction import market_rank_scores
@@ -36,6 +37,13 @@ def parse_args() -> argparse.Namespace:
         help="Glob used with --checkpoint-dir (default: *.pt).",
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument(
+        "--features-json", type=Path,
+        help=(
+            "Optional feature manifest. Ordered features must match each checkpoint; "
+            "zeroed_features override prediction without modifying checkpoints."
+        ),
+    )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--race-id", type=int)
     mode.add_argument("--backtest", action="store_true")
@@ -60,6 +68,30 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def apply_feature_manifest(
+    checkpoint: dict[str, Any], path: Path | None
+) -> tuple[dict[str, Any], list[str]]:
+    features = list(checkpoint.get("raw_feature_columns", checkpoint["feature_columns"]))
+    if path is None:
+        return checkpoint, features
+    manifest_features, manifest_zeroed = load_feature_manifest(path)
+    if manifest_features != features:
+        checkpoint_only = [name for name in features if name not in manifest_features]
+        manifest_only = [name for name in manifest_features if name not in features]
+        order_only = not checkpoint_only and not manifest_only
+        detail = (
+            "same columns but different order" if order_only else
+            f"checkpoint_only={checkpoint_only} manifest_only={manifest_only}"
+        )
+        raise ValueError(
+            "--features-json is incompatible with checkpoint feature contract: "
+            + detail
+        )
+    overridden = dict(checkpoint)
+    overridden["zeroed_features"] = manifest_zeroed
+    return overridden, features
+
+
 def _backtest_frame(
     args: argparse.Namespace, checkpoint: dict[str, Any], features: list[str]
 ) -> tuple[pd.DataFrame, str]:
@@ -68,6 +100,11 @@ def _backtest_frame(
             args.db, args.competition_id, features, args.backtest_max_races
         )
         return frame, "all_finished_competition_races_in_sample_allowed"
+    if checkpoint.get("partition", {}).get("mode") == "full_data_fit":
+        raise ValueError(
+            "Full-data-fit checkpoint has no held-out backtest cohort; evaluate it "
+            "only on races collected after the refit cutoff"
+        )
     saved_ids = checkpoint.get("partition", {}).get("validation_race_ids")
     if saved_ids is not None:
         frame = load_checkpoint_backtest(
@@ -187,8 +224,8 @@ def backtest_directory(args: argparse.Namespace, device: torch.device) -> None:
     for path in paths:
         try:
             model, checkpoint = load_checkpoint(path, device)
-            features = list(
-                checkpoint.get("raw_feature_columns", checkpoint["feature_columns"])
+            checkpoint, features = apply_feature_manifest(
+                checkpoint, args.features_json
             )
             frame, source = _backtest_frame(unbounded_args, checkpoint, features)
             loaded.append((path, model, checkpoint, frame, source))
@@ -421,9 +458,13 @@ def score_frame(
             )
             x = torch.from_numpy(values).unsqueeze(0).to(device)
             valid = torch.ones((1, len(race)), dtype=torch.bool, device=device)
-            probability = torch.sigmoid(model(x, valid)[0]).cpu().numpy()
+            logits, anchor_logits, residual_logits = model.forward_parts(x, valid)
+            probability = torch.sigmoid(logits[0]).cpu().numpy()
             scored = race.copy()
             scored["probability"] = probability
+            if model.variant == "market_residual":
+                scored["anchor_logit"] = anchor_logits[0].cpu().numpy()
+                scored["residual_logit"] = residual_logits[0].cpu().numpy()
             scored["model_rank"] = (
                 scored["probability"].rank(method="first", ascending=False).astype(int)
             )
@@ -451,7 +492,15 @@ def main() -> None:
         return
     assert args.checkpoint is not None
     model, checkpoint = load_checkpoint(args.checkpoint, device)
-    features = list(checkpoint.get("raw_feature_columns", checkpoint["feature_columns"]))
+    checkpoint, features = apply_feature_manifest(checkpoint, args.features_json)
+    if args.features_json is not None:
+        print(
+            f"feature_manifest={args.features_json.resolve()} "
+            f"features={len(features)} "
+            f"zeroed={len(checkpoint.get('zeroed_features', []))} "
+            "checkpoint_modified=no prediction_override=yes",
+            flush=True,
+        )
     if args.race_id is not None:
         frame = load_race(args.db, args.race_id, features)
     else:
