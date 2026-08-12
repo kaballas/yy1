@@ -47,12 +47,14 @@
     "race_number"
   ],
   "zeroed_features": [
-     "open_price",
-    "fluc1",
-    
     "large_weight_drop_flag",
-    "weight_change_vs_recent_avg","distance_m",
-    "recent_days_since_last_run","recent_same_distance_runs","active_field_size"
+    "weight_change_vs_recent_avg",
+    "distance_m",
+    "recent_days_since_last_run",
+    "recent_same_distance_runs",
+    "active_field_size",
+    "competition_id",
+    "race_number"
   ],
   "excluded": {
     "identifiers": [

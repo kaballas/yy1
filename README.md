@@ -614,8 +614,10 @@ gate is `no`.
 
 If the unconstrained v3 model does not beat that gate, run the market-anchored
 residual experiment. It fits a monotonic anchor from the within-race `fluc2`
-percentile on training races only, starts with zero residual (therefore the
-exact market ranking), and regularizes all learned logit corrections toward zero:
+percentile on training races only and starts with zero residual (therefore the
+exact market ranking). The settings below leave the correction unrestricted and
+unpenalized so the experiment is explicitly trying to beat, rather than track,
+the market:
 
 ```bash
 python train_raceformer.py \
@@ -625,8 +627,8 @@ python train_raceformer.py \
   --features-json tabfm_features.json \
   --output outputs/raceformer_market_residual_v3.pt \
   --variant market_residual \
-  --market-residual-scale 0.25 \
-  --market-residual-weight 0.05 \
+  --market-residual-scale 1 \
+  --market-residual-weight 0 \
   --training-competition-id 570,335,580,351,488,279,231,330,207,366,585 \
   --validation-competition-id 317,340,410,638,602,505,588,635,520 \
   --chronological-validation-races 0 \
@@ -642,6 +644,38 @@ python train_raceformer.py \
 Epoch zero is retained as the exact market-ranking fallback. A trained epoch is
 saved only when its held-out composite exceeds that fallback; promotion still
 requires `deployment_gate_model_beats_market=yes`.
+
+After an honestly held-out run passes that gate, make a deployment refit using
+all eligible complete races from both snapshots. Replace `7` below with the
+held-out run's reported `best_epoch`; keep every other model and optimizer
+setting identical to the evaluated experiment:
+
+```bash
+python train_raceformer.py \
+  --no-export \
+  --training-csv outputs/raceformer_training.csv \
+  --validation-csv outputs/raceformer_validation.csv \
+  --features-json tabfm_features.json \
+  --output outputs/raceformer_market_residual_all.pt \
+  --variant market_residual \
+  --market-residual-scale 1 \
+  --market-residual-weight 0 \
+  --train-all-races \
+  --standardized-clip 5 \
+  --races-per-batch 32 \
+  --epochs 7 \
+  --checkpoint-metric composite \
+  --seed 42 \
+  --device cpu
+```
+
+`--train-all-races` deliberately rejects competition split flags and race-count
+limits. It refits preprocessing and the market anchor on all eligible data,
+trains for exactly `--epochs`, disables validation selection and early stopping,
+and marks the checkpoint partition as `full_data_fit`. Its printed metrics are
+in-sample diagnostics only. Measure performance on races collected strictly
+after this refit's data cutoff; the predictor refuses to call embedded training
+races a held-out backtest cohort.
 
 
 python finetune_raceformer.py \
