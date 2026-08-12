@@ -262,10 +262,16 @@ Query Race E
 
 The five query races do **not** share a single random context.
 
-For every target race, the sampler selects the most recent eligible races that are:
+For every query race, the sampler selects the most recent eligible races that are:
 
 1. strictly earlier in time;
-2. from the same competition when competition information is available.
+2. from the same competition;
+3. complete, with at least four runners and exactly three positive `top3_mask` labels.
+
+Optimizer queries draw context from the eligible optimizer pool. Validation
+queries may also use earlier completed races from the validation partition.
+This is causal: an earlier validation outcome may become context for a later
+validation race, but the current or any future race cannot.
 
 This is important because it makes training resemble deployment.
 
@@ -589,7 +595,8 @@ where:
 c_max = 0.25
 ```
 
-for the submitted training run.
+in the illustrated configuration. The value is configurable with
+`--context-prototype-max-correction`.
 
 The two-class correction is:
 
@@ -697,16 +704,17 @@ the predicted top-three set is obtained by ranking the runners and taking the th
 
 # 13. Training Objective
 
-The submitted model was trained with:
+The objective is configurable. A full race-aware example is:
 
 ```bash
 --classification-loss-weight 1.0
 --pairwise-loss-weight 0.25
 --attention-delta-pairwise-loss-weight 0.05
+--context-prototype-loss-weight 0.25
+--label-context-loss-weight 0.25
 --cardinality-loss-weight 0.0
 --context-dependence-loss-weight 0.1
 --context-dependence-margin 0.005
---context-prototype-loss-weight 0.25
 ```
 
 The effective objective is:
@@ -722,12 +730,14 @@ The effective objective is:
 +
 0.25\,\mathcal{L}_{prototype}
 +
+0.25\,\mathcal{L}_{label\_context}
++
 0.10\,\mathcal{L}_{context}
 +
 0.0\,\mathcal{L}_{card}.
 \]
 
-Each race-based component is constructed so that complete races contribute approximately equally rather than allowing large fields to dominate solely because they contain more runners.
+Each race-based component is constructed so that complete races contribute approximately equally rather than allowing large fields to dominate solely because they contain more runners. Disabled branches contribute zero and their direct loss weights must also be zero.
 
 ---
 
@@ -744,7 +754,7 @@ actual top-3 runner     -> class 1
 actual non-top-3 runner -> class 0
 ```
 
-The classification-loss weight for the submitted model is:
+For the example above, the classification-loss weight is:
 
 ```text
 1.0
@@ -941,15 +951,17 @@ If \(p_i=P(y_i=1)\), the cardinality loss for one race is:
 
 This encourages the sum of marginal top-three probabilities in a complete race to approach three.
 
-However, the submitted training run used:
+For example, a run using:
 
 ```bash
 --cardinality-loss-weight 0.0
 ```
 
-so this constraint was disabled.
+disables this constraint.
 
-Therefore the runner probabilities in a race are **not explicitly forced to sum to 3**.
+When its weight is zero, runner probabilities are **not explicitly encouraged to
+sum to 3**. A positive weight adds the penalty during optimization, but it does
+not impose a hard constraint and does not guarantee an exact sum at inference.
 
 This distinction should be stated clearly when discussing probability calibration.
 
@@ -1007,13 +1019,9 @@ and:
 
 The schedule is built so each eligible race appears as a query at least once per epoch, with only small repetition if \(N\) is not divisible by the query batch size.
 
-Therefore, although the submitted run used only:
-
-```bash
---epochs 2
-```
-
-an epoch represents systematic exposure to the eligible race set rather than only a small arbitrary number of mini-batches.
+Thus, in automatic mode an epoch represents systematic exposure to the eligible
+race set rather than an arbitrary fixed number of mini-batches. With automatic
+mode disabled, `--steps-per-epoch` is used exactly as supplied.
 
 ---
 
@@ -1145,54 +1153,76 @@ Log loss evaluates the quality/calibration of runner-level top-three probabiliti
 
 # 23. Inference
 
-Inference follows the same chronological-context contract as training.
+Native SQLite inference follows the causal validation-context contract.
 
 For every target race:
 
 1. identify races strictly earlier than the target;
-2. restrict to the same competition when configured;
-3. select the most recent required context races;
-4. concatenate historical runner features with the target race;
-5. assign historical top-3 labels;
-6. assign query labels to `-100`;
-7. build race group IDs;
-8. run the model;
-9. extract the target-race logits;
-10. apply two-class softmax;
-11. rank runners by \(P(\mathrm{top3})\).
+2. require `status='finished'`, complete binary labels, and at least four runners;
+3. restrict context to the target's `competition_id`;
+4. select the most recent checkpoint-sized context window;
+5. concatenate historical runner features with the target race;
+6. assign historical top-3 labels;
+7. assign query labels to `-100`;
+8. build race group IDs;
+9. run the model;
+10. extract the target-race logits;
+11. apply two-class softmax;
+12. rank runners by \(P(\mathrm{top3})\).
+
+The native loader reads earlier completed context from `race_runners`, not only
+from `tabfm_trainable_validation_runners`. This is necessary for competitions
+reserved entirely for validation and matches training-time validation, where an
+earlier completed validation race can causally contextualize a later one.
+
+Generic CSV/Parquet prediction instead uses the labelled historical rows present
+in the supplied file and can optionally enforce chronology with `--date-column`.
 
 This matching of training and inference context structure is an important part of the experimental design.
 
 ---
 
-# 24. Training Command Used
+# 24. Reference Training Commands
 
-The submitted model was trained using:
+## 24.1 Base-model collapse diagnostic
+
+When the auxiliary race, prototype, and label-context branches are disabled, a
+continued base-model run can use:
 
 ```bash
 python train_model.py \
-  --features-json /home/theo/yy1/tabfm_features.json \
-  --output /home/theo/yy1/outputs/a1_prototype.pt \
-  --epochs 2 \
-  --auto-race-schedule \
-  --query-races-per-step 5 \
+  --resume-model outputs/base_smoke.pt \
+  --output outputs/base_smoke1.pt \
+  --training-csv output/base_smoke_training.csv \
+  --validation-csv output/base_smoke_validation.csv \
+  --features-json tabfm_features.json \
+  --epochs 20 \
+  --steps-per-epoch 100 \
+  --query-races-per-step 10 \
+  --probe-races 10 \
+  --probe-every-steps 10 \
+  --context-races-per-step 9 \
   --learning-rate 0.0001 \
-  --early-stopping-patience 3 \
-  --race-context-mode self_attention \
-  --encode-races-before-icl \
-  --context-prototype-branch \
-  --context-prototype-dim 16 \
-  --context-prototype-max-correction 0.25 \
+  --fine-tune-scope full_model \
   --seed 42 \
   --device cpu \
   --classification-loss-weight 1.0 \
   --pairwise-loss-weight 0.25 \
-  --attention-delta-pairwise-loss-weight 0.05 \
-  --cardinality-loss-weight 0.0 \
-  --context-dependence-loss-weight 0.1 \
-  --context-dependence-margin 0.005 \
-  --context-prototype-loss-weight 0.25
+  --cardinality-loss-weight 1.0 \
+  --checkpoint-metric loss \
+  --early-stopping-patience 10 \
+  --max-grad-norm 1 \
+  --allow-high-fine-tune-learning-rate \
+  --print-race-schedule
 ```
+
+The explicit feature manifest must exactly match the resumed checkpoint's saved
+feature order. Changing features requires a fresh output with
+`--overwrite-existing`, not `--resume-model`.
+
+`--query-races-per-step` is a batch-size control, not a dataset-size limit, and
+`--probe-races` limits only the deterministic diagnostic probe. Validation is
+never truncated by `--max-valid-races`; that argument is a compatibility check.
 
 ---
 
@@ -1200,7 +1230,7 @@ python train_model.py \
 
 A useful summary is:
 
-> The model predicts whether each runner will finish in the top three by combining the runner's own tabular characteristics, field-relative self-attention, labelled examples from recent historical races, and a learned top-3/non-top-3 prototype comparison.
+> The model predicts whether each runner will finish in the top three by combining the runner's own tabular characteristics with labelled examples from recent historical races. Optional field-relative self-attention, label-aware retrieval, and top-3/non-top-3 prototype branches can add further corrections when enabled.
 
 More formally, the final runner score can be interpreted conceptually as:
 
@@ -1239,7 +1269,9 @@ Only strictly earlier races are used as historical context.
 
 ## Same-competition context
 
-Where competition IDs are available, historical context is restricted to the query race's competition.
+Historical context is restricted to the query race's competition. Native
+inference fails clearly when fewer than the checkpoint-required number of
+eligible earlier races exist.
 
 ## Equal-per-race loss aggregation
 
@@ -1263,15 +1295,11 @@ Several limitations should be acknowledged in a paper.
 
 Each runner receives a binary top-three probability. The model does not directly define a joint probability distribution over all valid three-runner finishing sets.
 
-### Cardinality constraint disabled
+### Cardinality is a soft objective
 
-The submitted run uses:
-
-```text
-cardinality_loss_weight = 0
-```
-
-so probabilities are not explicitly constrained to sum to three within a race.
+The cardinality term is optional. Even with a positive weight, it encourages but
+does not enforce a sum of three. Calibration and per-race probability sums must
+therefore be measured on held-out chronological races.
 
 ### Ranking does not model finishing order
 
@@ -1317,19 +1345,21 @@ For reproducible reporting, record at minimum:
 - exact software and PyTorch versions;
 - CPU/GPU execution environment.
 
-The submitted run used:
+For the base-model continuation example in Section 24, the key settings are:
 
 ```text
 seed = 42
 learning rate = 1e-4
 device = CPU
-query races per step = 5
-epochs = 2
-race context = self-attention
-pre-ICL race encoder = enabled
-prototype branch = enabled
-prototype dimension = 16
-prototype max correction = 0.25
+query races per step = 10
+steps per epoch = 100
+epochs = 20
+race context = disabled
+pre-ICL race encoder = disabled
+prototype branch = disabled
+label-context branch = disabled
+cardinality loss weight = 1.0
+checkpoint metric = validation loss
 ```
 
 ---
@@ -1360,3 +1390,83 @@ The race-aware TabFM model combines five forms of reasoning:
 The resulting model is therefore not simply an independent binary classifier.
 
 It is a **chronological, field-aware, in-context tabular transformer trained jointly for top-three classification and within-race ranking**.
+
+---
+
+# 31. RaceFormerTop3: Current-Race-Only Alternative
+
+`RaceFormerTop3` is a separate model family for experiments that must not use
+historical labelled examples. It consumes exactly one current race at a time:
+
+```text
+runner features -> runner MLP -> optional race transformer
+                -> optional [RACE] summary -> one logit per runner -> sigmoid
+```
+
+It has no `train_size`, historical context prefix, ICL decoder, context labels,
+prototype branch, label embedding, or same-competition history requirement.
+Padding permits several complete races in one optimizer batch, but attention
+never crosses between batch items.
+
+The three controlled variants are:
+
+```text
+independent  Model A: runner MLP only
+transformer  Model B: runner MLP + current-field self-attention
+race_token   Model C: Model B + learned [RACE] summary token
+```
+
+All variants use one sigmoid logit per runner and an equal-per-race objective:
+
+\[
+\mathcal{L}=\mathcal{L}_{BCE}
++\lambda_{rank}\mathcal{L}_{rank}
++\lambda_{card}\mathcal{L}_{card}.
+\]
+
+Defaults are `1.0`, `0.5`, and `0.1` respectively. Cardinality remains a soft
+penalty, not a constrained normalization.
+
+Train Model C:
+
+```bash
+python train_raceformer.py \
+  --variant race_token \
+  --features-json tabfm_features.json \
+  --output outputs/raceformer_c.pt \
+  --epochs 30 \
+  --races-per-batch 32 \
+  --model-dim 128 \
+  --attention-heads 4 \
+  --race-layers 2 \
+  --dropout 0.10 \
+  --learning-rate 0.0003 \
+  --ranking-loss-weight 0.50 \
+  --cardinality-loss-weight 0.10 \
+  --device cpu
+```
+
+Change only `--variant` to run the A/B/C architecture comparison. For a small
+pipeline test, `--max-training-races 10 --max-validation-races 10` selects the
+most recent ten eligible races from each partition. Unlike TabFM context
+training, all ten selected training races can be optimizer queries because this
+model requires no preceding context window.
+
+Predict one race:
+
+```bash
+python predict_raceformer.py \
+  --checkpoint outputs/raceformer_c.pt \
+  --race-id 10785832 \
+  --device cpu
+```
+
+Backtest the same chronological validation partition and compare with market:
+
+```bash
+python predict_raceformer.py \
+  --checkpoint outputs/raceformer_c.pt \
+  --backtest \
+  --backtest-max-races 20 \
+  --device cpu
+```

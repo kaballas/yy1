@@ -555,3 +555,17 @@ Progress output reports inference time and average seconds per target. The
 final metrics table includes `inference_seconds`, `seconds_per_target`, and
 `checkpoint_seconds`; the final completion line reports total time across all
 checkpoints.
+
+
+python finetune_raceformer.py \
+    --checkpoint outputs/raceformer_11m.pt \
+    --output outputs/raceformer_12m.pt \
+    --scope full \
+    --features-json tabfm_features.json \
+    --layoff-bucket-mode none \
+    --learning-rate 3e-6 \
+    --epochs 30 \
+    --save-strategy source_guarded \
+    --device cpu
+
+
