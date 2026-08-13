@@ -22,17 +22,58 @@ HISTORY_FEATURE_NAMES = (
     "form_class_level_weighted_6",
     "class_change_vs_recent_3",
     "class_drop_from_recent_best",
+    "recent_last600_avg_3", "recent_last600_avg_6",
+    "recent_last600_weighted_3", "recent_last600_weighted_6",
+    "recent_last600_best_3", "recent_last600_best_6", "recent_last600_std_6",
+    "recent_last600_slope_3", "recent_last600_slope_6",
+    "historical_run_quality_last1", "historical_run_quality_avg_3",
+    "historical_run_quality_weighted_3", "historical_run_quality_weighted_6",
+    "historical_run_quality_best_3", "historical_run_quality_slope_3",
+    "hidden_sectional_run_last1", "hidden_sectional_run_avg_3",
+    "hidden_sectional_run_best_3", "sectional_ceiling_6",
+    "sectional_average_6", "sectional_consistency_6",
+    "class_change_last_run", "class_step_up", "class_step_down",
+    "recent_class_avg_3", "recent_class_weighted_6", "recent_best_class",
+    "performance_at_current_or_stronger_class",
+    "best_finish_percentile_at_stronger_class",
+    "best_margin_quality_at_stronger_class",
+    "class_adjusted_finish_percentile_last1",
+    "class_adjusted_finish_percentile_weighted_3",
+    "class_adjusted_finish_percentile_weighted_6",
+    "class_adjusted_margin_quality_weighted_3",
+    "class_adjusted_margin_quality_weighted_6",
 )
 
-ENTITY_FEATURE_NAMES = tuple(
-    f"{prefix}_{suffix}"
+ENTITY_FEATURE_NAMES = tuple(f"{prefix}_{suffix}"
     for prefix in ("jockey", "trainer", "jockey_trainer")
-    for suffix in (
-        "history_starts", "history_top3_excess", "recent_top3_excess",
-    )
+    for suffix in ("history_starts", "history_top3_excess", "recent_top3_excess")) + (
+    "jockey_trainer_history_runs", "jockey_trainer_history_wins",
+    "jockey_trainer_history_top3", "jockey_trainer_history_win_rate",
+    "jockey_trainer_history_top3_rate", "jockey_trainer_history_smoothed_win_rate",
+    "jockey_trainer_history_smoothed_top3_rate", "jockey_trainer_history_win_excess",
+    "jockey_trainer_synergy",
 )
 
-ADVANCED_FEATURE_NAMES = HISTORY_FEATURE_NAMES + ENTITY_FEATURE_NAMES
+RACE_RELATIVE_SOURCES = (
+    "recent_finish_percentile_weighted_3",
+    "recent_finish_percentile_weighted_6",
+    "recent_margin_quality_weighted_3",
+    "historical_market_overperformance_weighted_3",
+    "hidden_sectional_run_best_3",
+    "similar_distance_finish_percentile_weighted",
+    "class_adjusted_finish_percentile_weighted_3",
+    "jockey_trainer_history_smoothed_top3_rate",
+    "current_form_strength",
+)
+RACE_RELATIVE_SUFFIXES = (
+    "rank_in_race", "pct_in_race", "minus_race_mean", "minus_race_median",
+    "zscore_in_race", "gap_to_best",
+)
+CONTEXT_FEATURE_NAMES = ("current_form_strength",) + tuple(
+    f"{source}_{suffix}" for source in RACE_RELATIVE_SOURCES
+    for suffix in RACE_RELATIVE_SUFFIXES
+)
+ADVANCED_FEATURE_NAMES = HISTORY_FEATURE_NAMES + ENTITY_FEATURE_NAMES + CONTEXT_FEATURE_NAMES
 
 _GRADE_LEVELS = {"ONE": 125.0, "TWO": 120.0, "THREE": 115.0, "LR": 110.0}
 
@@ -47,6 +88,16 @@ def _weighted_mean(values: np.ndarray, count: int) -> np.ndarray:
         numerator, denominator,
         out=np.full(len(values), np.nan), where=denominator > 0,
     )
+
+
+def _linear_slope(values: np.ndarray, count: int, higher_is_better: bool) -> np.ndarray:
+    selected = values[:, :count][:, ::-1]
+    result = np.full(len(values), np.nan)
+    for row, observations in enumerate(selected):
+        valid = np.isfinite(observations)
+        if valid.sum() >= 2:
+            result[row] = np.polyfit(np.arange(count)[valid], observations[valid], 1)[0]
+    return result if higher_is_better else -result
 
 
 def _duration_seconds(values: pd.Series) -> np.ndarray:
@@ -184,6 +235,35 @@ def derive_sectional_class_features(frame: pd.DataFrame) -> pd.DataFrame:
         )
     best_class[~np.isfinite(recent_class).any(axis=1)] = np.nan
 
+    optional = lambda stem: np.column_stack([pd.to_numeric(frame.get(f"recent_{run}_{stem}", pd.Series(np.nan, index=frame.index)), errors="coerce") for run in range(1, 7)])
+    place, field, margin, barrier = (optional(stem) for stem in ("place", "total_runners", "margin", "barrier"))
+    valid_finish = np.isfinite(place) & np.isfinite(field) & (place >= 1) & (field > 0)
+    finish = np.full(place.shape, np.nan)
+    finish[valid_finish] = 1 - (place[valid_finish] - 1) / np.maximum(field[valid_finish] - 1, 1)
+    finish = np.clip(finish, 0, 1)
+    margin_quality = np.exp(-np.maximum(margin, 0) / 5)
+    valid_barrier = (np.isfinite(barrier) & np.isfinite(field) & (barrier >= 1)
+                     & (field > 0) & (barrier <= field))
+    barrier_quality = np.full(barrier.shape, np.nan)
+    barrier_quality[valid_barrier] = 1 - (barrier[valid_barrier] - 1) / np.maximum(field[valid_barrier] - 1, 1)
+    # Closing speed ratio is higher-is-better. Map its validated [0.5, 2.0]
+    # range onto [0, 1] before equal-weight composites.
+    sectional_quality = np.clip((closing_ratio - .5) / 1.5, 0, 1)
+    class_ratio = np.divide(recent_class, current_class[:, None], out=np.full(recent_class.shape, np.nan),
+                            where=np.isfinite(recent_class) & np.isfinite(current_class[:, None]) & (current_class[:, None] > 0))
+    class_factor = np.clip(class_ratio, .5, 1.5)
+    adjusted_finish = finish * class_factor
+    adjusted_margin = margin_quality * class_factor
+    # Interpretable equal-weight run quality. Field size is represented through
+    # finish percentile; the other independent components are margin, draw,
+    # sectional and class-adjusted performance.
+    quality_components = np.stack([finish, margin_quality, barrier_quality,
+                                   sectional_quality, np.clip(adjusted_finish, 0, 1)])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        run_quality = np.nanmean(quality_components, axis=0)
+    hidden_sectional = sectional_quality * (1 - finish)
+
     result = pd.DataFrame(index=frame.index)
     result["sectional_last600_seconds_weighted_3"] = _weighted_mean(last600, 3)
     result["sectional_last600_seconds_weighted_6"] = _weighted_mean(last600, 6)
@@ -201,6 +281,45 @@ def derive_sectional_class_features(frame: pd.DataFrame) -> pd.DataFrame:
     result["form_class_level_weighted_6"] = class_6
     result["class_change_vs_recent_3"] = current_class - class_3
     result["class_drop_from_recent_best"] = best_class - current_class
+    result["recent_last600_avg_3"] = np.nanmean(last600[:, :3], axis=1)
+    result["recent_last600_avg_6"] = np.nanmean(last600, axis=1)
+    result["recent_last600_weighted_3"] = _weighted_mean(last600, 3)
+    result["recent_last600_weighted_6"] = _weighted_mean(last600, 6)
+    result["recent_last600_best_3"] = np.nanmin(last600[:, :3], axis=1)
+    result["recent_last600_best_6"] = best_last600
+    result["recent_last600_std_6"] = last600_std
+    result["recent_last600_slope_3"] = _linear_slope(last600, 3, False)
+    result["recent_last600_slope_6"] = _linear_slope(last600, 6, False)
+    result["historical_run_quality_last1"] = run_quality[:, 0]
+    result["historical_run_quality_avg_3"] = np.nanmean(run_quality[:, :3], axis=1)
+    result["historical_run_quality_weighted_3"] = _weighted_mean(run_quality, 3)
+    result["historical_run_quality_weighted_6"] = _weighted_mean(run_quality, 6)
+    result["historical_run_quality_best_3"] = np.nanmax(run_quality[:, :3], axis=1)
+    result["historical_run_quality_slope_3"] = _linear_slope(run_quality, 3, True)
+    result["hidden_sectional_run_last1"] = hidden_sectional[:, 0]
+    result["hidden_sectional_run_avg_3"] = np.nanmean(hidden_sectional[:, :3], axis=1)
+    result["hidden_sectional_run_best_3"] = np.nanmax(hidden_sectional[:, :3], axis=1)
+    result["sectional_ceiling_6"] = np.nanmax(sectional_quality, axis=1)
+    result["sectional_average_6"] = np.nanmean(sectional_quality, axis=1)
+    sectional_std = np.nanstd(sectional_quality, axis=1, ddof=1)
+    sectional_std[np.isfinite(sectional_quality).sum(axis=1) < 2] = np.nan
+    result["sectional_consistency_6"] = 1 / (1 + sectional_std)
+    class_delta = current_class - recent_class[:, 0]
+    result["class_change_last_run"] = class_delta
+    result["class_step_up"] = np.maximum(class_delta, 0)
+    result["class_step_down"] = np.maximum(-class_delta, 0)
+    result["recent_class_avg_3"] = np.nanmean(recent_class[:, :3], axis=1)
+    result["recent_class_weighted_6"] = class_6
+    result["recent_best_class"] = best_class
+    at_stronger = np.isfinite(recent_class) & (recent_class >= current_class[:, None])
+    result["performance_at_current_or_stronger_class"] = np.nanmean(np.where(at_stronger, finish, np.nan), axis=1)
+    result["best_finish_percentile_at_stronger_class"] = np.nanmax(np.where(at_stronger, finish, np.nan), axis=1)
+    result["best_margin_quality_at_stronger_class"] = np.nanmax(np.where(at_stronger, margin_quality, np.nan), axis=1)
+    result["class_adjusted_finish_percentile_last1"] = adjusted_finish[:, 0]
+    result["class_adjusted_finish_percentile_weighted_3"] = _weighted_mean(adjusted_finish, 3)
+    result["class_adjusted_finish_percentile_weighted_6"] = _weighted_mean(adjusted_finish, 6)
+    result["class_adjusted_margin_quality_weighted_3"] = _weighted_mean(adjusted_margin, 3)
+    result["class_adjusted_margin_quality_weighted_6"] = _weighted_mean(adjusted_margin, 6)
     return result.astype(np.float32)
 
 
@@ -289,6 +408,53 @@ def _causal_entity_features(
     return result.astype(np.float32)
 
 
+def _causal_success_totals(
+    frame: pd.DataFrame, entity: pd.Series
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return prior runs/wins/top3; same-time events are atomically excluded.
+
+    ``finish_place`` is read only for completed historical events. The left-sided
+    timestamp lookup guarantees that neither the target result, another runner in
+    the target race, nor a future result can enter a target's aggregates.
+    """
+    times = pd.to_datetime(frame["start_time_iso"], utc=True, errors="coerce")
+    if "finish_place" in frame:
+        place = pd.to_numeric(frame["finish_place"], errors="coerce")
+    else:
+        # Compatibility fallback for callers that only carry the historical
+        # top-three label. It can support top3 totals but intentionally cannot
+        # infer wins.
+        top3 = pd.to_numeric(frame["top3_mask"], errors="coerce")
+        place = pd.Series(np.where(top3.eq(1), 3., 4.), index=frame.index)
+    eligible = (entity.notna() & times.notna() & frame["status"].eq("finished")
+                & pd.to_numeric(frame["runner_mask"], errors="coerce").eq(1)
+                & place.ge(1))
+    history = pd.DataFrame({"entity": entity[eligible], "time": times[eligible],
+                            "runs": 1., "wins": place[eligible].eq(1).astype(float),
+                            "top3": place[eligible].le(3).astype(float)})
+    outputs = tuple(np.full(len(frame), np.nan) for _ in range(3))
+    if history.empty:
+        return outputs
+    events = history.groupby(["entity", "time"], as_index=False, sort=True)[["runs", "wins", "top3"]].sum()
+    events = events.sort_values(["entity", "time"], kind="stable")
+    for column in ("runs", "wins", "top3"):
+        events[column] = events.groupby("entity", sort=False)[column].cumsum()
+    groups = {key: value for key, value in events.groupby("entity", sort=False)}
+    targets = pd.DataFrame({"entity": entity, "time": times,
+                            "row": np.arange(len(frame))}).dropna(subset=["entity", "time"])
+    for key, target_group in targets.groupby("entity", sort=False):
+        event_group = groups.get(key)
+        if event_group is None:
+            continue
+        positions = np.searchsorted(event_group["time"].astype("int64"),
+                                    target_group["time"].astype("int64"), side="left") - 1
+        usable = positions >= 0
+        rows = target_group["row"].to_numpy()[usable]
+        for output, column in zip(outputs, ("runs", "wins", "top3")):
+            output[rows] = event_group[column].to_numpy()[positions[usable]]
+    return outputs
+
+
 def derive_entity_history_features(frame: pd.DataFrame) -> pd.DataFrame:
     """Return causal jockey, trainer, and partnership history features."""
     required = {
@@ -301,8 +467,82 @@ def derive_entity_history_features(frame: pd.DataFrame) -> pd.DataFrame:
     jockey = _normalize_entity(frame["jockey"])
     trainer = _normalize_entity(frame["trainer"])
     partnership = (jockey + "\x1f" + trainer).where(jockey.notna() & trainer.notna())
-    return pd.concat([
+    result = pd.concat([
         _causal_entity_features(frame, jockey, "jockey", 50),
         _causal_entity_features(frame, trainer, "trainer", 100),
         _causal_entity_features(frame, partnership, "jockey_trainer", 30),
     ], axis=1)
+    jockey_totals = _causal_success_totals(frame, jockey)
+    trainer_totals = _causal_success_totals(frame, trainer)
+    pair_runs, pair_wins, pair_top3 = _causal_success_totals(frame, partnership)
+    field = pd.to_numeric(frame["active_field_size"], errors="coerce").fillna(
+        pd.to_numeric(frame["field_size"], errors="coerce")).to_numpy(float)
+    population_win = np.divide(1, field, out=np.full(len(frame), np.nan), where=field > 0)
+    population_top3 = np.divide(np.minimum(3, field), field,
+                                out=np.full(len(frame), np.nan), where=field > 0)
+    prior_strength = 10.0
+    pair_win_rate = np.divide(pair_wins, pair_runs, out=np.full(len(frame), np.nan), where=pair_runs > 0)
+    pair_top3_rate = np.divide(pair_top3, pair_runs, out=np.full(len(frame), np.nan), where=pair_runs > 0)
+    smooth_win = np.divide(pair_wins + prior_strength * population_win,
+                           pair_runs + prior_strength, out=np.full(len(frame), np.nan), where=pair_runs > 0)
+    smooth_top3 = np.divide(pair_top3 + prior_strength * population_top3,
+                            pair_runs + prior_strength, out=np.full(len(frame), np.nan), where=pair_runs > 0)
+    jockey_top3_rate = np.divide(jockey_totals[2], jockey_totals[0], out=np.full(len(frame), np.nan), where=jockey_totals[0] > 0)
+    trainer_top3_rate = np.divide(trainer_totals[2], trainer_totals[0], out=np.full(len(frame), np.nan), where=trainer_totals[0] > 0)
+    # Expected partnership performance is the equal-weight mean of the two
+    # independently observed histories; synergy is positive when the pair beats it.
+    expected_pair_top3 = np.nanmean(np.column_stack([jockey_top3_rate, trainer_top3_rate]), axis=1)
+    result["jockey_trainer_history_runs"] = pair_runs
+    result["jockey_trainer_history_wins"] = pair_wins
+    result["jockey_trainer_history_top3"] = pair_top3
+    result["jockey_trainer_history_win_rate"] = pair_win_rate
+    result["jockey_trainer_history_top3_rate"] = pair_top3_rate
+    result["jockey_trainer_history_smoothed_win_rate"] = smooth_win
+    result["jockey_trainer_history_smoothed_top3_rate"] = smooth_top3
+    result["jockey_trainer_history_win_excess"] = smooth_win - population_win
+    result["jockey_trainer_synergy"] = smooth_top3 - expected_pair_top3
+    return result.loc[:, ENTITY_FEATURE_NAMES].astype(np.float32)
+
+
+def derive_context_features(frame: pd.DataFrame, derived: pd.DataFrame) -> pd.DataFrame:
+    """Build the equal-weight form composite and within-race transforms.
+
+    Every source is higher-is-better. Ranks use deterministic ``method='min'``
+    for ties; percentile is one for the best and zero for the worst; gap is zero
+    for the best and increasingly positive for weaker runners.
+    """
+    required = {"race_id", "recent_finish_percentile_weighted_3",
+                "recent_margin_quality_weighted_3",
+                "sectional_closing_speed_ratio_weighted_3",
+                "class_adjusted_finish_percentile_weighted_3"}
+    missing = sorted(required - (set(frame) | set(derived)))
+    if missing:
+        raise ValueError("Cannot derive context features; missing: " + ", ".join(missing))
+    components = np.column_stack([
+        derived["recent_finish_percentile_weighted_3"],
+        derived["recent_margin_quality_weighted_3"],
+        np.clip((derived["sectional_closing_speed_ratio_weighted_3"] - .5) / 1.5, 0, 1),
+        np.clip(derived["class_adjusted_finish_percentile_weighted_3"], 0, 1),
+    ]).astype(float)
+    valid = np.isfinite(components)
+    current_form = np.divide(np.where(valid, components, 0).sum(axis=1), valid.sum(axis=1),
+                             out=np.full(len(frame), np.nan), where=valid.sum(axis=1) > 0)
+    working = derived.copy()
+    working["current_form_strength"] = current_form
+    result = pd.DataFrame({"current_form_strength": current_form}, index=frame.index)
+    race_id = frame["race_id"]
+    for source in RACE_RELATIVE_SOURCES:
+        values = pd.to_numeric(working[source], errors="coerce")
+        grouped = values.groupby(race_id, sort=False, dropna=False)
+        count = grouped.transform("count")
+        rank = grouped.rank(method="min", ascending=False)
+        result[f"{source}_rank_in_race"] = rank
+        result[f"{source}_pct_in_race"] = np.where(
+            values.notna() & (count > 1), (count - rank) / (count - 1),
+            np.where(values.notna() & (count == 1), 1., np.nan))
+        result[f"{source}_minus_race_mean"] = values - grouped.transform("mean")
+        result[f"{source}_minus_race_median"] = values - grouped.transform("median")
+        std = grouped.transform("std")
+        result[f"{source}_zscore_in_race"] = np.where(std > 0, (values - grouped.transform("mean")) / std, np.nan)
+        result[f"{source}_gap_to_best"] = grouped.transform("max") - values
+    return result.loc[:, CONTEXT_FEATURE_NAMES].astype(np.float32)
