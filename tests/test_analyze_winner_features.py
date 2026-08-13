@@ -8,6 +8,7 @@ from analyze_winner_features import (
     activate_top_manifest_features,
     eligible_race_table,
     feature_permutation_scope,
+    outcome_conditioned_market_cohort,
     permute_feature,
     select_features,
     summarize_permutations,
@@ -124,6 +125,37 @@ def test_eligible_races_skip_missing_or_multiple_winners():
 
     assert races["race_id"].tolist() == [1]
     assert skipped == 2
+
+
+def test_detects_outcome_conditioned_market_miss_cohort():
+    rows = []
+    for race_id in range(100):
+        rows.extend([
+            {"race_id": race_id, "fluc2": 2.0, "is_winner": 0},
+            {"race_id": race_id, "fluc2": 10.0, "is_winner": 1},
+        ])
+
+    conditioned, races, wins = outcome_conditioned_market_cohort(pd.DataFrame(rows))
+
+    assert conditioned
+    assert races == 100
+    assert wins == 0
+
+
+def test_normal_market_cohort_is_not_flagged():
+    frame = pd.DataFrame({
+        "race_id": [1, 1, 2, 2],
+        "fluc2": [2.0, 5.0, 3.0, 6.0],
+        "is_winner": [1, 0, 0, 1],
+    })
+
+    conditioned, races, wins = outcome_conditioned_market_cohort(
+        frame, minimum_races=2
+    )
+
+    assert not conditioned
+    assert races == 2
+    assert wins == 1
 
 
 def test_activate_top_manifest_features_removes_them_from_zero_bucket(tmp_path):

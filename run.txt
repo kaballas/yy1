@@ -339,3 +339,44 @@ python train_raceformer.py \
     --seed 42 \
     --device cpu
 
+### Tuned weights
+
+  Form XGBoost          6.3%
+  Market-aware XGBoost 93.7%
+  Raw market ranking    0.0%
+
+  All-finished OOF results:
+
+   Ranking                  Top-1     Top-3        MRR                                                                                                                                                                                      
+  ━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━  ━━━━━━━━  ━━━━━━━━━
+   Form only               26.83%    59.74%    0.48241
+  ──────────────────────  ────────  ────────  ─────────
+   Market-aware only       33.98%    68.65%    0.54897
+  ──────────────────────  ────────  ────────  ─────────
+   Tuned blend             34.06%    68.60%    0.54926
+  ──────────────────────  ────────  ────────  ─────────
+   Raw market benchmark    34.19%    68.72%    0.54997
+
+  Train again later with:
+
+  python train_tune_all_finished_winner_ranker.py \
+      --folds 5 \
+      --jobs 12 \
+      --objective top1 \
+      --weight-step 0.001
+
+  Use the new all-finished models:
+
+  python rank_winner_models.py \
+      --race-id RACE_ID \
+      --ranking tuned \
+      --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+      --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json
+
+  Outputs:
+
+  - train_tune_all_finished_winner_ranker.py
+  - outputs/winner_ranker_all_finished/winner_ranker_bundle.json
+  - outputs/winner_ranker_all_finished/all_finished_blend.json
+  - outputs/winner_ranker_all_finished/all_finished_oof_predictions.csv
+  - outputs/winner_ranker_all_finished/all_finished_weight_sweep.csv

@@ -80,7 +80,8 @@ _GRADE_LEVELS = {"ONE": 125.0, "TWO": 120.0, "THREE": 115.0, "LR": 110.0}
 
 def _weighted_mean(values: np.ndarray, count: int) -> np.ndarray:
     selected = values[:, :count]
-    weights = 1.0 / np.arange(1, count + 1, dtype=np.float64)
+    # Same documented convention as derived_racing_features: [N, ..., 1].
+    weights = np.arange(count, 0, -1, dtype=np.float64)
     valid = np.isfinite(selected)
     denominator = (valid * weights).sum(axis=1)
     numerator = np.where(valid, selected, 0.0).dot(weights)
@@ -241,11 +242,8 @@ def derive_sectional_class_features(frame: pd.DataFrame) -> pd.DataFrame:
     finish = np.full(place.shape, np.nan)
     finish[valid_finish] = 1 - (place[valid_finish] - 1) / np.maximum(field[valid_finish] - 1, 1)
     finish = np.clip(finish, 0, 1)
+    margin = np.where(np.isfinite(margin), np.where(place == 1, 0., margin), np.nan)
     margin_quality = np.exp(-np.maximum(margin, 0) / 5)
-    valid_barrier = (np.isfinite(barrier) & np.isfinite(field) & (barrier >= 1)
-                     & (field > 0) & (barrier <= field))
-    barrier_quality = np.full(barrier.shape, np.nan)
-    barrier_quality[valid_barrier] = 1 - (barrier[valid_barrier] - 1) / np.maximum(field[valid_barrier] - 1, 1)
     # Closing speed ratio is higher-is-better. Map its validated [0.5, 2.0]
     # range onto [0, 1] before equal-weight composites.
     sectional_quality = np.clip((closing_ratio - .5) / 1.5, 0, 1)
@@ -254,11 +252,14 @@ def derive_sectional_class_features(frame: pd.DataFrame) -> pd.DataFrame:
     class_factor = np.clip(class_ratio, .5, 1.5)
     adjusted_finish = finish * class_factor
     adjusted_margin = margin_quality * class_factor
-    # Interpretable equal-weight run quality. Field size is represented through
-    # finish percentile; the other independent components are margin, draw,
-    # sectional and class-adjusted performance.
-    quality_components = np.stack([finish, margin_quality, barrier_quality,
-                                   sectional_quality, np.clip(adjusted_finish, 0, 1)])
+    # Equal-weight historical run quality: class-adjusted finish,
+    # beaten-margin quality, and sectional quality. Barrier is excluded because
+    # draw quality is context dependent.
+    quality_components = np.stack([
+        np.clip(adjusted_finish, 0, 1),
+        margin_quality,
+        sectional_quality,
+    ])
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         run_quality = np.nanmean(quality_components, axis=0)
@@ -504,6 +505,46 @@ def derive_entity_history_features(frame: pd.DataFrame) -> pd.DataFrame:
     return result.loc[:, ENTITY_FEATURE_NAMES].astype(np.float32)
 
 
+def race_relative_runner_mask(frame: pd.DataFrame) -> pd.Series:
+    """Return runners eligible to participate in within-race transforms.
+
+    For resulted races, ``runner_mask == 1`` remains mandatory and therefore
+    scratched/inactive runners can never contaminate training features.
+
+    The live feed intentionally leaves ``runner_mask`` at zero until results
+    arrive.  For an unfinished race we may use its stored rows only when all
+    three pre-race checks agree: betting is PRICED/OFF, ``active_field_size`` is
+    positive and consistent, and the number of stored rows exactly matches that
+    active size.  This fails closed for partial downloads or retained scratches.
+    It does not mutate the database's result/training mask.
+    """
+    active = pd.to_numeric(frame["runner_mask"], errors="coerce").eq(1)
+    required = {
+        "race_id", "status", "source_betting_status", "active_field_size",
+    }
+    if not required <= set(frame.columns):
+        return active
+    status = frame["status"].astype("string").str.strip().str.casefold()
+    betting = (
+        frame["source_betting_status"].astype("string").str.strip().str.upper()
+    )
+    active_size = pd.to_numeric(frame["active_field_size"], errors="coerce")
+    stored_rows = frame.groupby("race_id", sort=False, dropna=False)[
+        "race_id"
+    ].transform("size")
+    live_complete_field = (
+        status.ne("finished")
+        & betting.isin(["PRICED", "OFF"])
+        & active_size.gt(0)
+        & active_size.eq(stored_rows)
+        & active_size.groupby(frame["race_id"], sort=False, dropna=False)
+        .transform("min")
+        .eq(active_size.groupby(frame["race_id"], sort=False, dropna=False)
+            .transform("max"))
+    )
+    return active | live_complete_field
+
+
 def derive_context_features(frame: pd.DataFrame, derived: pd.DataFrame) -> pd.DataFrame:
     """Build the equal-weight form composite and within-race transforms.
 
@@ -511,7 +552,7 @@ def derive_context_features(frame: pd.DataFrame, derived: pd.DataFrame) -> pd.Da
     for ties; percentile is one for the best and zero for the worst; gap is zero
     for the best and increasingly positive for weaker runners.
     """
-    required = {"race_id", "recent_finish_percentile_weighted_3",
+    required = {"race_id", "runner_mask", "recent_finish_percentile_weighted_3",
                 "recent_margin_quality_weighted_3",
                 "sectional_closing_speed_ratio_weighted_3",
                 "class_adjusted_finish_percentile_weighted_3"}
@@ -531,8 +572,11 @@ def derive_context_features(frame: pd.DataFrame, derived: pd.DataFrame) -> pd.Da
     working["current_form_strength"] = current_form
     result = pd.DataFrame({"current_form_strength": current_form}, index=frame.index)
     race_id = frame["race_id"]
+    active = race_relative_runner_mask(frame)
     for source in RACE_RELATIVE_SOURCES:
-        values = pd.to_numeric(working[source], errors="coerce")
+        # Resulted races require runner_mask=1. Complete live fields use the
+        # fail-closed pre-race fallback documented in race_relative_runner_mask.
+        values = pd.to_numeric(working[source], errors="coerce").where(active)
         grouped = values.groupby(race_id, sort=False, dropna=False)
         count = grouped.transform("count")
         rank = grouped.rank(method="min", ascending=False)

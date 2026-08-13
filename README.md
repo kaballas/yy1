@@ -29,6 +29,93 @@ jobs -l
 Do not append `&` unless a deliberate background job is wanted. Running two
 trainers at once can exhaust memory and cause Linux to kill one of them.
 
+## Winner ranking pipeline
+
+For single-winner ranking, use the grouped chronological XGBoost ensemble:
+
+```bash
+python train_winner_ranker_pipeline.py --jobs 12
+```
+
+By default it trains only a current-market-free form ensemble, evaluates it on
+1,000 validation races and a later sealed 1,000-race test cohort, then refits
+deployment models on all completed history. Current-race `open_price`, `fluc1`
+and `fluc2` are excluded from the deployment model. Rank a live or stored race
+with:
+
+```bash
+python rank_winner_models.py --race-id RACE_ID
+```
+
+The default `deployment` order is 100% form-model output. The market rank is
+shown only as a comparison, together with each runner's form-versus-market
+promotion. Legacy `--ranking selected` is also a pure-form alias.
+
+To train market-aware diagnostics deliberately, opt in:
+
+```bash
+python train_winner_ranker_pipeline.py \
+  --jobs 12 \
+  --include-market-aware-benchmark
+```
+
+Only such a diagnostic bundle supports `--ranking market_aware` or
+`--ranking benchmark`; neither can become the deployment default.
+
+Tune a two-model blend without giving raw market rank any weight:
+
+```bash
+python backtest_winner_blend.py \
+  --objective top1 \
+  --weight-step 0.001
+```
+
+The weight is selected on `validation_predictions.csv` only and then evaluated
+once on the later `test_predictions.csv` cohort. The report compares form-only,
+market-aware-only, 50/50, tuned, and raw-market benchmark results. The tuned
+formula always fixes raw market weight to zero. Use the saved recommendation:
+
+```bash
+python rank_winner_models.py \
+  --race-id RACE_ID \
+  --ranking tuned
+```
+
+`tuned` is an explicit current-market-aware mode because the market-aware
+XGBoost member receives current-race price transforms. The ordinary
+`deployment` ranking remains current-market-free.
+
+### Train and tune on all finished races
+
+To use every eligible race whose status is `finished`, run grouped cross-fit
+tuning followed by a full-data refit:
+
+```bash
+python train_tune_all_finished_winner_ranker.py \
+  --folds 5 \
+  --jobs 12 \
+  --objective top1 \
+  --weight-step 0.001
+```
+
+Every race is scored out of fold by models that did not train on that race.
+Those OOF scores tune the form/market-aware weight with raw market weight fixed
+at zero. Both ensembles are then fitted again using all eligible finished
+races. Races without exactly one winner, fields below the minimum runner count,
+and inactive runners cannot be used for supervised winner ranking.
+
+This all-finished mode deliberately has no sealed test cohort: every race is
+used for model fitting or blend selection. Its grouped OOF figures are tuning
+diagnostics, not an untouched chronological performance claim. Use the command
+printed at completion to rank with its separate bundle and blend file.
+
+Important: `competition_id=999` is not a genuine competition in this database.
+It was assigned after results to races selected by
+`v_market_top3_complete_misses`; the market favourite won 0 of those 1,305
+races by construction. The winner pipeline excludes `competition_id` from its
+features and treats 999 only as a diagnostic hard-race label. Do not train or
+select production models only on that cohort.
+
 ## Feature manifest
 
 [`tabfm_features.json`](tabfm_features.json) is the source of truth for scratch

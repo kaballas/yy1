@@ -113,6 +113,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jobs", type=int, default=6)
     parser.add_argument("--output-csv")
     parser.add_argument(
+        "--allow-outcome-conditioned-cohort", action="store_true",
+        help=(
+            "Allow an explicitly diagnostic cohort where the market favourite "
+            "never wins. Such a cohort must not drive production feature selection."
+        ),
+    )
+    parser.add_argument(
         "--features-json",
         default=str(Path(__file__).resolve().with_name("tabfm_features.json")),
         help=(
@@ -193,6 +200,34 @@ def eligible_race_table(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
         ["start_time", "race_id"], kind="stable", ignore_index=True
     )
     return races, skipped
+
+
+def outcome_conditioned_market_cohort(
+    df: pd.DataFrame, minimum_races: int = 100
+) -> tuple[bool, int, int]:
+    """Detect the known post-result market-miss cohort failure mode.
+
+    A genuine market can have a poor favourite strike rate, but zero favourite
+    winners over hundreds of races signals that membership was selected after
+    results.  This check prevents competition_id=999 from silently being treated
+    as a live, pre-race competition again.
+    """
+    if "fluc2" not in df or "is_winner" not in df or "race_id" not in df:
+        return False, 0, 0
+    valid = df.copy()
+    valid["_price"] = pd.to_numeric(valid["fluc2"], errors="coerce")
+    valid = valid.loc[np.isfinite(valid["_price"]) & (valid["_price"] > 0)]
+    total = 0
+    favourite_wins = 0
+    for _, race in valid.groupby("race_id", sort=False):
+        if int(pd.to_numeric(race["is_winner"], errors="coerce").fillna(0).sum()) != 1:
+            continue
+        minimum = float(race["_price"].min())
+        total += 1
+        favourite_wins += int(
+            ((race["_price"] == minimum) & (race["is_winner"] == 1)).any()
+        )
+    return total >= minimum_races and favourite_wins == 0, total, favourite_wins
 
 
 def winner_metrics(
@@ -373,6 +408,16 @@ def main() -> None:
             f"No finished active runners found for competition_id={args.competition_id}"
         )
     races, skipped_races = eligible_race_table(df)
+    conditioned, market_races, favourite_wins = outcome_conditioned_market_cohort(df)
+    if conditioned and not args.allow_outcome_conditioned_cohort:
+        raise SystemExit(
+            f"Refusing outcome-conditioned cohort competition_id={args.competition_id}: "
+            f"market favourite won {favourite_wins} of {market_races} races. "
+            "In this database competition_id=999 was assigned after results to "
+            "market-miss races. Use train_winner_ranker_pipeline.py for production "
+            "training, or pass --allow-outcome-conditioned-cohort only for an "
+            "explicitly labelled diagnostic audit."
+        )
     if len(races) <= args.validation_races:
         raise SystemExit(
             f"Need more than {args.validation_races} eligible completed races; "

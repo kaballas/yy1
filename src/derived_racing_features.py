@@ -68,7 +68,6 @@ DERIVED_FEATURE_NAMES = (
     "second_best_run_recency_index", "best_run_is_last_start",
     "best_run_within_last_2", "best_run_within_last_3",
     # Available career comparisons.
-    "recent3_vs_career_finish_percentile", "recent6_vs_career_finish_percentile",
     "recent3_vs_career_place_rate", "recent6_vs_career_place_rate",
     "recent_form_vs_career_form",
     # Track and going suitability from the six stored historical starts.
@@ -162,7 +161,9 @@ def derive_racing_features(frame: pd.DataFrame) -> pd.DataFrame:
                                 ("barrier", "starting_price", "distance_m"))
     weight = _optional_matrix(frame, "weight_kg")
     finish = _finish_percentile(place, field)
-    margin = np.where(np.isfinite(margin), margin, np.nan)
+    # Winners store a positive winning margin in this feed, while other runners
+    # store beaten margin. Normalise to beaten margin so winner=0 (best).
+    margin = np.where(np.isfinite(margin), np.where(place == 1, 0., margin), np.nan)
     margin_quality = np.exp(-np.maximum(margin, 0) / 5)
     implied = np.divide(1, price, out=np.full(price.shape, np.nan),
                         where=np.isfinite(price) & (price > 0))
@@ -296,16 +297,20 @@ def derive_racing_features(frame: pd.DataFrame) -> pd.DataFrame:
     career_place_rate = np.where(np.isfinite(career_place_rate), career_place_rate, supplied_place_rate)
     for n in (3, 6):
         recent_rate = _mean(np.where(np.isfinite(place), (place <= 3).astype(float), np.nan), n)
-        # The schema has career top-three rate but no career finish-percentile
-        # aggregate. Keep the non-equivalent finish comparison null rather than
-        # fabricating it from a different statistic.
-        result[f"recent{n}_vs_career_finish_percentile"] = np.nan
         result[f"recent{n}_vs_career_place_rate"] = recent_rate - career_place_rate
     result["recent_form_vs_career_form"] = result["recent3_vs_career_place_rate"]
-    def normalized_text(series: pd.Series) -> np.ndarray:
-        return series.astype("string").str.strip().str.casefold().replace("", pd.NA).fillna("\x00missing").to_numpy(dtype=str)
-    current_track = normalized_text(frame.get("competition_name", pd.Series(pd.NA, index=frame.index)))
-    historical_track = np.column_stack([normalized_text(frame.get(f"recent_{run}_track_name", pd.Series(pd.NA, index=frame.index))) for run in range(1, 7)])
+    # competition_name is the current venue; historical form uses track_name.
+    # Canonicalise only aliases verified as the same physical venue.
+    track_aliases = {
+        "belmont": "belmont park", "darwin": "fannie bay",
+        "alice springs": "pioneer park", "devonport": "devonport synthetic",
+        "riccarton": "riccarton park", "murray bridge": "murray bridge gh",
+    }
+    def normalized_track(series: pd.Series) -> np.ndarray:
+        values = series.astype("string").str.strip().str.casefold().replace("", pd.NA)
+        return values.replace(track_aliases).fillna("\x00missing").to_numpy(dtype=str)
+    current_track = normalized_track(frame.get("competition_name", pd.Series(pd.NA, index=frame.index)))
+    historical_track = np.column_stack([normalized_track(frame.get(f"recent_{run}_track_name", pd.Series(pd.NA, index=frame.index))) for run in range(1, 7)])
     # Going labels may include a rating, e.g. "Good (4)"; the leading word is
     # the stable categorical condition shared with historical form.
     condition_text = lambda series: series.astype("string").str.extract(r"^\s*([A-Za-z]+)", expand=False).str.casefold().fillna("\x00missing").to_numpy(dtype=str)
