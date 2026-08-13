@@ -59,6 +59,33 @@ def test_v3_current_prices_are_logged_clipped_and_race_relative():
     assert np.allclose(result[:, 3:], [[-1.0] * 3, [0.0] * 3, [1.0] * 3])
 
 
+def test_promoted_residual_bundle_has_audited_relative_representations():
+    features = [
+        "sectional_last600_best_6",
+        "recent_3_total_runners",
+        "trainer_recent_top3_excess",
+    ]
+    raw = np.array([
+        [34.0, 8.0, -0.10],
+        [36.0, 10.0, 0.00],
+        [38.0, 12.0, 0.10],
+    ], dtype=np.float32)
+    race_ids = np.ones(3, dtype=np.int64)
+
+    contract = fit_raceformer_preprocessor(raw, features)
+    result = transform_raceformer(raw, race_ids, features, [], contract)
+
+    assert contract["log1p_features"] == ["recent_3_total_runners"]
+    assert contract["relative_features"] == features
+    assert model_feature_columns(features, contract) == [
+        *features,
+        "sectional_last600_best_6__race_percentile",
+        "recent_3_total_runners__race_percentile",
+        "trainer_recent_top3_excess__race_percentile",
+    ]
+    assert np.allclose(result[:, 3:], [[-1.0] * 3, [0.0] * 3, [1.0] * 3])
+
+
 def test_race_percentiles_ties_and_missing_are_neutral():
     raw = np.array([[2.0], [2.0], [np.nan]], dtype=np.float32)
     result = race_percentiles(raw, np.array([7, 7, 7]), ["career_wins"], ["career_wins"])

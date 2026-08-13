@@ -14,8 +14,10 @@ LOG1P_FEATURES = {
     "distance_starts", "distance_wins", "track_starts", "track_wins",
     "horse_jockey_starts", "horse_jockey_wins", "recent_1_starting_price",
     "recent_2_starting_price", "recent_3_starting_price",
+    "recent_3_total_runners",
     "recent_same_distance_runs", "recent_same_track_runs",
     "recent_same_condition_runs", "recent_days_since_last_run",
+    "recent_best_margin",
     "open_price", "fluc1", "fluc2",
 }
 
@@ -27,8 +29,11 @@ RELATIVE_FEATURES = {
     "track_starts", "track_wins", "horse_jockey_starts", "horse_jockey_wins",
     "recent_1_starting_price", "recent_2_starting_price",
     "recent_3_starting_price", "recent_avg_place", "recent_best_place",
+    "recent_3_total_runners",
     "recent_same_distance_runs", "recent_same_track_runs",
     "recent_same_condition_runs", "recent_days_since_last_run",
+    "recent_best_margin", "form_barrier_percentile_weighted_6",
+    "sectional_last600_best_6", "trainer_recent_top3_excess",
     "open_price", "fluc1", "fluc2",
 }
 

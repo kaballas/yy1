@@ -4,7 +4,11 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from src.model.raceformer import RaceFormerTop3, raceformer_losses
+from src.model.raceformer import (
+    RaceFormerTop3,
+    market_cutoff_losses,
+    raceformer_losses,
+)
 from finetune_raceformer import configure_scope
 from train_raceformer import fit_market_anchor
 
@@ -156,6 +160,118 @@ def test_losses_reject_incomplete_top_three_race():
             torch.tensor([[1.0, 1.0, 0.0, 0.0]]),
             torch.ones(1, 4, dtype=torch.bool),
         )
+
+
+def test_market_cutoff_loss_targets_miss_above_false_positive():
+    # Market top three are rows 0, 1, 2; actual top three are 0, 1, 3.
+    logits = torch.tensor([[3.0, 2.0, 1.0, 0.0, -1.0]], requires_grad=True)
+    anchor = torch.tensor([[3.0, 2.0, 1.0, 0.0, -1.0]])
+    targets = torch.tensor([[1.0, 1.0, 0.0, 1.0, 0.0]])
+    correction = logits - anchor
+    valid = torch.ones_like(targets, dtype=torch.bool)
+
+    components = market_cutoff_losses(
+        logits, targets, anchor, correction, valid
+    )
+    components["market_error"].backward()
+
+    assert components["market_mistake_race_fraction"] == 1
+    assert logits.grad[0, 3] < 0  # gradient descent raises the missed runner
+    assert logits.grad[0, 2] > 0  # gradient descent lowers the false positive
+    assert logits.grad[0, 0] == 0
+    assert logits.grad[0, 4] == 0
+    assert components["market_cutoff_pair_accuracy"] == 0
+    assert components["market_repair_race_fraction"] == 0
+    assert components["market_outsider_intrusion_rate"] == 0
+
+
+def test_market_cutoff_stabilizes_uninvolved_runners_on_mistake_races():
+    # Rows 2 and 3 are the false-positive/miss swap. Corrections to rows 0, 1,
+    # and 4 are unrelated to repairing that market mistake and must be shrunk.
+    logits = torch.tensor([[3.2, 1.8, 1.1, 0.1, -0.7]], requires_grad=True)
+    anchor = torch.tensor([[3.0, 2.0, 1.0, 0.0, -1.0]])
+    targets = torch.tensor([[1.0, 1.0, 0.0, 1.0, 0.0]])
+    correction = logits - anchor
+    valid = torch.ones_like(targets, dtype=torch.bool)
+
+    components = market_cutoff_losses(
+        logits, targets, anchor, correction, valid
+    )
+    components["market_uninvolved_stability"].backward()
+
+    assert components["market_uninvolved_stability"] > 0
+    assert logits.grad[0, 0] != 0
+    assert logits.grad[0, 1] != 0
+    assert logits.grad[0, 4] != 0
+    assert logits.grad[0, 2] == 0
+    assert logits.grad[0, 3] == 0
+
+
+def test_market_cutoff_reports_unrelated_outsider_intrusion():
+    # Row 4 is neither a market selection nor an actual positive. Promoting it
+    # cannot repair the market cutoff and should be reported as an intrusion.
+    logits = torch.tensor([[3.0, 2.0, 1.0, 0.0, 4.0]])
+    anchor = torch.tensor([[3.0, 2.0, 1.0, 0.0, -1.0]])
+    targets = torch.tensor([[1.0, 1.0, 0.0, 1.0, 0.0]])
+    valid = torch.ones_like(targets, dtype=torch.bool)
+
+    components = market_cutoff_losses(
+        logits, targets, anchor, logits - anchor, valid
+    )
+
+    assert components["market_outsider_intrusion_rate"] == pytest.approx(1 / 3)
+    assert components["market_repair_race_fraction"] == 0
+
+
+def test_market_cutoff_disjoint_six_runner_sets_remain_finite():
+    # Market rows 0..2 and actual rows 3..5 are disjoint, so no runner is
+    # uninvolved. This must contribute zero stability instead of mean(empty).
+    anchor = torch.tensor([[3.0, 2.0, 1.0, 0.0, -1.0, -2.0]])
+    logits = anchor.clone().requires_grad_(True)
+    targets = torch.tensor([[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]])
+    valid = torch.ones_like(targets, dtype=torch.bool)
+
+    components = market_cutoff_losses(
+        logits, targets, anchor, logits - anchor, valid
+    )
+
+    assert torch.isfinite(components["market_error"])
+    assert components["market_uninvolved_stability"] == 0
+
+
+def test_market_cutoff_stabilizes_only_exactly_correct_market_races():
+    logits = torch.tensor([[3.1, 1.8, 1.2, 0.0, 99.0]], requires_grad=True)
+    anchor = torch.tensor([[3.0, 2.0, 1.0, 0.0, 99.0]])
+    targets = torch.tensor([[1.0, 1.0, 1.0, 0.0, 0.0]])
+    valid = torch.tensor([[True, True, True, True, False]])
+    correction = logits - anchor
+
+    components = market_cutoff_losses(
+        logits, targets, anchor, correction, valid
+    )
+    components["market_correct_stability"].backward()
+
+    assert components["market_error"] == 0
+    assert components["market_mistake_race_fraction"] == 0
+    assert components["market_correct_stability"] > 0
+    assert components["market_uninvolved_stability"] == 0
+    assert components["market_cutoff_pair_accuracy"] == 1
+    assert components["market_repair_race_fraction"] == 1
+    assert logits.grad[0, 4] == 0
+
+
+def test_bce_weight_can_disable_ordinary_classification_loss():
+    logits = torch.tensor([[2.0, 1.0, 0.5, -1.0]], requires_grad=True)
+    targets = torch.tensor([[1.0, 1.0, 1.0, 0.0]])
+    valid = torch.ones_like(targets, dtype=torch.bool)
+
+    loss, _ = raceformer_losses(
+        logits, targets, valid,
+        ranking_weight=0.0, cardinality_weight=0.0,
+        listwise_weight=0.0, bce_weight=0.0,
+    )
+
+    assert loss == 0
 
 
 def test_fine_tune_head_only_freezes_backbone():

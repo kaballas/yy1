@@ -23,6 +23,8 @@ from src.raceformer_preprocessing import model_feature_columns, transform_racefo
 from src.raceformer_partition import combine_disjoint_snapshots
 from train_raceformer import (
     _batches,
+    _composite_score,
+    _market_baseline_metrics,
     _pad_batch,
     _raceformer_objective,
     _selected_indices,
@@ -104,6 +106,20 @@ def parse_args() -> argparse.Namespace:
         "--validation-competition-id",
         help="Comma-separated, disjoint competitions for validation.",
     )
+    parser.add_argument(
+        "--inherit-checkpoint-partition", action="store_true",
+        help=(
+            "Use the source checkpoint's exact training and validation race IDs. "
+            "Required for leakage-safe chronological fine-tuning."
+        ),
+    )
+    parser.add_argument(
+        "--evaluate-sealed-test", action="store_true",
+        help=(
+            "After validation-based selection, evaluate the source checkpoint's "
+            "sealed test cohort exactly once. Requires inherited partitioning."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=43)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument(
@@ -139,6 +155,23 @@ def _validate_args(args: argparse.Namespace) -> None:
             raise ValueError(f"{name.replace('_', '-')} must be non-negative")
     if args.max_training_races < 0 or args.max_validation_races < 0:
         raise ValueError("race limits must be zero or positive")
+    if args.inherit_checkpoint_partition and (
+        args.training_competition_id is not None
+        or args.validation_competition_id is not None
+    ):
+        raise ValueError(
+            "--inherit-checkpoint-partition cannot be combined with competition IDs"
+        )
+    if args.evaluate_sealed_test and not args.inherit_checkpoint_partition:
+        raise ValueError(
+            "--evaluate-sealed-test requires --inherit-checkpoint-partition"
+        )
+    if args.inherit_checkpoint_partition and (
+        args.max_training_races or args.max_validation_races
+    ):
+        raise ValueError(
+            "Inherited checkpoint partitioning cannot be combined with race limits"
+        )
 
 
 def _inherited_weight(
@@ -335,16 +368,80 @@ def main() -> None:
     all_competitions = np.asarray(
         [competition_by_race[int(race_id)] for race_id in all_ids], dtype=np.int64
     )
-    training_competition_ids, validation_competition_ids = _resolve_competition_ids(
-        args, all_ids, all_competitions
-    )
+    test_x, test_y = all_x[:0], all_y[:0]
+    test_ids, test_times = all_ids[:0], all_times[:0]
+    test_races: dict[int, np.ndarray] = {}
+    invalid_test: list[tuple[int, int, int]] = []
+    source_partition = source.get("partition", {})
+    if (
+        args.evaluate_sealed_test
+        and source_partition.get("test_evaluated_during_training")
+    ):
+        raise ValueError(
+            "Source checkpoint records that its sealed test was already evaluated; "
+            "refusing repeated model selection against that cohort"
+        )
+    if args.inherit_checkpoint_partition:
+        saved_training_ids = source_partition.get("training_race_ids")
+        saved_validation_ids = source_partition.get("validation_race_ids")
+        saved_test_ids = source_partition.get("test_race_ids")
+        if not saved_training_ids or not saved_validation_ids:
+            raise ValueError(
+                "Source checkpoint does not contain exact training and validation "
+                "race IDs; retrain it with the three-way chronological contract"
+            )
+        training_id_set = set(map(int, saved_training_ids))
+        validation_id_set = set(map(int, saved_validation_ids))
+        test_id_set = set(map(int, saved_test_ids or []))
+        if (
+            training_id_set & validation_id_set
+            or training_id_set & test_id_set
+            or validation_id_set & test_id_set
+        ):
+            raise ValueError("Source checkpoint partition race IDs overlap")
+        available_ids = set(map(int, np.unique(all_ids)))
+        missing = sorted(
+            (training_id_set | validation_id_set | test_id_set) - available_ids
+        )
+        if missing:
+            raise ValueError(
+                f"Source checkpoint partition is missing {len(missing)} races "
+                "from the CSV snapshots"
+            )
+        train_mask = np.isin(all_ids, list(training_id_set))
+        valid_mask = np.isin(all_ids, list(validation_id_set))
+        test_mask = np.isin(all_ids, list(test_id_set))
+        train_x, train_y = all_x[train_mask], all_y[train_mask]
+        train_ids, train_times = all_ids[train_mask], all_times[train_mask]
+        valid_x, valid_y = all_x[valid_mask], all_y[valid_mask]
+        valid_ids, valid_times = all_ids[valid_mask], all_times[valid_mask]
+        test_x, test_y = all_x[test_mask], all_y[test_mask]
+        test_ids, test_times = all_ids[test_mask], all_times[test_mask]
+        training_competition_ids = source_partition.get(
+            "training_competition_ids"
+        )
+        validation_competition_ids = source_partition.get(
+            "validation_competition_ids"
+        )
+        print(
+            "inherited_checkpoint_partition=yes "
+            f"mode={source_partition.get('mode')} "
+            f"training_races={len(training_id_set):,} "
+            f"validation_races={len(validation_id_set):,} "
+            f"sealed_test_races={len(test_id_set):,}",
+            flush=True,
+        )
+    else:
+        training_competition_ids, validation_competition_ids = (
+            _resolve_competition_ids(args, all_ids, all_competitions)
+        )
     if "competition_id" in features and "competition_id" not in zeroed:
         zeroed.append("competition_id")
         print(
             "auto_zeroed_feature=competition_id reason=competition_holdout_identifier",
             flush=True,
         )
-    if training_competition_ids is not None:
+    if not args.inherit_checkpoint_partition and training_competition_ids is not None:
         train_mask = np.isin(all_competitions, training_competition_ids)
         valid_mask = np.isin(all_competitions, validation_competition_ids)
         train_x, train_y = all_x[train_mask], all_y[train_mask]
@@ -365,6 +462,14 @@ def main() -> None:
     valid_races, invalid_valid = _selected_indices(
         valid_y, valid_ids, args.max_validation_races, "Validation"
     )
+    if len(test_ids):
+        test_races, invalid_test = _selected_indices(
+            test_y, test_ids, 0, "Test"
+        )
+    if args.evaluate_sealed_test and not test_races:
+        raise ValueError(
+            "--evaluate-sealed-test requested but the source has no sealed test races"
+        )
     _print_race_data_example(
         "training", "raw, before preprocessing",
         train_x, train_y, train_ids, train_times, train_races,
@@ -375,6 +480,12 @@ def main() -> None:
         valid_x, valid_y, valid_ids, valid_times, valid_races,
         features, competition_by_race,
     )
+    if test_races:
+        _print_race_data_example(
+            "sealed test", "raw, before preprocessing (not used for selection)",
+            test_x, test_y, test_ids, test_times, test_races,
+            features, competition_by_race,
+        )
     preprocessing = source.get("preprocessing")
     bucket_features = list(
         preprocessing.get("layoff_bucket_features", []) if preprocessing else []
@@ -418,6 +529,14 @@ def main() -> None:
         valid_x, valid_ids, features, zeroed, preprocessing,
         legacy_median=legacy_median, legacy_scale=legacy_scale,
     )
+    raw_test_market_prices = (
+        test_x[:, features.index("fluc2")].copy() if len(test_x) else np.asarray([])
+    )
+    if len(test_x):
+        test_x = transform_raceformer(
+            test_x, test_ids, features, zeroed, preprocessing,
+            legacy_median=legacy_median, legacy_scale=legacy_scale,
+        )
     _print_race_data_example(
         "training", "final model inputs, after preprocessing",
         train_x, train_y, train_ids, train_times, train_races,
@@ -490,6 +609,8 @@ def main() -> None:
             "layoff_bucket_mode": checkpoint_layoff_mode,
             "max_training_races": args.max_training_races,
             "max_validation_races": args.max_validation_races,
+            "inherit_checkpoint_partition": args.inherit_checkpoint_partition,
+            "evaluate_sealed_test": args.evaluate_sealed_test,
             "training_competition_ids": training_competition_ids,
             "validation_competition_ids": validation_competition_ids,
             "seed": args.seed,
@@ -512,7 +633,11 @@ def main() -> None:
             "active_trainable_features": active_features,
             "train_races": len(train_races),
             "validation_races": len(valid_races),
-            "partition_mode": "competition_holdout",
+            "sealed_test_races": len(test_races),
+            "partition_mode": (
+                "inherited_" + str(source_partition.get("mode"))
+                if args.inherit_checkpoint_partition else "competition_holdout"
+            ),
         },
         "preprocessing": {
             "version": int(preprocessing.get("version", 1)) if preprocessing else 1,
@@ -624,6 +749,25 @@ def main() -> None:
         saved_epoch = best_epoch
         saved_selection = best_selection
 
+    sealed_test_loss: float | None = None
+    sealed_test_metrics: dict[str, float | int] | None = None
+    sealed_test_market: dict[str, float | int] | None = None
+    sealed_test_market_delta: float | None = None
+    if args.evaluate_sealed_test:
+        model.load_state_dict(saved_state)
+        sealed_test_loss, sealed_test_metrics = evaluate(
+            model, test_x, test_y, test_ids, test_races, args.races_per_batch,
+            ranking_weight, cardinality_weight, device, listwise_weight,
+            market_residual_weight,
+        )
+        sealed_test_market = _market_baseline_metrics(
+            test_y, test_ids, raw_test_market_prices, test_races
+        )
+        sealed_test_market_delta = (
+            _composite_score(sealed_test_metrics)
+            - _composite_score(sealed_test_market)
+        )
+
     output = args.output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     result = copy.deepcopy(source)
@@ -631,17 +775,30 @@ def main() -> None:
         "model_state_dict": saved_state,
         "zeroed_features": zeroed,
         "partition": {
-            "mode": "competition_holdout",
+            "mode": (
+                "chronological_three_way_finetuned"
+                if args.inherit_checkpoint_partition and test_races
+                else "inherited_partition_finetuned"
+                if args.inherit_checkpoint_partition
+                else "competition_holdout"
+            ),
             "training_competition_ids": training_competition_ids,
             "validation_competition_ids": validation_competition_ids,
             "training_race_ids": sorted(set(map(int, train_ids))),
             "validation_race_ids": sorted(set(map(int, valid_ids))),
+            "test_race_ids": sorted(set(map(int, test_ids))) if test_races else None,
+            "test_race_count": len(test_races),
+            "test_evaluated_during_training": args.evaluate_sealed_test,
         },
         "best_epoch": saved_epoch,
         "checkpoint_metric": metric_mode,
         "best_selection": saved_selection,
         "fine_tune_history": history,
         "fine_tune_config": vars(args),
+        "sealed_test_loss": sealed_test_loss,
+        "sealed_test_metrics": sealed_test_metrics,
+        "sealed_test_market_baseline": sealed_test_market,
+        "sealed_test_market_composite_delta": sealed_test_market_delta,
         "fine_tune_provenance": {
             "source_checkpoint": str(args.checkpoint.resolve()),
             "source_best_epoch": source.get("best_epoch"),
@@ -663,6 +820,10 @@ def main() -> None:
                 {"race_id": race_id, "runners": runners, "top3": top3}
                 for race_id, runners, top3 in invalid_valid
             ],
+            "test": [
+                {"race_id": race_id, "runners": runners, "top3": top3}
+                for race_id, runners, top3 in invalid_test
+            ],
         },
     })
     temporary = output.with_name(f".{output.name}.tmp")
@@ -679,6 +840,23 @@ def main() -> None:
         f"history={history_path}",
         flush=True,
     )
+    if sealed_test_metrics is not None and sealed_test_market is not None:
+        assert sealed_test_market_delta is not None
+        print(
+            "SEALED TEST (not used for training or epoch selection)\n"
+            f"model_top3={sealed_test_metrics['top3_recall']:.4f} "
+            f"market_top3={sealed_test_market['top3_recall']:.4f} "
+            f"model_ndcg3={sealed_test_metrics['ndcg3']:.4f} "
+            f"market_ndcg3={sealed_test_market['ndcg3']:.4f} "
+            f"model_pairwise={sealed_test_metrics['pairwise_ranking_accuracy']:.4f} "
+            f"market_pairwise={sealed_test_market['pairwise_ranking_accuracy']:.4f} "
+            f"model_composite={_composite_score(sealed_test_metrics):.5f} "
+            f"market_composite={_composite_score(sealed_test_market):.5f} "
+            f"market_delta={sealed_test_market_delta:+.5f} "
+            "deployment_gate_model_beats_market="
+            f"{'yes' if sealed_test_market_delta > 0 else 'no'}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

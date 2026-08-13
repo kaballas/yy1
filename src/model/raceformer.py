@@ -218,11 +218,15 @@ def raceformer_losses(
     ranking_weight: float = 0.5,
     cardinality_weight: float = 0.1,
     listwise_weight: float = 0.5,
+    bce_weight: float = 1.0,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Equal-per-race classification, pairwise, cardinality, and listwise losses."""
     if logits.shape != targets.shape or logits.shape != valid_mask.shape:
         raise ValueError("logits, targets, and valid_mask must have equal shapes")
-    if ranking_weight < 0 or cardinality_weight < 0 or listwise_weight < 0:
+    if (
+        bce_weight < 0 or ranking_weight < 0
+        or cardinality_weight < 0 or listwise_weight < 0
+    ):
         raise ValueError("loss weights must be non-negative")
     bce_losses = []
     ranking_losses = []
@@ -256,9 +260,121 @@ def raceformer_losses(
         "listwise": torch.stack(listwise_losses).mean(),
     }
     total = (
-        components["bce"]
+        bce_weight * components["bce"]
         + ranking_weight * components["ranking"]
         + cardinality_weight * components["cardinality"]
         + listwise_weight * components["listwise"]
     )
     return total, components
+
+
+def market_cutoff_losses(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    anchor_logits: torch.Tensor,
+    corrections: torch.Tensor,
+    valid_mask: torch.Tensor,
+) -> dict[str, torch.Tensor]:
+    """Focus residual learning on mistakes in the market's top-three set.
+
+    For a mistaken market set, actual top-three misses must outrank the market
+    top-three false positives. On a mistaken race, the uninvolved stability
+    component discourages moving runners outside that miss/false-positive
+    swap. If the market set is exactly correct, the correct-market stability
+    component discourages unnecessary corrections for the whole race.
+    """
+    if not (
+        logits.shape == targets.shape == anchor_logits.shape
+        == corrections.shape == valid_mask.shape
+    ):
+        raise ValueError("market cutoff loss inputs must have equal shapes")
+    mistake_losses = []
+    uninvolved_stability_losses = []
+    correct_stability_losses = []
+    cutoff_pair_accuracies = []
+    repaired_mistake_races = 0
+    outsider_intrusion_slots = 0
+    mistake_races = 0
+    for batch_index in range(logits.shape[0]):
+        mask = valid_mask[batch_index]
+        race_logits = logits[batch_index][mask]
+        race_targets = targets[batch_index][mask].float()
+        race_anchor = anchor_logits[batch_index][mask]
+        race_correction = corrections[batch_index][mask]
+        if len(race_logits) < 4 or int((race_targets == 1).sum()) != 3:
+            raise ValueError(
+                "each race must have at least four runners and exactly three positives"
+            )
+        # Stable sorting makes tied market prices deterministic and consistent
+        # with the database row ordering used by evaluation.
+        market_top3 = torch.argsort(
+            race_anchor, descending=True, stable=True
+        )[:3]
+        in_market_top3 = torch.zeros_like(race_targets, dtype=torch.bool)
+        in_market_top3[market_top3] = True
+        miss_mask = (race_targets == 1) & ~in_market_top3
+        false_positive_mask = (race_targets == 0) & in_market_top3
+        misses = race_logits[miss_mask]
+        false_positives = race_logits[false_positive_mask]
+
+        model_top3 = torch.argsort(
+            race_logits, descending=True, stable=True
+        )[:3]
+        in_model_top3 = torch.zeros_like(race_targets, dtype=torch.bool)
+        in_model_top3[model_top3] = True
+        outsider_intrusion_slots += int(
+            (in_model_top3 & (race_targets == 0) & ~in_market_top3).sum()
+        )
+        if len(misses):
+            if len(misses) != len(false_positives):
+                raise RuntimeError("market top-three miss/false-positive counts differ")
+            mistake_races += 1
+            mistake_losses.append(
+                F.softplus(-(misses[:, None] - false_positives[None, :])).mean()
+            )
+            uninvolved = ~(miss_mask | false_positive_mask)
+            # A six-runner field can have completely disjoint market and
+            # actual top threes. Then all six runners are part of the required
+            # swaps and there is no unrelated correction to stabilize.
+            if torch.any(uninvolved):
+                uninvolved_stability_losses.append(
+                    race_correction[uninvolved].square().mean()
+                )
+            cutoff_pair_accuracies.append(
+                (misses[:, None] > false_positives[None, :]).float().mean()
+            )
+            if torch.equal(
+                torch.sort(model_top3).values,
+                torch.nonzero(race_targets == 1, as_tuple=False).flatten(),
+            ):
+                repaired_mistake_races += 1
+        else:
+            correct_stability_losses.append(race_correction.square().mean())
+
+    zero = logits.sum() * 0.0
+    return {
+        "market_error": (
+            torch.stack(mistake_losses).mean() if mistake_losses else zero
+        ),
+        "market_correct_stability": (
+            torch.stack(correct_stability_losses).mean()
+            if correct_stability_losses else zero
+        ),
+        "market_uninvolved_stability": (
+            torch.stack(uninvolved_stability_losses).mean()
+            if uninvolved_stability_losses else zero
+        ),
+        "market_mistake_race_fraction": logits.new_tensor(
+            mistake_races / logits.shape[0]
+        ),
+        "market_cutoff_pair_accuracy": (
+            torch.stack(cutoff_pair_accuracies).mean()
+            if cutoff_pair_accuracies else logits.new_tensor(1.0)
+        ),
+        "market_repair_race_fraction": logits.new_tensor(
+            repaired_mistake_races / mistake_races if mistake_races else 1.0
+        ),
+        "market_outsider_intrusion_rate": logits.new_tensor(
+            outsider_intrusion_slots / (3 * logits.shape[0])
+        ),
+    }

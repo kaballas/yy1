@@ -1,19 +1,341 @@
+- ranking=2: emphasizes winner-versus-loser ordering.
+  - listwise=2: strong enough to optimize the whole race without dominating the loss.
+  - cardinality=0.3: encourages approximately three selections without sacrificing ranking.
+  - residual-scale=1: gives RaceFormer freedom to overturn the market.
+  - residual-weight=0: does not penalize disagreement with the market.
+  - learning-rate=0.00005: appropriate for the sensitive market-residual formulation.
+  - patience=10: allows early noise but stops sustained validation deterioration.
+
+
+
+
+
+Use this workflow: train with an honest competition holdout, fine-tune against the same holdout, then optionally refit the selected design on all races.
+
+  Do not begin with all-races training—you need untouched validation races to determine whether the model actually beats the market.
+
+  ## 1. Activate the environment
+
+  cd /home/theo/yy1
+  source .venv/bin/activate
+
+  Verify PyTorch:
+
+  python -c "import torch; print(torch.__version__, 'CUDA:', torch.cuda.is_available())"
+
+  The commands below use CPU. Change --device cpu to --device cuda if CUDA prints True.
+
+  ## 2. Train the new residual model
+
+  This is the proper held-out experiment:
+
 python train_raceformer.py \
     --no-export \
     --training-csv outputs/raceformer_training.csv \
     --validation-csv outputs/raceformer_validation.csv \
     --features-json tabfm_features.json \
-    --output outputs/raceformer_market_residual_unrestricted.pt \
+    --output outputs/raceformer_residual_chrono_v2.pt \
     --variant market_residual \
-    --market-residual-scale 1.0 \
-    --market-residual-weight 0.0 \
-    --training-competition-id 570,335,580,351,488,279,231,330,207,366,585 \
-    --validation-competition-id 317,340,410,638,602,505,588,635,520 \
-    --chronological-validation-races 0 \
+    --market-residual-scale 1 \
+    --market-residual-weight 0 \
+    --chronological-validation-races 1000 \
     --standardized-clip 5 \
     --races-per-batch 32 \
-    --epochs 60 \
-    --early-stopping-patience 15 \
+    --learning-rate 0.00005 \
+    --weight-decay 0.001 \
+    --ranking-loss-weight 2 \
+    --cardinality-loss-weight 0.1 \
+    --listwise-loss-weight 2 \
+    --epochs 40 \
+    --early-stopping-patience 8 \
     --checkpoint-metric composite \
     --seed 42 \
     --device cpu
+
+
+  At the end, look for:
+
+  best_epoch=...
+  deployment_gate_model_beats_market=yes
+
+  If the gate says no, do not fine-tune or refit this run. Send me the final market-comparison line and the best few epochs.
+
+  ## 3. Backtest the saved checkpoint
+
+  python predict_raceformer.py \
+    --checkpoint outputs/raceformer_residual_v1.pt \
+    --backtest \
+    --device cpu \
+    --output outputs/raceformer_residual_v1_backtest.csv
+
+  Do not supply --competition-id; that would permit an in-sample competition backtest. Without it, the predictor uses the checkpoint’s saved validation races.
+
+  ## 4. Fine-tune the held-out model
+
+  Fine-tune at a much lower learning rate. This inherits the residual scale and preprocessing from the source checkpoint:
+
+  python finetune_raceformer.py \
+    --checkpoint outputs/raceformer_residual_v1.pt \
+    --output outputs/raceformer_residual_v1_finetuned.pt \
+    --no-export \
+    --training-csv outputs/raceformer_training.csv \
+    --validation-csv outputs/raceformer_validation.csv \
+    --features-json tabfm_features.json \
+    --training-competition-id 570,335,580,351,488,279,231,330,207,366,585 \
+    --validation-competition-id 317,340,410,638,602,505,588,635,520 \
+    --scope full \
+    --learning-rate 0.000003 \
+    --weight-decay 0.001 \
+    --market-residual-weight 0 \
+    --races-per-batch 32 \
+    --epochs 30 \
+    --early-stopping-patience 8 \
+    --checkpoint-metric composite \
+    --save-strategy source_guarded \
+    --seed 43 \
+    --device cpu
+
+  You do not pass --market-residual-scale during fine-tuning. The scale of 1 is embedded in the source model.
+
+  --save-strategy source_guarded means:
+
+  - If fine-tuning improves validation performance, the best fine-tuned epoch is saved.
+  - If it does not improve, the output retains the original source weights.
+  - The original raceformer_residual_v1.pt remains untouched.
+
+  Look for:
+
+  improved_over_source=yes
+  best_fine_tune_epoch=...
+  saved_epoch=...
+
+  If saved_epoch=0, fine-tuning did not help and the output contains the original weights.
+
+  ## 5. Backtest the fine-tuned checkpoint
+
+  python predict_raceformer.py \
+    --checkpoint outputs/raceformer_residual_v1_finetuned.pt \
+    --backtest \
+    --device cpu \
+    --output outputs/raceformer_residual_v1_finetuned_backtest.csv
+
+  Compare this with the original backtest. The fine-tuned version should improve the composite, especially:
+
+  - Top-three recall
+  - NDCG@3
+  - Pairwise ranking accuracy
+
+  Because the fine-tuning is source-guarded, it should not save worse weights.
+
+  ## 6. Decide which model won
+
+  Use the fine-tuned checkpoint if its output says:
+
+  improved_over_source=yes
+  saved_epoch=<number greater than 0>
+
+  Otherwise use:
+
+  outputs/raceformer_residual_v1.pt
+
+  Keep these two numbers:
+
+  - Scratch model best_epoch
+  - Fine-tuning best_fine_tune_epoch
+
+  ## 7. Optional final refit on all races
+
+  Only do this after the held-out model beats the market.
+
+  If the scratch run’s best_epoch was, for example, 7:
+
+  python train_raceformer.py \
+    --no-export \
+    --training-csv outputs/raceformer_training.csv \
+    --validation-csv outputs/raceformer_validation.csv \
+    --features-json tabfm_features.json \
+    --output outputs/raceformer_residual_all.pt \
+    --variant market_residual \
+    --market-residual-scale 1 \
+    --market-residual-weight 0 \
+    --train-all-races \
+    --standardized-clip 5 \
+    --races-per-batch 32 \
+    --learning-rate 0.0002 \
+    --weight-decay 0.001 \
+    --ranking-loss-weight 0.5 \
+    --cardinality-loss-weight 0.1 \
+    --listwise-loss-weight 0.5 \
+    --epochs 7 \
+    --checkpoint-metric composite \
+    --seed 42 \
+    --device cpu
+
+  Replace --epochs 7 with the actual scratch best_epoch.
+
+  This final checkpoint:
+
+  - Uses all eligible races from both snapshots.
+  - Has no held-out validation cohort.
+  - Cannot honestly claim to beat the market from its in-sample metrics.
+  - Must be evaluated on races occurring after the snapshot cutoff.
+
+  Do not run the current fine-tuning script on this all-races checkpoint: it has already seen the validation races, so any subsequent validation-based selection would be contaminated. Use the held-out fine-tuned model for measured
+  performance, or the all-races scratch refit for final deployment.
+
+
+
+
+Implemented and verified. Your existing raceformer_residual_chrono_v2.pt cannot be used because its newest 1,000 races were already inspected. Retrain once with a sealed test cohort.
+
+  ## 1. Train the three-way model
+
+  python train_raceformer.py \
+    --no-export \
+    --training-csv outputs/raceformer_training.csv \
+    --validation-csv outputs/raceformer_validation.csv \
+    --features-json tabfm_features.json \
+    --output outputs/raceformer_residual_three_way.pt \
+    --variant market_residual \
+    --market-residual-scale 1 \
+    --market-residual-weight 0 \
+    --chronological-validation-races 1000 \
+    --chronological-test-races 1000 \
+    --standardized-clip 5 \
+    --races-per-batch 32 \
+    --learning-rate 0.00005 \
+    --weight-decay 0.001 \
+    --ranking-loss-weight 2 \
+    --cardinality-loss-weight 0.1 \
+    --listwise-loss-weight 2 \
+    --epochs 40 \
+    --early-stopping-patience 8 \
+    --checkpoint-metric composite \
+    --seed 42 \
+    --device cpu
+
+  This should produce roughly:
+
+  training:   6,399 races
+  validation: 1,000 middle races
+  test:       1,000 newest sealed races
+
+  The scratch run never scores the sealed test.
+
+  Continue only if the final validation line says:
+
+  deployment_gate_model_beats_market=yes
+
+  ## 2. Fine-tune and open the test once
+
+  python finetune_raceformer.py \
+    --checkpoint outputs/raceformer_residual_three_way.pt \
+    --output outputs/raceformer_residual_three_way_finetuned.pt \
+    --no-export \
+    --training-csv outputs/raceformer_training.csv \
+    --validation-csv outputs/raceformer_validation.csv \
+    --features-json tabfm_features.json \
+    --inherit-checkpoint-partition \
+    --evaluate-sealed-test \
+    --scope full \
+    --learning-rate 0.000003 \
+    --weight-decay 0.001 \
+    --market-residual-weight 0 \
+    --races-per-batch 32 \
+    --epochs 30 \
+    --early-stopping-patience 8 \
+    --checkpoint-metric composite \
+    --save-strategy source_guarded \
+    --seed 43 \
+    --device cpu
+
+  This command:
+
+  - Reuses the exact saved training and validation race IDs.
+  - Never changes preprocessing or the market anchor.
+  - Keeps the scratch weights if fine-tuning fails to improve validation.
+  - Opens the sealed test only after model selection.
+
+  The decisive output is:
+
+  SEALED TEST (not used for training or epoch selection)
+  ...
+  deployment_gate_model_beats_market=yes
+
+  ## 3. Reproduce the sealed-test report
+
+  Only after step 2:
+
+  python predict_raceformer.py \
+    --checkpoint outputs/raceformer_residual_three_way_finetuned.pt \
+    --backtest \
+    --backtest-cohort test \
+    --device cpu \
+    --output outputs/raceformer_residual_three_way_test.csv
+
+  The workflow passed its end-to-end smoke test. Forty-eight relevant tests pass; the full suite has 112 passes and the same unrelated pre-existing winner-loss failure.
+
+  Send me the scratch model’s final market-comparison line and the complete SEALED TEST block.
+
+
+  python train_raceformer.py \
+    --training-csv outputs/raceformer_training.csv \
+    --validation-csv outputs/raceformer_validation.csv \
+    --features-json tabfm_features.json \
+    --output outputs/raceformer_residual_advanced_v1.pt \
+    --variant market_residual \
+    --market-residual-scale 1 \
+    --market-residual-weight 0 \
+    --chronological-validation-races 1000 \
+    --chronological-test-races 1000 \
+    --standardized-clip 5 \
+    --races-per-batch 32 \
+    --learning-rate 0.00005 \
+    --weight-decay 0.001 \
+    --ranking-loss-weight 2 \
+    --cardinality-loss-weight 0.5 \
+    --listwise-loss-weight 10 \
+    --epochs 40 \
+    --early-stopping-patience 8 \
+    --checkpoint-metric composite \
+    --seed 42 \
+    --device cpu
+
+
+
+
+
+python train_raceformer.py \
+    --training-csv outputs/raceformer_training.csv \
+    --validation-csv outputs/raceformer_validation.csv \
+    --features-json tabfm_features.json \
+    --output outputs/raceformer_market_error_v4.pt \
+    --variant market_residual \
+    --market-residual-scale 0.25 \
+    --market-residual-weight 0.05 \
+    --market-error-loss-weight 1 \
+    --market-correct-stability-weight 0.25 \
+    --market-uninvolved-stability-weight 1 \
+    --bce-loss-weight 0.5 \
+    --chronological-validation-races 1000 \
+    --chronological-test-races 1000 \
+    --standardized-clip 5 \
+    --hidden-dim 128 \
+    --model-dim 64 \
+    --attention-heads 4 \
+    --race-layers 1 \
+    --feedforward-dim 128 \
+    --dropout 0.15 \
+    --races-per-batch 64 \
+    --learning-rate 0.00001 \
+    --weight-decay 0.001 \
+    --ranking-loss-weight 2 \
+    --cardinality-loss-weight 0.5 \
+    --listwise-loss-weight 0.5 \
+    --max-grad-norm 0.5 \
+    --epochs 80 \
+    --early-stopping-patience 20 \
+    --checkpoint-metric composite \
+    --seed 42 \
+    --device cpu
+

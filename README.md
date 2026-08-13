@@ -677,6 +677,172 @@ in-sample diagnostics only. Measure performance on races collected strictly
 after this refit's data cutoff; the predictor refuses to call embedded training
 races a held-out backtest cohort.
 
+### Leakage-safe chronological training and fine-tuning
+
+For a final market comparison, reserve two consecutive chronological cohorts.
+Scratch training uses the older races, selects its epoch on the middle 1,000,
+and stores—but never scores—the newest 1,000 as a sealed test:
+
+```bash
+python train_raceformer.py \
+  --no-export \
+  --training-csv outputs/raceformer_training.csv \
+  --validation-csv outputs/raceformer_validation.csv \
+  --features-json tabfm_features.json \
+  --output outputs/raceformer_residual_three_way.pt \
+  --variant market_residual \
+  --market-residual-scale 1 \
+  --market-residual-weight 0 \
+  --chronological-validation-races 1000 \
+  --chronological-test-races 1000 \
+  --standardized-clip 5 \
+  --races-per-batch 32 \
+  --learning-rate 0.00005 \
+  --weight-decay 0.001 \
+  --ranking-loss-weight 2 \
+  --cardinality-loss-weight 0.1 \
+  --listwise-loss-weight 2 \
+  --epochs 40 \
+  --early-stopping-patience 8 \
+  --checkpoint-metric composite \
+  --seed 42 \
+  --device cpu
+```
+
+Only if that run beats the market on its middle validation cohort, fine-tune by
+inheriting the exact saved training and validation race IDs. `source_guarded`
+retains the scratch weights if fine-tuning does not improve validation. The
+sealed test is opened once, after selection:
+
+On the 12 August 2026 snapshots, this scratch experiment retained epoch zero:
+the learned residual did not beat `fluc2` on the middle 1,000-race validation
+cohort. Do not run the fine-tuning command on that failed checkpoint. The
+three-way workflow remains the contract for evaluating a materially new model
+or feature hypothesis without opening the newest 1,000 races prematurely.
+
+Audit non-market feature adjustments before another neural-model run:
+
+```bash
+python audit_market_residual_features.py \
+  --folds 5 \
+  --fold-races 500 \
+  --sealed-test-races 1000 \
+  --minimum-training-races 1000 \
+  --minimum-coverage 0.20 \
+  --ridge 0.05 \
+  --maximum-absolute-alpha 1 \
+  --bundle 'margin_barrier=recent_best_margin,form_barrier_percentile_weighted_6'
+```
+
+The audit fits each adjustment on earlier races and evaluates it on the next
+unseen 500-race block. Current prices, historical starting prices, and all
+market-derived candidate fields are excluded. It does not evaluate the newest
+1,000 races. On the 12
+August database, `recent_best_margin` plus the new six-run, field-normalized,
+recency-weighted barrier percentile improved the five most recent audit folds.
+An expanded eight-fold check rejected it: mean composite delta `-0.00004`,
+worst-fold delta `-0.00538`, with all three additional May/early-June folds
+negative. The database retains the deterministic derived column for future
+monitoring, but both candidates remain in `zeroed_features` and are not supplied
+to the model.
+
+Refresh the deterministic database feature after importing/updating runners,
+then export fresh CSV snapshots (training without `--no-export` also performs
+the export):
+
+```bash
+python update_derived_racing_features.py --dry-run
+python update_derived_racing_features.py
+```
+
+`form_barrier_percentile_weighted_6` uses only stored pre-race history. Each
+historical barrier is converted to `(barrier-1)/(field_size-1)` and the six
+available values are averaged with weights `1, 1/2, ..., 1/6`. The updater is
+transactional and idempotent. `tabfm_features.json` records it and the already
+stored `recent_best_margin` in the zero bucket until a future audit demonstrates
+stability across regimes.
+
+The same updater also maintains experimental advanced columns: plausible parsed
+last-600 sectionals, closing
+speed relative to whole-race speed, normalized current/recent class levels, and
+strictly time-causal jockey, trainer, and jockey-trainer top-three excess. Entity
+statistics use only results with a start time strictly earlier than the row, so
+other runners at the same start time cannot leak their outcomes.
+
+An eight-fold screen initially found a small gain for best six-run last-600 +
+recent trainer excess + prior field strength (mean composite delta `+0.00125`,
+six of eight folds positive, worst `-0.00084`). The mandatory backward expansion
+to twelve folds rejected it: mean `+0.00008`, six of twelve positive, worst
+`-0.00325`. Best last-600 alone also fell to mean `+0.00016`, six of twelve
+positive.
+
+The strongest bundle was subsequently promoted as an explicitly speculative
+model experiment: `sectional_last600_best_6`, `recent_3_total_runners`, and
+`trainer_recent_top3_excess` are active in `tabfm_features.json`. RaceFormer
+receives both their robustly standardized raw values and within-race percentile
+representations, matching the representation used by the residual audit. The
+remaining advanced columns stay database audit candidates and are not model
+inputs. Treat any checkpoint trained with this manifest as experimental and
+require it to beat the market on the middle chronological validation cohort;
+the newest 1,000-race test remains sealed until that gate passes.
+
+For an objective that directly targets market top-three errors, use
+`--market-error-loss-weight`. In a race where the market selects `A,B,C` and
+the actual top three are `A,B,D`, this term trains `score(D) > score(C)` rather
+than spending equal effort on every already-correct pair. The optional
+`--market-correct-stability-weight` penalizes corrections only when the market
+top-three set was exactly correct. `--bce-loss-weight` allows ordinary runner
+classification to be reduced while retaining some calibration pressure. These
+options require `--variant market_residual`; their default weights are zero
+except for the backward-compatible BCE default of one. Epoch output reports
+`cutoff_train` and `cutoff_valid` separately. Use
+`--market-uninvolved-stability-weight` to penalize score changes to runners that
+are neither the market false positive nor the actual top-three miss. The
+`repair` diagnostic is the fraction of mistaken market races fully repaired;
+`intrusion` is the fraction of top-three slots taken by unrelated losing
+outsiders. A falling cutoff loss is not useful if `intrusion` rises or the main
+ranking composite falls.
+
+To isolate an objective experiment from later edits to the feature manifest,
+`--feature-mask-checkpoint PATH` reuses the checkpoint's `zeroed_features`
+mask while still initializing and training a completely new model. Its raw
+feature list must exactly match the current manifest.
+
+```bash
+python finetune_raceformer.py \
+  --checkpoint outputs/raceformer_residual_three_way.pt \
+  --output outputs/raceformer_residual_three_way_finetuned.pt \
+  --no-export \
+  --training-csv outputs/raceformer_training.csv \
+  --validation-csv outputs/raceformer_validation.csv \
+  --features-json tabfm_features.json \
+  --inherit-checkpoint-partition \
+  --evaluate-sealed-test \
+  --scope full \
+  --learning-rate 0.000003 \
+  --weight-decay 0.001 \
+  --market-residual-weight 0 \
+  --races-per-batch 32 \
+  --epochs 30 \
+  --early-stopping-patience 8 \
+  --checkpoint-metric composite \
+  --save-strategy source_guarded \
+  --seed 43 \
+  --device cpu
+```
+
+Reproduce the sealed result explicitly with `--backtest-cohort test`. This flag
+is intentionally required; ordinary backtests continue to use validation:
+
+```bash
+python predict_raceformer.py \
+  --checkpoint outputs/raceformer_residual_three_way_finetuned.pt \
+  --backtest \
+  --backtest-cohort test \
+  --device cpu \
+  --output outputs/raceformer_residual_three_way_test.csv
+```
+
 
 python finetune_raceformer.py \
       --checkpoint outputs/raceformer_competition.pt \

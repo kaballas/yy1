@@ -20,15 +20,21 @@ from src.constants import TRAINING_ROWS_VIEW, VALIDATION_ROWS_VIEW
 from src.database import export_rows_to_csv, load_rows_from_csv
 from src.dataset import load_feature_manifest
 from src.metrics import probability_metrics
-from src.model.raceformer import RaceFormerTop3, raceformer_losses
+from src.model.raceformer import (
+    RaceFormerTop3,
+    market_cutoff_losses,
+    raceformer_losses,
+)
 from src.raceformer_preprocessing import (
     fit_raceformer_preprocessor,
     model_feature_columns,
     transform_raceformer,
 )
 from src.raceformer_partition import (
+    chronological_holdout_ids,
     chronological_validation_ids,
     combine_disjoint_snapshots,
+    partition_by_validation_and_test_ids,
     partition_by_validation_ids,
 )
 from src.validation import build_race_indices, invalid_race_targets
@@ -40,6 +46,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument("--features-json", type=Path, default=DEFAULT_FEATURES)
+    parser.add_argument(
+        "--feature-mask-checkpoint", type=Path,
+        help=(
+            "Reuse only zeroed_features from a compatible checkpoint while "
+            "training a new model from scratch."
+        ),
+    )
     parser.add_argument("--output", type=Path, default=Path("outputs/raceformer_top3.pt"))
     parser.add_argument(
         "--training-csv", type=Path, default=Path("outputs/raceformer_training.csv")
@@ -68,6 +81,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cardinality-loss-weight", type=float, default=0.1)
     parser.add_argument("--listwise-loss-weight", type=float, default=0.5)
     parser.add_argument(
+        "--bce-loss-weight", type=float, default=1.0,
+        help="Weight for ordinary per-runner top3_mask classification (default: 1).",
+    )
+    parser.add_argument(
         "--market-residual-scale", type=float, default=0.25,
         help=(
             "Scale applied to learned corrections in the market_residual variant "
@@ -79,6 +96,27 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Mean-squared correction penalty for the market_residual variant "
             "(default: 0.05)."
+        ),
+    )
+    parser.add_argument(
+        "--market-error-loss-weight", type=float, default=0.0,
+        help=(
+            "Weight for ranking actual market top-three misses above the market's "
+            "false positives (market_residual only; default: 0)."
+        ),
+    )
+    parser.add_argument(
+        "--market-correct-stability-weight", type=float, default=0.0,
+        help=(
+            "Correction penalty applied only where the market top-three set was "
+            "exactly correct (market_residual only; default: 0)."
+        ),
+    )
+    parser.add_argument(
+        "--market-uninvolved-stability-weight", type=float, default=0.0,
+        help=(
+            "Correction penalty for runners unrelated to a market miss/false-"
+            "positive swap (market_residual only; default: 0)."
         ),
     )
     parser.add_argument(
@@ -115,6 +153,13 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Hold out the latest N eligible races across both database views; "
             "0 preserves the legacy view-defined partition (default: 1000)."
+        ),
+    )
+    parser.add_argument(
+        "--chronological-test-races", type=int, default=0,
+        help=(
+            "Seal the latest N eligible races as an untouched final test cohort; "
+            "the validation cohort immediately precedes it (default: 0)."
         ),
     )
     parser.add_argument(
@@ -157,9 +202,13 @@ def _validate_args(args: argparse.Namespace) -> None:
     if invalid:
         raise ValueError("These arguments must be positive: " + ", ".join(invalid))
     if (
-        args.weight_decay < 0 or args.ranking_loss_weight < 0
+        args.weight_decay < 0 or args.bce_loss_weight < 0
+        or args.ranking_loss_weight < 0
         or args.cardinality_loss_weight < 0 or args.listwise_loss_weight < 0
         or args.market_residual_weight < 0
+        or args.market_error_loss_weight < 0
+        or args.market_correct_stability_weight < 0
+        or args.market_uninvolved_stability_weight < 0
     ):
         raise ValueError("weight decay and loss weights must be non-negative")
     if args.market_residual_scale <= 0:
@@ -170,8 +219,22 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise ValueError("race limits must be zero or positive")
     if args.chronological_validation_races < 0:
         raise ValueError("chronological validation races must be zero or positive")
+    if args.chronological_test_races < 0:
+        raise ValueError("chronological test races must be zero or positive")
+    if args.chronological_test_races and not args.chronological_validation_races:
+        raise ValueError(
+            "--chronological-test-races requires --chronological-validation-races"
+        )
     if args.variant == "market_residual" and args.checkpoint_metric != "composite":
         raise ValueError("market_residual requires --checkpoint-metric composite")
+    if args.variant != "market_residual" and (
+        args.market_error_loss_weight > 0
+        or args.market_correct_stability_weight > 0
+        or args.market_uninvolved_stability_weight > 0
+    ):
+        raise ValueError(
+            "market cutoff losses require --variant market_residual"
+        )
     if args.train_all_races:
         if (
             args.competition_split or args.training_competition_id is not None
@@ -184,6 +247,20 @@ def _validate_args(args: argparse.Namespace) -> None:
             raise ValueError(
                 "--train-all-races cannot be combined with race-count limits"
             )
+        if args.chronological_test_races:
+            raise ValueError(
+                "--train-all-races cannot reserve a chronological test cohort"
+            )
+    if (
+        args.chronological_test_races
+        and (
+            args.competition_split or args.training_competition_id is not None
+            or args.validation_competition_id is not None
+        )
+    ):
+        raise ValueError(
+            "--chronological-test-races cannot be combined with competition splits"
+        )
 
 
 def _selected_indices(
@@ -329,17 +406,34 @@ def _raceformer_objective(
     cardinality_weight: float,
     listwise_weight: float,
     market_residual_weight: float,
+    bce_weight: float = 1.0,
+    market_error_weight: float = 0.0,
+    market_correct_stability_weight: float = 0.0,
+    market_uninvolved_stability_weight: float = 0.0,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
-    logits, _, correction = model.forward_parts(bx, valid)
+    logits, anchor, correction = model.forward_parts(bx, valid)
     loss, components = raceformer_losses(
-        logits, by, valid, ranking_weight, cardinality_weight, listwise_weight
+        logits, by, valid, ranking_weight, cardinality_weight, listwise_weight,
+        bce_weight,
     )
     residual_penalty = (
         correction[valid].square().mean()
         if model.variant == "market_residual" else logits.new_zeros(())
     )
     loss = loss + market_residual_weight * residual_penalty
-    return logits, loss, {**components, "residual_penalty": residual_penalty}
+    cutoff = market_cutoff_losses(logits, by, anchor, correction, valid)
+    loss = (
+        loss
+        + market_error_weight * cutoff["market_error"]
+        + market_correct_stability_weight * cutoff["market_correct_stability"]
+        + market_uninvolved_stability_weight
+        * cutoff["market_uninvolved_stability"]
+    )
+    return logits, loss, {
+        **components,
+        "residual_penalty": residual_penalty,
+        **cutoff,
+    }
 
 
 def evaluate(
@@ -348,6 +442,10 @@ def evaluate(
     ranking_weight: float, cardinality_weight: float, device: torch.device,
     listwise_weight: float,
     market_residual_weight: float = 0.0,
+    bce_weight: float = 1.0,
+    market_error_weight: float = 0.0,
+    market_correct_stability_weight: float = 0.0,
+    market_uninvolved_stability_weight: float = 0.0,
 ) -> tuple[float, dict[str, float | int]]:
     model.eval()
     weighted_loss = 0.0
@@ -355,15 +453,28 @@ def evaluate(
     probabilities = []
     targets = []
     evaluated_race_ids = []
+    component_totals = {
+        "market_error": 0.0,
+        "market_correct_stability": 0.0,
+        "market_uninvolved_stability": 0.0,
+        "market_mistake_race_fraction": 0.0,
+        "market_cutoff_pair_accuracy": 0.0,
+        "market_repair_race_fraction": 0.0,
+        "market_outsider_intrusion_rate": 0.0,
+    }
     with torch.inference_mode():
         for groups in _batches(race_indices, races_per_batch, rng=None):
             bx, by, valid, flat_ids = _pad_batch(x, y, race_ids, groups, device)
-            logits, loss, _ = _raceformer_objective(
+            logits, loss, components = _raceformer_objective(
                 model, bx, by, valid, ranking_weight, cardinality_weight,
-                listwise_weight, market_residual_weight,
+                listwise_weight, market_residual_weight, bce_weight,
+                market_error_weight, market_correct_stability_weight,
+                market_uninvolved_stability_weight,
             )
             weighted_loss += float(loss) * len(groups)
             evaluated_races += len(groups)
+            for name in component_totals:
+                component_totals[name] += float(components[name]) * len(groups)
             probabilities.append(torch.sigmoid(logits[valid]).cpu().numpy())
             targets.append(by[valid].cpu().numpy().astype(np.int64))
             evaluated_race_ids.append(flat_ids)
@@ -371,6 +482,10 @@ def evaluate(
         np.concatenate(targets), np.concatenate(probabilities),
         np.concatenate(evaluated_race_ids),
     )
+    metrics.update({
+        f"validation_{name}": total / evaluated_races
+        for name, total in component_totals.items()
+    })
     return weighted_loss / evaluated_races, metrics
 
 
@@ -481,6 +596,32 @@ def main() -> None:
     torch.manual_seed(args.seed)
     device = torch.device(args.device)
     features, zero_features = load_feature_manifest(args.features_json)
+    if args.feature_mask_checkpoint is not None:
+        mask_checkpoint = torch.load(
+            args.feature_mask_checkpoint.resolve(), map_location="cpu",
+            weights_only=False,
+        )
+        mask_features = mask_checkpoint.get(
+            "raw_feature_columns", mask_checkpoint.get("feature_columns")
+        )
+        if list(mask_features or []) != features:
+            raise ValueError(
+                "--feature-mask-checkpoint raw features do not exactly match "
+                "--features-json"
+            )
+        zero_features = list(mask_checkpoint.get("zeroed_features", []))
+        unknown_zeroed = sorted(set(zero_features) - set(features))
+        if unknown_zeroed:
+            raise ValueError(
+                "Feature-mask checkpoint has unknown zeroed features: "
+                + ", ".join(unknown_zeroed)
+            )
+        print(
+            f"feature_mask_checkpoint={args.feature_mask_checkpoint.resolve()} "
+            f"zeroed_features={len(zero_features)} active_raw_features="
+            f"{len(features) - len(zero_features)}",
+            flush=True,
+        )
     if not args.no_export:
         export_rows_to_csv(args.db, features, TRAINING_ROWS_VIEW, args.training_csv)
         export_rows_to_csv(args.db, features, VALIDATION_ROWS_VIEW, args.validation_csv)
@@ -516,6 +657,7 @@ def main() -> None:
             _resolve_competition_split(args, all_ids, all_competitions)
         )
     validation_ids: np.ndarray | None = None
+    test_ids: np.ndarray | None = None
     if args.train_all_races:
         train_x, train_y, train_ids, train_times = (
             all_x, all_y, all_ids, all_times
@@ -552,19 +694,42 @@ def main() -> None:
             flush=True,
         )
     elif args.chronological_validation_races:
-        validation_ids = chronological_validation_ids(
-            all_y, all_ids, args.chronological_validation_races
-        )
-        (
-            train_x, train_y, train_ids, train_times,
-            valid_x, valid_y, valid_ids, valid_times,
-        ) = partition_by_validation_ids(
-            all_x, all_y, all_ids, all_times, validation_ids
-        )
-        print(
-            f"chronological_partition validation_races={len(validation_ids)} "
-            f"cutoff={valid_times[0].isoformat()}", flush=True,
-        )
+        if args.chronological_test_races:
+            validation_ids, test_ids = chronological_holdout_ids(
+                all_y, all_ids, args.chronological_validation_races,
+                args.chronological_test_races,
+            )
+            (
+                train_x, train_y, train_ids, train_times,
+                valid_x, valid_y, valid_ids, valid_times,
+                _, _, test_row_ids, test_times,
+            ) = partition_by_validation_and_test_ids(
+                all_x, all_y, all_ids, all_times, validation_ids, test_ids
+            )
+            print(
+                "chronological_three_way_partition "
+                f"validation_races={len(validation_ids)} "
+                f"validation_cutoff={valid_times[0].isoformat()} "
+                f"sealed_test_races={len(test_ids)} "
+                f"test_cutoff={test_times[0].isoformat()} "
+                f"test_end={test_times[-1].isoformat()}",
+                flush=True,
+            )
+            assert set(map(int, test_row_ids)) == set(map(int, test_ids))
+        else:
+            validation_ids = chronological_validation_ids(
+                all_y, all_ids, args.chronological_validation_races
+            )
+            (
+                train_x, train_y, train_ids, train_times,
+                valid_x, valid_y, valid_ids, valid_times,
+            ) = partition_by_validation_ids(
+                all_x, all_y, all_ids, all_times, validation_ids
+            )
+            print(
+                f"chronological_partition validation_races={len(validation_ids)} "
+                f"cutoff={valid_times[0].isoformat()}", flush=True,
+            )
     train_races, invalid_train = _selected_indices(
         train_y, train_ids, args.max_training_races, "Training"
     )
@@ -703,11 +868,20 @@ def main() -> None:
             "ranking_loss_weight": args.ranking_loss_weight,
             "cardinality_loss_weight": args.cardinality_loss_weight,
             "listwise_loss_weight": args.listwise_loss_weight,
+            "bce_loss_weight": args.bce_loss_weight,
             "market_residual_scale": args.market_residual_scale,
             "market_residual_weight": args.market_residual_weight,
+            "market_error_loss_weight": args.market_error_loss_weight,
+            "market_correct_stability_weight": (
+                args.market_correct_stability_weight
+            ),
+            "market_uninvolved_stability_weight": (
+                args.market_uninvolved_stability_weight
+            ),
             "max_training_races": args.max_training_races,
             "max_validation_races": args.max_validation_races,
             "chronological_validation_races": args.chronological_validation_races,
+            "chronological_test_races": args.chronological_test_races,
             "training_competition_ids": training_competition_ids,
             "validation_competition_ids": validation_competition_ids,
             "layoff_bucket_mode": layoff_bucket_mode,
@@ -717,6 +891,10 @@ def main() -> None:
         "data": {
             "database": str(args.db.resolve()),
             "features_json": str(args.features_json.resolve()),
+            "feature_mask_checkpoint": (
+                str(args.feature_mask_checkpoint.resolve())
+                if args.feature_mask_checkpoint is not None else None
+            ),
             "output": str(args.output.resolve()),
             "training_csv": str(args.training_csv.resolve()),
             "validation_csv": str(args.validation_csv.resolve()),
@@ -728,8 +906,10 @@ def main() -> None:
             "active_trainable_features": active_features,
             "train_races": len(train_races),
             "validation_races": len(valid_races),
+            "sealed_test_races": int(len(test_ids)) if test_ids is not None else 0,
             "partition_mode": (
                 "full_data_fit" if args.train_all_races else
+                "chronological_three_way" if test_ids is not None else
                 "competition_holdout" if training_competition_ids is not None else
                 "chronological_latest_complete_races"
                 if validation_ids is not None else "legacy_database_views"
@@ -779,7 +959,11 @@ def main() -> None:
         epoch_losses = []
         component_values = {
             "bce": [], "ranking": [], "cardinality": [], "listwise": [],
-            "residual_penalty": [],
+            "residual_penalty": [], "market_error": [],
+            "market_correct_stability": [], "market_mistake_race_fraction": [],
+            "market_uninvolved_stability": [],
+            "market_cutoff_pair_accuracy": [], "market_repair_race_fraction": [],
+            "market_outsider_intrusion_rate": [],
         }
         for groups in _batches(train_races, args.races_per_batch, rng=rng):
             bx, by, valid, _ = _pad_batch(train_x, train_y, train_ids, groups, device)
@@ -787,7 +971,10 @@ def main() -> None:
             logits, loss, components = _raceformer_objective(
                 model, bx, by, valid, args.ranking_loss_weight,
                 args.cardinality_loss_weight, args.listwise_loss_weight,
-                args.market_residual_weight,
+                args.market_residual_weight, args.bce_loss_weight,
+                args.market_error_loss_weight,
+                args.market_correct_stability_weight,
+                args.market_uninvolved_stability_weight,
             )
             if not torch.isfinite(loss):
                 raise FloatingPointError("Non-finite RaceFormer training loss")
@@ -821,7 +1008,10 @@ def main() -> None:
             model, valid_x, valid_y, valid_ids, valid_races,
             args.races_per_batch, args.ranking_loss_weight,
             args.cardinality_loss_weight, device, args.listwise_loss_weight,
-            args.market_residual_weight,
+            args.market_residual_weight, args.bce_loss_weight,
+            args.market_error_loss_weight,
+            args.market_correct_stability_weight,
+            args.market_uninvolved_stability_weight,
         )
         selection = _selection(validation_loss, metrics, args.checkpoint_metric)
         improved = best_selection is None or selection > best_selection
@@ -843,6 +1033,27 @@ def main() -> None:
             "mean_residual_penalty": float(
                 np.mean(component_values["residual_penalty"])
             ),
+            "mean_market_error_loss": float(
+                np.mean(component_values["market_error"])
+            ),
+            "mean_market_correct_stability": float(
+                np.mean(component_values["market_correct_stability"])
+            ),
+            "market_mistake_race_fraction": float(
+                np.mean(component_values["market_mistake_race_fraction"])
+            ),
+            "mean_market_uninvolved_stability": float(
+                np.mean(component_values["market_uninvolved_stability"])
+            ),
+            "market_cutoff_pair_accuracy": float(
+                np.mean(component_values["market_cutoff_pair_accuracy"])
+            ),
+            "market_repair_race_fraction": float(
+                np.mean(component_values["market_repair_race_fraction"])
+            ),
+            "market_outsider_intrusion_rate": float(
+                np.mean(component_values["market_outsider_intrusion_rate"])
+            ),
         }
         history.append(row)
         print(
@@ -851,6 +1062,11 @@ def main() -> None:
             f"ndcg3={metrics['ndcg3']:.4f} pairwise={metrics['pairwise_ranking_accuracy']:.4f} "
             f"logloss={metrics['logloss']:.5f} select={selection[0]:.5f} "
             f"market_delta={row['market_composite_delta']:+.5f} "
+            f"cutoff_train={row['mean_market_error_loss']:.5f} "
+            f"cutoff_valid={metrics['validation_market_error']:.5f} "
+            f"pairfix={metrics['validation_market_cutoff_pair_accuracy']:.3f} "
+            f"repair={metrics['validation_market_repair_race_fraction']:.3f} "
+            f"intrusion={metrics['validation_market_outsider_intrusion_rate']:.3f} "
             f"best={'yes' if improved else 'no'} "
             f"stale={stale_epochs}/{args.early_stopping_patience}",
             flush=True,
@@ -868,7 +1084,10 @@ def main() -> None:
             model, train_x, train_y, train_ids, train_races,
             args.races_per_batch, args.ranking_loss_weight,
             args.cardinality_loss_weight, device, args.listwise_loss_weight,
-            args.market_residual_weight,
+            args.market_residual_weight, args.bce_loss_weight,
+            args.market_error_loss_weight,
+            args.market_correct_stability_weight,
+            args.market_uninvolved_stability_weight,
         )
     output = args.output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -908,6 +1127,7 @@ def main() -> None:
         "partition": {
             "mode": (
                 "full_data_fit" if args.train_all_races else
+                "chronological_three_way" if test_ids is not None else
                 "competition_holdout" if training_competition_ids is not None else
                 "chronological_latest_complete_races"
                 if validation_ids is not None else "legacy_database_views"
@@ -916,7 +1136,10 @@ def main() -> None:
             "validation_competition_ids": validation_competition_ids,
             "training_race_ids": (
                 sorted(map(int, train_races))
-                if training_competition_ids is not None or args.train_all_races else None
+                if (
+                    training_competition_ids is not None or args.train_all_races
+                    or validation_ids is not None
+                ) else None
             ),
             "validation_race_ids": (
                 checkpoint_validation_ids if validation_ids is not None else None
@@ -924,6 +1147,11 @@ def main() -> None:
             "validation_race_count": (
                 len(checkpoint_validation_ids)
             ),
+            "test_race_ids": (
+                list(map(int, test_ids)) if test_ids is not None else None
+            ),
+            "test_race_count": int(len(test_ids)) if test_ids is not None else 0,
+            "test_evaluated_during_training": False,
         },
         "invalid_races": {
             "training": [

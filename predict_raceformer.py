@@ -53,6 +53,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--backtest-max-races", type=int, default=0)
     parser.add_argument(
+        "--backtest-cohort", choices=("validation", "test"),
+        default="validation",
+        help=(
+            "Use checkpoint validation races or an explicitly sealed test cohort "
+            "(default: validation)."
+        ),
+    )
+    parser.add_argument(
         "--competition-id", type=int,
         help=(
             "Backtest all complete finished races from this competition, including "
@@ -105,13 +113,16 @@ def _backtest_frame(
             "Full-data-fit checkpoint has no held-out backtest cohort; evaluate it "
             "only on races collected after the refit cutoff"
         )
-    saved_ids = checkpoint.get("partition", {}).get("validation_race_ids")
+    cohort = getattr(args, "backtest_cohort", "validation")
+    saved_ids = checkpoint.get("partition", {}).get(f"{cohort}_race_ids")
     if saved_ids is not None:
         frame = load_checkpoint_backtest(
             args.db, list(map(int, saved_ids)), features,
             args.backtest_max_races, args.competition_id,
         )
-        return frame, "checkpoint_validation_races"
+        return frame, f"checkpoint_{cohort}_races"
+    if cohort == "test":
+        raise ValueError("Checkpoint has no sealed test cohort")
     frame = load_backtest(
         args.db, args.backtest_view, features, args.backtest_max_races,
         args.competition_id,

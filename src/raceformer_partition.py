@@ -32,8 +32,21 @@ def chronological_validation_ids(
     y: np.ndarray, race_ids: np.ndarray, count: int
 ) -> np.ndarray:
     """Select the latest N complete races from chronologically ordered rows."""
-    if count < 1:
+    validation_ids, _ = chronological_holdout_ids(y, race_ids, count, 0)
+    return validation_ids
+
+
+def chronological_holdout_ids(
+    y: np.ndarray,
+    race_ids: np.ndarray,
+    validation_count: int,
+    test_count: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Select consecutive validation and sealed-test cohorts chronologically."""
+    if validation_count < 1:
         raise ValueError("chronological validation race count must be positive")
+    if test_count < 0:
+        raise ValueError("chronological test race count must be zero or positive")
     invalid = {
         race_id for race_id, _, _ in invalid_race_targets(
             y, race_ids, np.ones(len(race_ids), dtype=bool)
@@ -43,12 +56,22 @@ def chronological_validation_ids(
         race_id for race_id in dict.fromkeys(map(int, race_ids))
         if race_id not in invalid
     ]
-    if len(ordered) <= count:
+    holdout_count = validation_count + test_count
+    if len(ordered) <= holdout_count:
         raise ValueError(
-            f"Need more than {count} eligible races for a chronological split; "
+            f"Need more than {holdout_count} eligible races for a chronological split; "
             f"found {len(ordered)}"
         )
-    return np.asarray(ordered[-count:], dtype=np.int64)
+    if test_count:
+        validation = ordered[-holdout_count:-test_count]
+        test = ordered[-test_count:]
+    else:
+        validation = ordered[-validation_count:]
+        test = []
+    return (
+        np.asarray(validation, dtype=np.int64),
+        np.asarray(test, dtype=np.int64),
+    )
 
 
 def partition_by_validation_ids(
@@ -70,4 +93,40 @@ def partition_by_validation_ids(
     return (
         x[~valid], y[~valid], race_ids[~valid], times[~valid],
         x[valid], y[valid], race_ids[valid], times[valid],
+    )
+
+
+def partition_by_validation_and_test_ids(
+    x: np.ndarray,
+    y: np.ndarray,
+    race_ids: np.ndarray,
+    times: np.ndarray,
+    validation_ids: np.ndarray,
+    test_ids: np.ndarray,
+) -> tuple[
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+]:
+    """Partition rows without exposing the sealed test cohort to training."""
+    overlap = np.intersect1d(validation_ids, test_ids)
+    if len(overlap):
+        raise ValueError("Chronological validation and test race IDs overlap")
+    known = np.unique(race_ids)
+    missing = np.setdiff1d(np.concatenate((validation_ids, test_ids)), known)
+    if len(missing):
+        raise ValueError(
+            f"Saved chronological cohorts are missing {len(missing)} races from snapshots"
+        )
+    validation = np.isin(race_ids, validation_ids)
+    test = np.isin(race_ids, test_ids)
+    training = ~(validation | test)
+    if not training.any() or not validation.any():
+        raise ValueError("Chronological split must leave training and validation rows")
+    if len(test_ids) and not test.any():
+        raise ValueError("Chronological split requested a test cohort but found no rows")
+    return (
+        x[training], y[training], race_ids[training], times[training],
+        x[validation], y[validation], race_ids[validation], times[validation],
+        x[test], y[test], race_ids[test], times[test],
     )
