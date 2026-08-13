@@ -39,23 +39,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--force", action="store_true",
-        help="Recalculate every race instead of only races not marked finished.",
+        help="Recalculate every race instead of only unfinished/missing-version races.",
     )
     return parser.parse_args()
 
 
-def target_selection(force: bool) -> tuple[str, str]:
+def target_selection(
+    force: bool,
+    version_column_available: bool = True,
+) -> tuple[str, str]:
     if force:
         return "1 = 1", "force"
 
     # Recalculate every unfinished race on every run because its source data can
-    # continue changing. Select the whole race so within-race ranks always see
-    # the complete field. Rows without a race ID can only select themselves.
-    unfinished = '"status" <> \'finished\''
+    # continue changing. Also calculate finished races that arrived after the
+    # last update or carry an older formula version. Select the whole race so
+    # within-race ranks always see the complete field. Rows without a race ID
+    # can only select themselves.
+    unfinished = 'COALESCE("status", \'\') <> \'finished\''
+    version_pending = (
+        f'("{CALCULATION_VERSION_COLUMN}" IS NULL OR '
+        f'"{CALCULATION_VERSION_COLUMN}" <> \'{CALCULATION_VERSION}\')'
+        if version_column_available else "1 = 1"
+    )
+    pending = f"({unfinished} OR {version_pending})"
     return (
-        f'"race_id" IN (SELECT "race_id" FROM "race_runners" WHERE {unfinished}) '
-        f'OR ("race_id" IS NULL AND {unfinished})',
-        "unfinished",
+        f'"race_id" IN (SELECT "race_id" FROM "race_runners" WHERE {pending}) '
+        f'OR ("race_id" IS NULL AND {pending})',
+        "pending",
     )
 
 
@@ -107,7 +118,10 @@ def main() -> None:
                 raise
             existing.add(CALCULATION_VERSION_COLUMN)
 
-        target_where, selection_mode = target_selection(args.force)
+        target_where, selection_mode = target_selection(
+            args.force,
+            version_column_available=CALCULATION_VERSION_COLUMN in existing,
+        )
 
         pending_rows, pending_races = connection.execute(
             f'SELECT COUNT(*), COUNT(DISTINCT "race_id") FROM "race_runners" '

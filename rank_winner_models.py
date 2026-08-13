@@ -268,6 +268,15 @@ def main() -> None:
             "live competition identifier. Rankings remain valid because the model "
             "never uses competition_id."
         )
+    if (
+        str(bundle.get("training_scope", "")) == "all_eligible_finished_races"
+        and str(race.get("status", "")).strip().casefold() == "finished"
+    ):
+        print(
+            "WARNING this is a finished race and the selected bundle was refit "
+            "on all eligible finished races. This ranking may be in-sample and "
+            "must not be reported as a held-out backtest result."
+        )
     if args.output_csv:
         path = args.output_csv.resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
