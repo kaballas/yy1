@@ -344,7 +344,21 @@
         "distance_minus_recent_avg",
         "open_price",
         "fluc1",
-        "fluc2"
+        "fluc2",
+        "best_finish_percentile_at_equal_or_higher_weight",
+        "wet_rating_rank",
+        "recent_3_distance_m",
+        "good_wins",
+        "prize_money_rank",
+        "form_class_level_weighted_3",
+        "best_finish_percentile_at_stronger_class",
+        "recent_weighted_win_rate_rank",
+        "recent_finish_percentile_weighted_3_minus_race_mean",
+        "recent_3_margin",
+        "dry_rating",
+        "jockey_history_starts",
+        "recent_similar_distance_speed_rank",
+        "hidden_sectional_run_best_3_gap_to_best"
       ]
     }
   }

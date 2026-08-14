@@ -43,7 +43,11 @@ from src.winner_ranker import (
     rows_for_races,
     select_blend_weights,
     select_form_features,
+    validate_ranker_groups,
+    winner_field_size_slices,
     winner_metrics,
+    winner_race_report,
+    xgb_ensemble_feature_importance,
 )
 
 
@@ -70,6 +74,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--skip-feature-update", action="store_true")
     parser.add_argument(
+        "--ranker-diagnostics", action="store_true",
+        help=(
+            "Save per-race results, field-size failure slices, XGBoost training "
+            "history, and gain/cover/split feature importance."
+        ),
+    )
+    parser.add_argument(
         "--skip-deployment-refit", action="store_true",
         help="Keep evaluation models instead of refitting deployment models on all history.",
     )
@@ -79,7 +90,9 @@ def parse_args() -> argparse.Namespace:
 def model_parameters(args: argparse.Namespace, seed: int, estimators: int) -> dict[str, Any]:
     return {
         "objective": "rank:ndcg",
-        "eval_metric": "map",
+        # The final metric remains MAP so early-stopping semantics stay
+        # backward compatible; NDCG curves make top-of-list learning visible.
+        "eval_metric": ["ndcg@1", "ndcg@3", "map"],
         "n_estimators": estimators,
         "max_depth": 4,
         "learning_rate": 0.025,
@@ -107,6 +120,19 @@ def train_evaluation_ensemble(
     validation_groups: np.ndarray,
     output_dir: Path,
 ) -> tuple[list[XGBRanker], list[int], list[str]]:
+    train_audit = validate_ranker_groups(train_matrix.assign(
+        race_id=np.repeat(np.arange(len(train_groups)), train_groups),
+        is_winner=train_targets,
+    ), train_targets, train_groups)
+    validation_audit = validate_ranker_groups(validation_matrix.assign(
+        race_id=np.repeat(np.arange(len(validation_groups)), validation_groups),
+        is_winner=validation_targets,
+    ), validation_targets, validation_groups)
+    print(
+        f"ranker_group_audit={label} train={json.dumps(train_audit)} "
+        f"validation={json.dumps(validation_audit)}",
+        flush=True,
+    )
     models: list[XGBRanker] = []
     iterations: list[int] = []
     paths: list[str] = []
@@ -118,13 +144,22 @@ def train_evaluation_ensemble(
             train_matrix,
             train_targets,
             group=train_groups,
-            eval_set=[(validation_matrix, validation_targets)],
-            eval_group=[validation_groups],
+            eval_set=[
+                (train_matrix, train_targets),
+                (validation_matrix, validation_targets),
+            ],
+            eval_group=[train_groups, validation_groups],
             verbose=False,
         )
         iteration = int(model.best_iteration) + 1
         path = output_dir / f"{label}_evaluation_seed_{seed}.json"
         model.save_model(path)
+        if args.ranker_diagnostics:
+            history_path = output_dir / f"{label}_evaluation_seed_{seed}_history.json"
+            history_path.write_text(
+                json.dumps(model.evals_result(), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
         print(
             f"trained={label} member={member + 1}/{args.ensemble_size} "
             f"seed={seed} best_trees={iteration} path={path}",
@@ -145,6 +180,9 @@ def refit_deployment_ensemble(
     iterations: list[int],
     output_dir: Path,
 ) -> list[str]:
+    validate_ranker_groups(matrix.assign(
+        race_id=np.repeat(np.arange(len(groups)), groups), is_winner=targets,
+    ), targets, groups)
     paths: list[str] = []
     for member, trees in enumerate(iterations):
         seed = args.seed + member * 1009
@@ -200,6 +238,25 @@ def print_metrics(cohort: str, metrics: dict[str, dict[str, float]]) -> None:
     print(table.to_string(float_format=lambda value: f"{value:.5f}"), flush=True)
 
 
+def save_ranker_diagnostics(
+    output_dir: Path,
+    cohort_name: str,
+    cohort: pd.DataFrame,
+    targets: np.ndarray,
+    scores: dict[str, np.ndarray],
+) -> None:
+    """Save per-race and field-size reports for each evaluated score."""
+    for label, score in scores.items():
+        report = winner_race_report(cohort, targets, score)
+        report.to_csv(output_dir / f"{cohort_name}_{label}_race_report.csv", index=False)
+        slices = winner_field_size_slices(report)
+        slices.to_csv(
+            output_dir / f"{cohort_name}_{label}_field_size_slices.csv", index=False
+        )
+        print(f"RANKER DIAGNOSTICS {cohort_name.upper()} {label.upper()}")
+        print(slices.to_string(index=False, float_format=lambda value: f"{value:.5f}"))
+
+
 def main() -> None:
     args = parse_args()
     if args.ensemble_size < 1 or args.max_estimators < 1:
@@ -245,6 +302,9 @@ def main() -> None:
     test_y = test["is_winner"].to_numpy(dtype=np.int64)
     train_groups = group_sizes(train)
     validation_groups = group_sizes(validation)
+    validate_ranker_groups(train, train_y, train_groups)
+    validate_ranker_groups(validation, validation_y, validation_groups)
+    validate_ranker_groups(test, test_y, group_sizes(test))
     all_eval = pd.concat([train, validation, test], ignore_index=True)
 
     train_form = form_matrix(train, features)
@@ -353,6 +413,20 @@ def main() -> None:
     test_path = output_dir / "test_predictions.csv"
     validation_predictions.to_csv(validation_path, index=False)
     test_predictions.to_csv(test_path, index=False)
+    if args.ranker_diagnostics:
+        save_ranker_diagnostics(
+            output_dir, "validation", validation, validation_y, validation_scores
+        )
+        save_ranker_diagnostics(output_dir, "test", test, test_y, test_scores)
+        importance_parts = [
+            xgb_ensemble_feature_importance(form_models, "form")
+        ]
+        if aware_models:
+            importance_parts.append(
+                xgb_ensemble_feature_importance(aware_models, "market_aware")
+            )
+        importance = pd.concat(importance_parts, ignore_index=True)
+        importance.to_csv(output_dir / "evaluation_feature_importance.csv", index=False)
 
     if args.skip_deployment_refit:
         form_deployment_paths = form_evaluation_paths

@@ -49,7 +49,11 @@ from src.winner_ranker import (
     rank_percentiles,
     rows_for_races,
     select_form_features,
+    validate_ranker_groups,
+    winner_field_size_slices,
     winner_metrics,
+    winner_race_report,
+    xgb_ensemble_feature_importance,
 )
 from train_winner_ranker_pipeline import model_parameters, score_table
 
@@ -89,6 +93,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight-step", type=float, default=0.001)
     parser.add_argument("--minimum-form-weight", type=float, default=0.0)
     parser.add_argument("--skip-feature-update", action="store_true")
+    parser.add_argument(
+        "--ranker-diagnostics", action="store_true",
+        help=(
+            "Save grouped OOF race reports, field-size failure slices, and "
+            "gain/cover/split feature importance for final XGBoost models."
+        ),
+    )
     parser.add_argument(
         "--retune-only",
         action="store_true",
@@ -505,6 +516,38 @@ def dynamic_blend_analysis(
     return selected_weights, sweep, model_metrics, metrics, deviation
 
 
+def save_oof_ranker_diagnostics(
+    oof: pd.DataFrame,
+    model_labels: list[str],
+    selected_weights: dict[str, float],
+    output_dir: Path,
+) -> None:
+    """Persist model/blend race failures and equal-race field-size slices."""
+    targets = oof["is_winner"].to_numpy(dtype=np.int64)
+    model_matrix = oof.loc[:, [
+        f"{name}_score" for name in model_labels
+    ]].to_numpy(dtype=np.float64)
+    diagnostic_scores = {
+        **{
+            label: oof[f"{label}_score"].to_numpy(dtype=np.float64)
+            for label in model_labels
+        },
+        "tuned_dynamic_blend": model_matrix @ np.asarray([
+            selected_weights[name] for name in model_labels
+        ]),
+        "raw_market_benchmark": oof["market_score"].to_numpy(dtype=np.float64),
+    }
+    for label, score in diagnostic_scores.items():
+        report = winner_race_report(oof, targets, score)
+        report.to_csv(output_dir / f"oof_{label}_race_report.csv", index=False)
+        slices = winner_field_size_slices(report)
+        slices.to_csv(
+            output_dir / f"oof_{label}_field_size_slices.csv", index=False
+        )
+        print(f"RANKER DIAGNOSTICS OOF {label.upper()}")
+        print(slices.to_string(index=False, float_format=lambda value: f"{value:.5f}"))
+
+
 def retune_saved_predictions(
     args: argparse.Namespace,
     output_dir: Path,
@@ -534,6 +577,8 @@ def retune_saved_predictions(
         oof, model_labels, args.weight_step, args.objective,
         args.minimum_form_weight,
     )
+    if args.ranker_diagnostics:
+        save_oof_ranker_diagnostics(oof, model_labels, selected, output_dir)
     recommendation = (
         json.loads(recommendation_path.read_text(encoding="utf-8"))
         if recommendation_path.is_file() else {}
@@ -606,6 +651,11 @@ def main() -> None:
     races = eligible_races(frame, args.minimum_runners)
     eligible_ids = races["race_id"].astype(int).tolist()
     all_finished = rows_for_races(frame, eligible_ids)
+    all_finished_audit = validate_ranker_groups(
+        all_finished,
+        all_finished["is_winner"].to_numpy(dtype=np.int64),
+        group_sizes(all_finished),
+    )
     eligible_features, duplicates = select_form_features(
         all_finished, numeric_columns, args.minimum_feature_coverage
     )
@@ -693,6 +743,7 @@ def main() -> None:
         f"models_retrained={json.dumps(training_labels)} "
         f"models_reused={json.dumps(reused_labels)}\n"
         f"tree_counts_by_model={json.dumps(tree_counts_by_model)}\n"
+        f"ranker_group_audit={json.dumps(all_finished_audit)}\n"
         "crossfit_guarantee=each_race_scored_by_models_not_trained_on_that_race "
         "sealed_test=no",
         flush=True,
@@ -709,6 +760,12 @@ def main() -> None:
         holdout = rows_for_races(all_finished, holdout_ids)
         train_y = training["is_winner"].to_numpy(dtype=np.int64)
         train_groups = group_sizes(training)
+        validate_ranker_groups(training, train_y, train_groups)
+        validate_ranker_groups(
+            holdout,
+            holdout["is_winner"].to_numpy(dtype=np.int64),
+            group_sizes(holdout),
+        )
         holdout_ids_array = holdout["race_id"].to_numpy(dtype=np.int64)
         model_scores: dict[str, np.ndarray] = {}
         for model_index, (label, configured_features) in enumerate(
@@ -783,6 +840,10 @@ def main() -> None:
         "top1_hit_rate", "top3_hit_rate", "mrr",
         "mean_winner_rank", "race_logloss",
     ]].to_string(float_format=lambda value: f"{value:.5f}"), flush=True)
+    if args.ranker_diagnostics:
+        save_oof_ranker_diagnostics(
+            oof, model_labels, selected_weights, output_dir
+        )
 
     all_y = all_finished["is_winner"].to_numpy(dtype=np.int64)
     all_groups = group_sizes(all_finished)
@@ -790,6 +851,7 @@ def main() -> None:
         label: list(existing_bundle.get("models", {}).get(label, []))
         for label in reused_labels
     }
+    importance_parts: list[pd.DataFrame] = []
     for model_index, (label, configured_features) in enumerate(feature_sets.items()):
         if label not in requested_labels:
             continue
@@ -805,6 +867,15 @@ def main() -> None:
         )
         model_paths[label] = save_ensemble(
             final_models, label, output_dir, args.seed + seed_offset
+        )
+        if args.ranker_diagnostics:
+            importance_parts.append(
+                xgb_ensemble_feature_importance(final_models, label)
+            )
+
+    if importance_parts:
+        pd.concat(importance_parts, ignore_index=True).to_csv(
+            output_dir / "all_finished_feature_importance.csv", index=False
         )
 
     versions = sorted(

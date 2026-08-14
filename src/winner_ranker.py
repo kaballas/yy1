@@ -251,6 +251,160 @@ def group_sizes(frame: pd.DataFrame) -> np.ndarray:
     return frame.groupby("race_id", sort=False).size().to_numpy(dtype=np.uint32)
 
 
+def validate_ranker_groups(
+    frame: pd.DataFrame,
+    targets: np.ndarray | None = None,
+    groups: np.ndarray | None = None,
+) -> dict[str, int | float]:
+    """Fail fast when rows cannot safely be passed to ``XGBRanker.fit``.
+
+    XGBoost receives group *sizes*, not race identifiers, so a race appearing
+    in two non-contiguous blocks would silently create incorrect ranking
+    queries. Winner models additionally require exactly one positive label in
+    every race.
+    """
+    if frame.empty:
+        raise ValueError("ranker frame must not be empty")
+    if "race_id" not in frame or frame["race_id"].isna().any():
+        raise ValueError("ranker race_id values must be present and non-null")
+
+    race_ids = frame["race_id"].to_numpy()
+    block_starts = np.r_[True, race_ids[1:] != race_ids[:-1]]
+    block_ids = race_ids[block_starts]
+    if len(block_ids) != len(pd.unique(block_ids)):
+        raise ValueError("ranker races must occupy one contiguous row block each")
+
+    expected = group_sizes(frame)
+    supplied = expected if groups is None else np.asarray(groups)
+    if supplied.ndim != 1 or not np.issubdtype(supplied.dtype, np.number):
+        raise ValueError("ranker groups must be a one-dimensional numeric array")
+    if not np.isfinite(supplied).all() or np.any(supplied <= 0):
+        raise ValueError("ranker group sizes must be finite positive values")
+    if not np.equal(supplied, np.floor(supplied)).all():
+        raise ValueError("ranker group sizes must be integers")
+    if int(supplied.sum()) != len(frame):
+        raise ValueError(
+            "ranker group sizes do not sum to row count: "
+            f"groups={int(supplied.sum()):,} rows={len(frame):,}"
+        )
+    if not np.array_equal(supplied.astype(np.uint64), expected.astype(np.uint64)):
+        raise ValueError("ranker group sizes do not match contiguous race blocks")
+
+    label_values = frame["is_winner"].to_numpy() if targets is None else targets
+    y = np.asarray(label_values)
+    if y.ndim != 1 or len(y) != len(frame):
+        raise ValueError("ranker targets must be one-dimensional and match row count")
+    if not np.isin(y, [0, 1]).all():
+        raise ValueError("winner-ranker targets must contain only zero and one")
+    winner_counts = pd.Series(y).groupby(frame["race_id"], sort=False).sum()
+    invalid = winner_counts[winner_counts != 1]
+    if not invalid.empty:
+        raise ValueError(
+            "winner-ranker races must contain exactly one winner; invalid_races="
+            f"{len(invalid):,}"
+        )
+
+    sizes = expected.astype(np.int64)
+    return {
+        "rows": int(len(frame)),
+        "races": int(len(sizes)),
+        "minimum_runners": int(sizes.min()),
+        "median_runners": float(np.median(sizes)),
+        "maximum_runners": int(sizes.max()),
+        "singleton_races": int(np.sum(sizes == 1)),
+        # One positive versus every negative is the available pair count for
+        # this binary winner target before XGBoost's pair sampler is applied.
+        "winner_loser_pairs": int(np.sum(sizes - 1)),
+    }
+
+
+def winner_race_report(
+    frame: pd.DataFrame, targets: np.ndarray, scores: np.ndarray
+) -> pd.DataFrame:
+    """Return one auditable result row per race, including random baselines."""
+    y = np.asarray(targets, dtype=np.int64)
+    prediction = np.asarray(scores, dtype=np.float64)
+    validate_ranker_groups(frame, y)
+    if prediction.ndim != 1 or len(prediction) != len(frame):
+        raise ValueError("ranker scores must be one-dimensional and match row count")
+    if not np.isfinite(prediction).all():
+        raise ValueError("ranker scores must be finite")
+
+    rows: list[dict[str, Any]] = []
+    for race_id, positions in pd.Series(
+        np.arange(len(frame)), index=frame.index
+    ).groupby(frame["race_id"], sort=False):
+        indices = positions.to_numpy(dtype=np.int64)
+        race_y = y[indices]
+        race_scores = prediction[indices]
+        order = np.argsort(-race_scores, kind="stable")
+        winner = int(np.flatnonzero(race_y == 1)[0])
+        winner_rank = int(np.flatnonzero(order == winner)[0]) + 1
+        size = len(indices)
+        row: dict[str, Any] = {
+            "race_id": race_id,
+            "runners": size,
+            "top1_hit": int(winner_rank == 1),
+            "top3_hit": int(winner_rank <= 3),
+            "winner_rank": winner_rank,
+            "reciprocal_rank": 1.0 / winner_rank,
+            "random_top1_expected": 1.0 / size,
+            "random_top3_expected": min(3, size) / size,
+        }
+        for column in (
+            "start_time_iso", "competition_id", "competition_name",
+            "race_number", "race_name",
+        ):
+            if column in frame:
+                row[column] = frame.iloc[indices[0]][column]
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def winner_field_size_slices(report: pd.DataFrame) -> pd.DataFrame:
+    """Summarize rank quality by field size without weighting large races more."""
+    if report.empty:
+        raise ValueError("winner race report must not be empty")
+    work = report.copy()
+    work["field_size_bucket"] = pd.cut(
+        work["runners"],
+        [0, 6, 9, 12, 16, np.inf],
+        labels=["1-6", "7-9", "10-12", "13-16", "17+"],
+        right=True,
+    )
+    return work.groupby("field_size_bucket", sort=True, observed=True).agg(
+        races=("race_id", "size"),
+        top1_hit_rate=("top1_hit", "mean"),
+        top3_hit_rate=("top3_hit", "mean"),
+        mrr=("reciprocal_rank", "mean"),
+        mean_winner_rank=("winner_rank", "mean"),
+        random_top1_expected=("random_top1_expected", "mean"),
+        random_top3_expected=("random_top3_expected", "mean"),
+    ).reset_index()
+
+
+def xgb_ensemble_feature_importance(
+    models: list[Any], label: str
+) -> pd.DataFrame:
+    """Expose gain, cover, split count, and total gain for every ensemble member."""
+    records: list[dict[str, Any]] = []
+    for member, model in enumerate(models, start=1):
+        booster = model.get_booster()
+        for importance_type in ("gain", "cover", "weight", "total_gain"):
+            values = booster.get_score(importance_type=importance_type)
+            for feature, value in values.items():
+                records.append({
+                    "model": label,
+                    "member": member,
+                    "importance_type": importance_type,
+                    "feature": feature,
+                    "value": float(value),
+                })
+    return pd.DataFrame.from_records(records, columns=[
+        "model", "member", "importance_type", "feature", "value",
+    ])
+
+
 def rank_percentiles(scores: np.ndarray, race_ids: np.ndarray) -> np.ndarray:
     """Normalize arbitrary scores within each race: one=best, zero=worst."""
     work = pd.DataFrame({

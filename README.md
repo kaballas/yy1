@@ -62,6 +62,29 @@ python train_winner_ranker_pipeline.py \
 Only such a diagnostic bundle supports `--ranking market_aware` or
 `--ranking benchmark`; neither can become the deployment default.
 
+Add `--ranker-diagnostics` to either XGBoost training command to audit the
+ranking models. Group contiguity, group sizes, binary labels, one-winner-per-race
+and learnable pair counts are validated for every fit even without the flag.
+The flag additionally saves:
+
+- chronological train/validation NDCG@1, NDCG@3, and MAP histories;
+- one-row-per-race winner ranks and random top-1/top-3 baselines;
+- field-size performance slices; and
+- gain, cover, split-count, and total-gain feature importance for each member.
+
+For example:
+
+```bash
+python train_tune_all_finished_winner_ranker.py \
+  --retune-only \
+  --objective top3 \
+  --weight-step 0.0001 \
+  --ranker-diagnostics
+```
+
+With `--retune-only`, race reports and slices are regenerated from saved OOF
+predictions; feature importance requires a training/refit run.
+
 Tune a two-model blend without giving raw market rank any weight:
 
 ```bash

@@ -19,7 +19,11 @@ from src.winner_ranker import (
     rank_percentiles,
     select_blend_weights,
     select_form_features,
+    validate_ranker_groups,
+    winner_field_size_slices,
     winner_metrics,
+    winner_race_report,
+    xgb_ensemble_feature_importance,
 )
 
 
@@ -114,6 +118,78 @@ def test_eligible_races_requires_one_winner_and_minimum_field():
     races = eligible_races(frame, minimum_runners=2)
 
     assert races["race_id"].tolist() == [1, 3]
+
+
+def test_ranker_group_validation_reports_learnable_pairs():
+    frame = pd.DataFrame({
+        "race_id": [1, 1, 1, 2, 2],
+        "is_winner": [1, 0, 0, 0, 1],
+    })
+
+    audit = validate_ranker_groups(
+        frame, frame["is_winner"].to_numpy(), np.asarray([3, 2])
+    )
+
+    assert audit == {
+        "rows": 5,
+        "races": 2,
+        "minimum_runners": 2,
+        "median_runners": 2.5,
+        "maximum_runners": 3,
+        "singleton_races": 0,
+        "winner_loser_pairs": 3,
+    }
+
+
+def test_ranker_group_validation_rejects_noncontiguous_races():
+    frame = pd.DataFrame({
+        "race_id": [1, 2, 1, 2],
+        "is_winner": [1, 1, 0, 0],
+    })
+
+    with pytest.raises(ValueError, match="contiguous"):
+        validate_ranker_groups(frame)
+
+
+def test_ranker_group_validation_rejects_wrong_group_sizes():
+    frame = pd.DataFrame({
+        "race_id": [1, 1, 2, 2],
+        "is_winner": [1, 0, 0, 1],
+    })
+
+    with pytest.raises(ValueError, match="do not match"):
+        validate_ranker_groups(frame, groups=np.asarray([1, 3]))
+
+
+def test_winner_race_report_and_field_slices_include_random_baseline():
+    frame = pd.DataFrame({
+        "race_id": [1, 1, 2, 2, 2],
+        "is_winner": [1, 0, 0, 1, 0],
+    })
+    scores = np.asarray([0.9, 0.1, 0.8, 0.7, 0.1])
+
+    report = winner_race_report(frame, frame["is_winner"].to_numpy(), scores)
+    slices = winner_field_size_slices(report)
+
+    assert report["winner_rank"].tolist() == [1, 2]
+    assert report["random_top1_expected"].tolist() == pytest.approx([0.5, 1 / 3])
+    assert slices.loc[0, "top1_hit_rate"] == pytest.approx(0.5)
+    assert slices.loc[0, "random_top1_expected"] == pytest.approx(5 / 12)
+
+
+def test_xgb_feature_importance_exposes_multiple_importance_types():
+    class Booster:
+        def get_score(self, importance_type):
+            return {"speed": 2.0} if importance_type != "cover" else {"weight": 3.0}
+
+    class Model:
+        def get_booster(self):
+            return Booster()
+
+    result = xgb_ensemble_feature_importance([Model()], "form")
+
+    assert set(result["importance_type"]) == {"gain", "cover", "weight", "total_gain"}
+    assert set(result["model"]) == {"form"}
 
 
 def test_current_market_features_use_lower_price_as_better():
