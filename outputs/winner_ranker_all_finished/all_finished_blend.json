@@ -1,66 +1,160 @@
 {
-  "blend": "all_finished_crossfit_form_plus_market_aware",
+  "blend": "all_finished_crossfit_dynamic_model_groups",
   "crossfit_folds": 5,
-  "eligible_finished_races": 8483,
-  "eligible_finished_rows": 83125,
-  "objective": "top1",
+  "eligible_finished_races": 8490,
+  "eligible_finished_rows": 83195,
+  "model_labels": [
+    "form",
+    "market_aware",
+    "x1",
+    "fun",
+    "x2",
+    "x3"
+  ],
+  "model_oof_metrics": {
+    "form": {
+      "mean_winner_rank": 3.145465253239105,
+      "mrr": 0.5277800932217894,
+      "race_logloss": 2.0467331131891053,
+      "races": 8490.0,
+      "top1_hit_rate": 0.3149587750294464,
+      "top3_hit_rate": 0.662190812720848
+    },
+    "fun": {
+      "mean_winner_rank": 3.1665488810365137,
+      "mrr": 0.5255017116766234,
+      "race_logloss": 2.049213419518825,
+      "races": 8490.0,
+      "top1_hit_rate": 0.31260306242638397,
+      "top3_hit_rate": 0.6574793875147232
+    },
+    "market_aware": {
+      "mean_winner_rank": 3.0160188457008243,
+      "mrr": 0.5485393872584685,
+      "race_logloss": 2.0315949138950535,
+      "races": 8490.0,
+      "top1_hit_rate": 0.34063604240282686,
+      "top3_hit_rate": 0.6846878680800942
+    },
+    "x1": {
+      "mean_winner_rank": 3.5906949352179036,
+      "mrr": 0.4773546439491669,
+      "race_logloss": 2.0971102564509287,
+      "races": 8490.0,
+      "top1_hit_rate": 0.26548881036513544,
+      "top3_hit_rate": 0.585394581861013
+    },
+    "x2": {
+      "mean_winner_rank": 3.9176678445229682,
+      "mrr": 0.4411986408762027,
+      "race_logloss": 2.133168027563941,
+      "races": 8490.0,
+      "top1_hit_rate": 0.23050647820965842,
+      "top3_hit_rate": 0.5347467608951708
+    },
+    "x3": {
+      "mean_winner_rank": 3.5896348645465253,
+      "mrr": 0.47256018013526846,
+      "race_logloss": 2.0968669942474483,
+      "races": 8490.0,
+      "top1_hit_rate": 0.2568904593639576,
+      "top3_hit_rate": 0.5881036513545348
+    }
+  },
+  "objective": "composite",
   "oof_market_deviation": {
-    "market_losses_corrected": 92.0,
-    "market_wins_damaged": 118.0,
-    "net_winners_gained": -26.0,
-    "races": 8483.0,
-    "top_pick_change_rate": 0.055051279028645525,
-    "top_pick_changes": 467.0
+    "market_losses_corrected": 153.0,
+    "market_wins_damaged": 148.0,
+    "net_winners_gained": 5.0,
+    "races": 8490.0,
+    "top_pick_change_rate": 0.07491166077738516,
+    "top_pick_changes": 636.0
   },
   "oof_metrics": {
-    "equal_blend": {
-      "mean_winner_rank": 3.1923847695390783,
-      "mrr": 0.5224965328658008,
-      "race_logloss": 2.055050861271507,
-      "races": 8483.0,
-      "top1_hit_rate": 0.3109748909583874,
-      "top3_hit_rate": 0.650595308263586
+    "equal_dynamic_blend": {
+      "mean_winner_rank": 3.2365135453474676,
+      "mrr": 0.5169300000483745,
+      "race_logloss": 2.06617976837363,
+      "races": 8490.0,
+      "top1_hit_rate": 0.30647820965842165,
+      "top3_hit_rate": 0.6392226148409894
     },
     "form_only": {
-      "mean_winner_rank": 3.5328303666155842,
-      "mrr": 0.4813181216075239,
-      "race_logloss": 2.0896729249925596,
-      "races": 8483.0,
-      "top1_hit_rate": 0.26629730048331957,
-      "top3_hit_rate": 0.5986089826712248
+      "mean_winner_rank": 3.145465253239105,
+      "mrr": 0.5277800932217894,
+      "race_logloss": 2.0467331131891053,
+      "races": 8490.0,
+      "top1_hit_rate": 0.3149587750294464,
+      "top3_hit_rate": 0.662190812720848
+    },
+    "fun_only": {
+      "mean_winner_rank": 3.1665488810365137,
+      "mrr": 0.5255017116766234,
+      "race_logloss": 2.049213419518825,
+      "races": 8490.0,
+      "top1_hit_rate": 0.31260306242638397,
+      "top3_hit_rate": 0.6574793875147232
     },
     "market_aware_only": {
-      "mean_winner_rank": 3.0187433690911236,
-      "mrr": 0.5472801297553743,
-      "race_logloss": 2.0318789711587004,
-      "races": 8483.0,
-      "top1_hit_rate": 0.33785217493811154,
-      "top3_hit_rate": 0.6863138040787458
+      "mean_winner_rank": 3.0160188457008243,
+      "mrr": 0.5485393872584685,
+      "race_logloss": 2.0315949138950535,
+      "races": 8490.0,
+      "top1_hit_rate": 0.34063604240282686,
+      "top3_hit_rate": 0.6846878680800942
     },
     "raw_market_benchmark": {
-      "mean_winner_rank": 3.0048331958033714,
-      "mrr": 0.5496648550344176,
-      "race_logloss": 2.0306303378248436,
-      "races": 8483.0,
-      "top1_hit_rate": 0.3415065424967582,
-      "top3_hit_rate": 0.6869032182011081
+      "mean_winner_rank": 3.005889281507656,
+      "mrr": 0.5494346080565162,
+      "race_logloss": 2.0307911665923846,
+      "races": 8490.0,
+      "top1_hit_rate": 0.34122497055359247,
+      "top3_hit_rate": 0.6865724381625442
     },
-    "tuned_blend": {
-      "mean_winner_rank": 3.0189791347400683,
-      "mrr": 0.547397146679535,
-      "race_logloss": 2.033828544124313,
-      "races": 8483.0,
-      "top1_hit_rate": 0.3384415890604739,
-      "top3_hit_rate": 0.6866674525521631
+    "tuned_dynamic_blend": {
+      "mean_winner_rank": 3.0134275618374557,
+      "mrr": 0.5492676993207029,
+      "race_logloss": 2.0325657270408772,
+      "races": 8490.0,
+      "top1_hit_rate": 0.3418138987043581,
+      "top3_hit_rate": 0.6850412249705536
+    },
+    "x1_only": {
+      "mean_winner_rank": 3.5906949352179036,
+      "mrr": 0.4773546439491669,
+      "race_logloss": 2.0971102564509287,
+      "races": 8490.0,
+      "top1_hit_rate": 0.26548881036513544,
+      "top3_hit_rate": 0.585394581861013
+    },
+    "x2_only": {
+      "mean_winner_rank": 3.9176678445229682,
+      "mrr": 0.4411986408762027,
+      "race_logloss": 2.133168027563941,
+      "races": 8490.0,
+      "top1_hit_rate": 0.23050647820965842,
+      "top3_hit_rate": 0.5347467608951708
+    },
+    "x3_only": {
+      "mean_winner_rank": 3.5896348645465253,
+      "mrr": 0.47256018013526846,
+      "race_logloss": 2.0968669942474483,
+      "races": 8490.0,
+      "top1_hit_rate": 0.2568904593639576,
+      "top3_hit_rate": 0.5881036513545348
     }
   },
   "raw_market_weight_fixed": 0.0,
   "schema_version": 2,
   "sealed_test_available": false,
   "selected_weights": {
-    "form": 0.054,
+    "form": 0.0978,
+    "fun": 0.0,
     "market": 0.0,
-    "market_aware": 0.946
+    "market_aware": 0.8977,
+    "x1": 0.0,
+    "x2": 0.0,
+    "x3": 0.0045
   },
   "selection_cohort": "all_eligible_finished_races_grouped_oof"
 }

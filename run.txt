@@ -380,3 +380,41 @@ python train_raceformer.py \
   - outputs/winner_ranker_all_finished/all_finished_blend.json
   - outputs/winner_ranker_all_finished/all_finished_oof_predictions.csv
   - outputs/winner_ranker_all_finished/all_finished_weight_sweep.csv
+
+
+
+
+
+
+
+  The tuner now:
+
+  - Starts with a global N-model simplex search.
+  - Refines the global result.
+  - Uses every configured JSON model.
+  - Keeps weights on exact --weight-step increments.
+  - Uses MRR, top-three, and mean rank to resolve equal top-one results.
+
+  You do not need to retrain the models. Retune the existing OOF predictions:
+
+  python train_tune_all_finished_winner_ranker.py \
+    --retune-only \
+    --objective top1 \
+    --weight-step 0.001
+
+  This updates:
+
+  outputs/winner_ranker_all_finished/all_finished_blend.json
+  outputs/winner_ranker_all_finished/all_finished_weight_sweep.csv
+  outputs/winner_ranker_all_finished/winner_ranker_bundle.json
+
+  For a more balanced objective rather than optimizing winner hit rate first:
+
+  python train_tune_all_finished_winner_ranker.py \
+    --retune-only \
+    --objective composite \
+    --weight-step 0.0001
+
+
+  python train_tune_all_finished_winner_ranker.py \
+    --models x3

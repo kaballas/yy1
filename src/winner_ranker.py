@@ -220,6 +220,32 @@ def market_aware_matrix(frame: pd.DataFrame, features: list[str]) -> pd.DataFram
     )
 
 
+def model_feature_matrix(frame: pd.DataFrame, features: list[str]) -> pd.DataFrame:
+    """Build a model matrix in the manifest's exact feature order.
+
+    Most names are database columns. Current-market engineered names are
+    calculated on demand and may appear in any configured model group.
+    """
+    engineered_names = set(MARKET_ENGINEERED_FEATURES)
+    engineered = (
+        current_market_features(frame)
+        if any(feature in engineered_names for feature in features)
+        else None
+    )
+    columns: dict[str, pd.Series] = {}
+    for feature in features:
+        if feature in engineered_names:
+            assert engineered is not None
+            columns[feature] = engineered[feature]
+        elif feature in frame:
+            columns[feature] = frame[feature]
+        else:
+            raise ValueError(f"Configured model feature is unavailable: {feature}")
+    return pd.DataFrame(columns, index=frame.index).apply(
+        pd.to_numeric, errors="coerce"
+    ).replace([np.inf, -np.inf], np.nan)
+
+
 def group_sizes(frame: pd.DataFrame) -> np.ndarray:
     """Return XGBoost query-group sizes for already race-sorted rows."""
     return frame.groupby("race_id", sort=False).size().to_numpy(dtype=np.uint32)
@@ -313,6 +339,24 @@ def blend_scores(
     if total <= 0 or any(value < 0 for value in weights.values()):
         raise ValueError("Blend weights must be non-negative with a positive sum")
     return sum(weights.get(name, 0.0) * value for name, value in values.items()) / total
+
+
+def blend_named_scores(
+    scores: dict[str, np.ndarray], weights: dict[str, float]
+) -> np.ndarray:
+    """Blend any dynamically named model scores using configured weights."""
+    unknown = set(weights) - set(scores)
+    if unknown:
+        raise ValueError(f"Unknown dynamic blend components: {sorted(unknown)}")
+    if any(float(weight) < 0 for weight in weights.values()):
+        raise ValueError("Dynamic blend weights must be non-negative")
+    total = float(sum(weights.values()))
+    if total <= 0:
+        raise ValueError("Dynamic blend weights must have a positive sum")
+    return sum(
+        float(weight) * np.asarray(scores[name], dtype=np.float64)
+        for name, weight in weights.items()
+    ) / total
 
 
 def select_blend_weights(

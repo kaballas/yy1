@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Rank one active race with a current-market-free deployment model.
+"""Rank one active race with dynamically configured model groups.
 
-Current prices are displayed as a benchmark, but they do not affect the
-default ranking. Market-aware and blended benchmark rankings are diagnostic
-choices that must be requested explicitly.
+Every model uses the exact ordered feature list stored in the bundle. Output
+explicitly reports whether the requested model or blend uses current-market
+features.
 """
 
 from __future__ import annotations
@@ -25,12 +25,13 @@ except ImportError as exc:  # pragma: no cover - CLI environment failure
 from src.config import DEFAULT_DB
 from src.database import quote_identifier
 from src.winner_ranker import (
+    MARKET_ENGINEERED_FEATURES,
+    blend_named_scores,
     blend_scores,
     ensemble_rank_scores,
-    form_matrix,
     is_current_market_feature,
-    market_aware_matrix,
     market_scores,
+    model_feature_matrix,
     rank_percentiles,
 )
 from src.advanced_racing_features import race_relative_runner_mask
@@ -54,15 +55,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--ranking",
-        choices=(
-            "deployment", "form", "tuned", "market_aware", "benchmark", "market",
-            "selected",
-        ),
         default="deployment",
         help=(
-            "Ranking to display. 'deployment' (default), 'form', and legacy "
-            "'selected' are current-market-free. Other choices are explicit "
-            "market diagnostics."
+            "Ranking to display: deployment, tuned, market, or any model-group "
+            "name from the bundle (for example form, market_aware, or fun)."
         ),
     )
     parser.add_argument(
@@ -125,8 +121,8 @@ def ranked_output(
     scores: dict[str, np.ndarray],
     ranking: str,
 ) -> pd.DataFrame:
-    if "form" not in scores or "market" not in scores:
-        raise ValueError("Ranking output requires form and market benchmark scores")
+    if "market" not in scores:
+        raise ValueError("Ranking output requires the market benchmark score")
     if ranking not in scores:
         raise ValueError(f"Ranking {ranking!r} was not calculated")
     output = frame[[
@@ -137,9 +133,12 @@ def ranked_output(
         output[f"{name}_rank"] = pd.Series(values).rank(
             method="first", ascending=False
         ).astype(int)
-    output["market_to_form_upgrade"] = output["market_rank"] - output["form_rank"]
+    comparison = "form" if "form" in scores else "deployment"
+    output["market_to_form_upgrade"] = (
+        output["market_rank"] - output[f"{comparison}_rank"]
+    )
     output["contrarian_top3"] = (
-        (output["form_rank"] <= 3) & (output["market_rank"] > 3)
+        (output[f"{comparison}_rank"] <= 3) & (output["market_rank"] > 3)
     ).astype(int)
     output = output.sort_values(
         [f"{ranking}_rank", "runner_number"], kind="stable", ignore_index=True
@@ -151,14 +150,29 @@ def ranked_output(
 def main() -> None:
     args = parse_args()
     bundle = load_bundle(args.bundle)
-    features = list(bundle["form_features"])
-    forbidden = [feature for feature in features if is_current_market_feature(feature)]
-    if forbidden:
-        raise ValueError(
-            "Refusing deployment bundle with current-race market form inputs: "
-            + ", ".join(forbidden)
+    legacy_form_features = list(bundle["form_features"])
+    configured_model_features = bundle.get("model_features", {})
+    model_features = {
+        label: list(features)
+        for label, features in configured_model_features.items()
+    }
+    available_models = bundle.get("models", {})
+    if "form" in available_models:
+        model_features.setdefault("form", legacy_form_features)
+    if "market_aware" in available_models:
+        model_features.setdefault(
+            "market_aware",
+            [*legacy_form_features, *MARKET_ENGINEERED_FEATURES],
         )
-    frame = load_active_race(args.db, args.race_id, features)
+    database_features = list(dict.fromkeys([
+        *(
+            feature
+            for features in model_features.values()
+            for feature in features
+            if feature not in MARKET_ENGINEERED_FEATURES
+        ),
+    ]))
+    frame = load_active_race(args.db, args.race_id, database_features)
     versions = sorted(
         str(value) for value in frame["derived_racing_features_version"].dropna().unique()
     )
@@ -174,30 +188,24 @@ def main() -> None:
         )
 
     race_ids = frame["race_id"].to_numpy(dtype=np.int64)
-    form_models = load_models(list(bundle["models"]["form"]))
-    form_score = ensemble_rank_scores(form_models, form_matrix(frame, features), race_ids)
-    market_score = rank_percentiles(market_scores(frame), race_ids)
-    # Deployment is hard-wired to the form ensemble. It cannot silently inherit
-    # market weights from an older bundle. ``selected`` remains as a legacy alias.
-    scores: dict[str, np.ndarray] = {
-        "form": form_score,
-        "deployment": form_score,
-        "selected": form_score,
-        "market": market_score,
-    }
-    diagnostic_weights: dict[str, float] | None = None
-    if args.ranking in {"tuned", "market_aware", "benchmark"}:
-        aware_paths = list(bundle.get("models", {}).get("market_aware", []))
-        if not aware_paths:
-            raise ValueError(
-                "This bundle has no market-aware diagnostic models. Retrain with "
-                "--include-market-aware-benchmark."
-            )
-        aware_models = load_models(aware_paths)
-        aware_score = ensemble_rank_scores(
-            aware_models, market_aware_matrix(frame, features), race_ids
+    scores: dict[str, np.ndarray] = {}
+    for label, configured_features in model_features.items():
+        paths = list(bundle.get("models", {}).get(label, []))
+        if not paths:
+            continue
+        models = load_models(paths)
+        scores[label] = ensemble_rank_scores(
+            models, model_feature_matrix(frame, configured_features), race_ids
         )
-        scores["market_aware"] = aware_score
+    market_score = rank_percentiles(market_scores(frame), race_ids)
+    scores["market"] = market_score
+    deployment_model = str(bundle.get("deployment_default", "form"))
+    if deployment_model not in scores:
+        raise ValueError(f"Deployment model is unavailable: {deployment_model}")
+    scores["deployment"] = scores[deployment_model]
+    scores["selected"] = scores[deployment_model]
+    diagnostic_weights: dict[str, float] | None = None
+    if args.ranking in {"tuned", "benchmark"}:
         if args.ranking == "tuned":
             config_path = args.blend_config.resolve()
             if not config_path.is_file():
@@ -208,32 +216,52 @@ def main() -> None:
             config = json.loads(config_path.read_text(encoding="utf-8"))
             diagnostic_weights = dict(config.get("selected_weights", {}))
             if float(diagnostic_weights.get("market", 0.0)) != 0.0:
-                raise ValueError("Tuned form/market-aware blend must have raw market weight zero")
-            scores["tuned"] = blend_scores(
-                form_score, aware_score, market_score, diagnostic_weights
-            )
+                raise ValueError("Tuned model blend must have raw market weight zero")
+            scores["tuned"] = blend_named_scores(scores, diagnostic_weights)
         elif args.ranking == "benchmark":
+            if "form" not in scores or "market_aware" not in scores:
+                raise ValueError(
+                    "Legacy benchmark ranking requires form and market_aware models"
+                )
             diagnostic_weights = bundle.get("benchmark_blend_weights")
             if not diagnostic_weights:
                 raise ValueError("Bundle has no validation-selected benchmark blend")
             scores["benchmark"] = blend_scores(
-                form_score, aware_score, market_score,
+                scores["form"], scores["market_aware"], market_score,
                 dict(diagnostic_weights),
             )
     output = ranked_output(frame, scores, args.ranking)
 
     race = frame.iloc[0]
-    market_used = args.ranking in {
-        "market", "tuned", "market_aware", "benchmark",
-    }
+    displayed_model = (
+        deployment_model
+        if args.ranking in {"deployment", "selected"}
+        else args.ranking
+    )
+    displayed_features = model_features.get(displayed_model, [])
+    if args.ranking == "tuned" and diagnostic_weights is not None:
+        market_used = any(
+            float(diagnostic_weights.get(label, 0.0)) > 0
+            and any(
+                feature in MARKET_ENGINEERED_FEATURES
+                or is_current_market_feature(feature)
+                for feature in model_features.get(label, [])
+            )
+            for label in model_features
+        )
+    else:
+        market_used = args.ranking in {"market", "benchmark"} or any(
+            feature in MARKET_ENGINEERED_FEATURES
+            or is_current_market_feature(feature)
+            for feature in displayed_features
+        )
     heading = (
         "WINNER RANKER\n"
         f"race={args.race_id} {race['race_name']} venue={race['competition_name']} "
         f"start={race['start_time_iso']} active_runners={len(frame)}\n"
         f"display_ranking={args.ranking} "
         f"current_market_used_in_display_ranking={'yes' if market_used else 'no'}\n"
-        "deployment_weights={\"form\": 1.0, \"market\": 0.0, "
-        "\"market_aware\": 0.0}\n"
+        f"deployment_model={deployment_model}\n"
     )
     if diagnostic_weights is not None:
         weight_label = (
@@ -250,9 +278,16 @@ def main() -> None:
         "contrarian_top3: form top three while outside market top three"
     )
     print(heading)
+    dynamic_model_columns = [
+        column
+        for label in model_features
+        if label in scores
+        for column in (f"{label}_score", f"{label}_rank")
+    ]
     columns = [
         "display_rank", "runner_number", "runner_name", "fluc2",
-        f"{args.ranking}_score", "form_rank", "market_rank",
+        f"{args.ranking}_score", f"{args.ranking}_rank",
+        *dynamic_model_columns, "market_rank",
         "tuned_rank", "market_aware_rank", "benchmark_rank", "market_to_form_upgrade",
         "contrarian_top3",
     ]

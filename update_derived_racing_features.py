@@ -224,9 +224,21 @@ def main() -> None:
             quoted_insert_columns = ",".join(f'"{name}"' for name in insert_columns)
             insert_sql = (f'INSERT INTO "derived_feature_updates" '
                           f'({quoted_insert_columns}) VALUES ({placeholders})')
-            staged = derived.loc[:, FEATURES_TO_STORE].astype(object)
-            staged = staged.where(pd.notna(staged), None)
-            staged.insert(0, "source_rowid", frame["rowid"].astype(int).to_numpy())
+            staged_values = derived.loc[:, FEATURES_TO_STORE].to_numpy(
+                dtype=object, copy=True
+            )
+            staged_values[pd.isna(staged_values)] = None
+            staged = pd.DataFrame(
+                staged_values, columns=FEATURES_TO_STORE, index=derived.index
+            )
+            staged = pd.concat([
+                pd.Series(
+                    frame["rowid"].astype(int).to_numpy(),
+                    index=derived.index,
+                    name="source_rowid",
+                ),
+                staged,
+            ], axis=1)
             connection.executemany(
                 insert_sql, staged.itertuples(index=False, name=None)
             )

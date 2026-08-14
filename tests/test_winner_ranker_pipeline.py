@@ -9,16 +9,48 @@ pytest.importorskip("xgboost")
 from rank_winner_models import load_active_race, ranked_output
 from src.winner_ranker import (
     blend_scores,
+    blend_named_scores,
     chronological_race_split,
     current_market_features,
     eligible_races,
     is_current_market_feature,
     market_deviation_metrics,
+    model_feature_matrix,
     rank_percentiles,
     select_blend_weights,
     select_form_features,
     winner_metrics,
 )
+
+
+def test_model_feature_matrix_uses_manifest_order_and_engineered_values():
+    frame = pd.DataFrame({
+        "race_id": [1, 1],
+        "fluc2": [2.0, 4.0],
+        "speed": [7.0, 8.0],
+    })
+
+    matrix = model_feature_matrix(
+        frame, ["current_market_rank_pct", "speed", "fluc2"]
+    )
+
+    assert matrix.columns.tolist() == [
+        "current_market_rank_pct", "speed", "fluc2",
+    ]
+    assert matrix["current_market_rank_pct"].tolist() == [1.0, 0.0]
+
+
+def test_named_blend_includes_dynamic_model_groups():
+    result = blend_named_scores(
+        {
+            "form": np.asarray([1.0, 0.0]),
+            "fun": np.asarray([0.0, 1.0]),
+            "market": np.asarray([0.5, 0.5]),
+        },
+        {"form": 0.25, "fun": 0.75, "market": 0.0},
+    )
+
+    np.testing.assert_allclose(result, [0.25, 0.75])
 
 
 def test_form_selection_excludes_results_identifiers_and_current_market():
@@ -146,6 +178,30 @@ def test_ranked_output_exposes_form_market_disagreement():
     assert output.iloc[0]["runner_number"] == 2
     assert output.iloc[0]["market_to_form_upgrade"] == 1
     assert output.iloc[0]["contrarian_top3"] == 0
+
+
+def test_ranked_output_keeps_dynamic_model_scores_visible():
+    frame = pd.DataFrame({
+        "runner_number": [1, 2],
+        "runner_name": ["A", "B"],
+        "fluc2": [2.0, 4.0],
+    })
+    form = np.asarray([0.8, 0.2])
+    fun = np.asarray([0.1, 0.9])
+
+    output = ranked_output(
+        frame,
+        {
+            "form": form,
+            "fun": fun,
+            "deployment": form,
+            "market": np.asarray([1.0, 0.0]),
+        },
+        "fun",
+    )
+
+    assert {"fun_score", "fun_rank", "form_score", "form_rank"} <= set(output)
+    assert output.iloc[0]["runner_number"] == 2
 
 
 def test_deployment_ranking_is_unchanged_when_current_market_changes():

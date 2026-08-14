@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 import numpy as np
 import pandas as pd
@@ -6,13 +7,21 @@ import pytest
 
 from analyze_winner_features import (
     activate_top_manifest_features,
+    aggregate_fold_metrics,
     eligible_race_table,
     feature_permutation_scope,
+    load_finished_runners,
+    numeric_heuristic_scores,
     outcome_conditioned_market_cohort,
+    parse_competition_ids,
     permute_feature,
+    random_top3_metrics,
+    resolve_validation_races,
     select_features,
     summarize_permutations,
-    winner_metrics,
+    temporal_validation_folds,
+    top_features_select_sql,
+    top3_metrics,
 )
 
 
@@ -20,6 +29,7 @@ def test_feature_selection_excludes_leakage_market_and_sparse_columns():
     frame = pd.DataFrame({
         "race_id": [1, 1, 2, 2],
         "is_winner": [1, 0, 0, 1],
+        "top3_mask": [1, 1, 0, 0],
         "is_trainable": [1, 1, 1, 1],
         "fluc2": [2.0, 3.0, 4.0, 5.0],
         "market_move": [0.1, 0.2, 0.3, 0.4],
@@ -32,6 +42,85 @@ def test_feature_selection_excludes_leakage_market_and_sparse_columns():
     features = select_features(frame, minimum_observations=3)
 
     assert features == ["recent_1_starting_price", "form_signal"]
+
+
+def test_feature_selection_combines_observation_and_coverage_thresholds():
+    frame = pd.DataFrame({
+        "well_covered": [1.0, 2.0, 3.0, 4.0],
+        "half_covered": [1.0, 2.0, np.nan, np.nan],
+    })
+
+    features = select_features(
+        frame, minimum_observations=1, minimum_coverage=0.75
+    )
+
+    assert features == ["well_covered"]
+
+
+def test_load_finished_runners_keeps_positive_and_negative_top3_rows(tmp_path):
+    database = tmp_path / "runners.sqlite"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            CREATE TABLE race_runners (
+                race_id INTEGER,
+                runner_number INTEGER,
+                top3_mask INTEGER,
+                runner_mask INTEGER,
+                status TEXT,
+                competition_id INTEGER,
+                start_time_iso TEXT
+            )
+            """
+        )
+        connection.executemany(
+            "INSERT INTO race_runners VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+                (1, 1, 1, 1, "finished", 580, "2026-01-01T00:00:00Z"),
+                (1, 2, 0, 1, "finished", 580, "2026-01-01T00:00:00Z"),
+                (1, 3, 0, 0, "finished", 580, "2026-01-01T00:00:00Z"),
+                (1, 4, 0, 1, "scratched", 580, "2026-01-01T00:00:00Z"),
+            ],
+        )
+
+    loaded = load_finished_runners(database, competition_id=580)
+
+    assert loaded["runner_number"].tolist() == [1, 2]
+    assert loaded["top3_mask"].tolist() == [1, 0]
+
+
+def test_competition_ids_accept_comma_separated_values_without_duplicates():
+    assert parse_competition_ids("570, 580,570,335") == [570, 580, 335]
+
+
+def test_load_finished_runners_accepts_multiple_competitions(tmp_path):
+    database = tmp_path / "runners.sqlite"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            CREATE TABLE race_runners (
+                race_id INTEGER,
+                runner_number INTEGER,
+                top3_mask INTEGER,
+                runner_mask INTEGER,
+                status TEXT,
+                competition_id INTEGER,
+                start_time_iso TEXT
+            )
+            """
+        )
+        connection.executemany(
+            "INSERT INTO race_runners VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+                (1, 1, 1, 1, "finished", 570, "2026-01-01T00:00:00Z"),
+                (2, 1, 1, 1, "finished", 580, "2026-01-02T00:00:00Z"),
+                (3, 1, 1, 1, "finished", 999, "2026-01-03T00:00:00Z"),
+            ],
+        )
+
+    loaded = load_finished_runners(database, competition_id=[570, 580])
+
+    assert loaded["competition_id"].tolist() == [570, 580]
 
 
 def test_within_race_permutation_preserves_race_constant_features():
@@ -64,61 +153,101 @@ def test_auto_uses_within_race_for_runner_varying_feature():
     assert feature_permutation_scope(values, race_ids, "auto") == "within-race"
 
 
-def test_winner_metrics_are_equal_per_race_and_rank_winners():
-    targets = np.asarray([1, 0, 0, 0, 1])
-    scores = np.asarray([0.8, 0.2, 0.9, 0.7, 0.8])
-    race_ids = np.asarray([1, 1, 2, 2, 2])
+def test_top3_metrics_are_equal_per_race_and_rank_top3_runners():
+    targets = np.asarray([1, 1, 1, 0, 1, 1, 1, 0])
+    scores = np.asarray([0.8, 0.7, 0.1, 0.6, 0.9, 0.8, 0.7, 0.1])
+    race_ids = np.asarray([1, 1, 1, 1, 2, 2, 2, 2])
 
-    metrics = winner_metrics(targets, scores, race_ids)
+    metrics = top3_metrics(targets, scores, race_ids)
 
-    assert metrics["top1_hit_rate"] == pytest.approx(0.5)
-    assert metrics["mrr"] == pytest.approx(0.75)
-    assert metrics["mean_winner_rank"] == pytest.approx(1.5)
-    assert metrics["race_logloss"] > 0
-
-
-def test_winner_metrics_softmax_raw_margins():
-    metrics = winner_metrics(
-        np.asarray([1, 0]), np.asarray([0.0, 1.0]), np.asarray([7, 7])
+    assert metrics["top3_hit_rate"] == pytest.approx(5 / 6)
+    assert metrics["top3_mrr"] == pytest.approx(
+        (1 + 1 / 2 + 1 / 4 + 1 + 1 / 2 + 1 / 3) / 6
     )
 
-    assert metrics["race_logloss"] == pytest.approx(np.log1p(np.e))
+
+def test_random_top3_metrics_use_each_race_field_size():
+    metrics = random_top3_metrics(
+        np.asarray([1, 1, 1, 1, 1, 1, 2, 2, 2, 2])
+    )
+
+    assert metrics["auc"] == 0.5
+    assert metrics["top3_hit_rate"] == pytest.approx((3 / 6 + 3 / 4) / 2)
+    assert metrics["top3_mrr"] == pytest.approx(
+        ((1 + 1 / 2 + 1 / 3 + 1 / 4 + 1 / 5 + 1 / 6) / 6
+         + (1 + 1 / 2 + 1 / 3 + 1 / 4) / 4)
+        / 2
+    )
+
+
+def test_fold_metrics_weight_auc_by_rows_and_rank_metrics_by_races():
+    metrics = aggregate_fold_metrics(
+        [
+            {"auc": 0.5, "top3_hit_rate": 0.2, "top3_mrr": 0.3},
+            {"auc": 0.8, "top3_hit_rate": 0.6, "top3_mrr": 0.7},
+        ],
+        row_counts=[100, 200],
+        race_counts=[10, 30],
+    )
+
+    assert metrics["auc"] == pytest.approx(0.7)
+    assert metrics["top3_hit_rate"] == pytest.approx(0.5)
+    assert metrics["top3_mrr"] == pytest.approx(0.6)
+
+
+def test_numeric_heuristic_uses_training_median_for_missing_validation():
+    scores = numeric_heuristic_scores(
+        pd.DataFrame({"win_percentage": [0.1, 0.3, np.nan]}),
+        pd.DataFrame({"win_percentage": [0.5, np.nan]}),
+        "win_percentage",
+    )
+
+    assert scores == pytest.approx([0.5, 0.2])
+
+
+def test_adaptive_validation_and_expanding_temporal_folds():
+    assert resolve_validation_races(1305, None) == 300
+    assert resolve_validation_races(92, None) == 23
+    assert resolve_validation_races(92, 20) == 20
+
+    races = pd.DataFrame({"race_id": np.arange(1, 13)})
+    folds = temporal_validation_folds(races, validation_races=6, fold_count=3)
+
+    assert [(train.tolist(), validation.tolist()) for train, validation in folds] == [
+        ([1, 2, 3, 4, 5, 6], [7, 8]),
+        ([1, 2, 3, 4, 5, 6, 7, 8], [9, 10]),
+        ([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [11, 12]),
+    ]
 
 
 def test_permutation_summary_uses_positive_values_for_worse_metrics():
     baseline = {
         "auc": 0.7,
-        "top1_hit_rate": 0.5,
-        "mrr": 0.6,
-        "race_logloss": 1.2,
-        "mean_winner_rank": 2.0,
+        "top3_hit_rate": 0.7,
+        "top3_mrr": 0.6,
     }
     shuffled = [{
         "auc": 0.65,
-        "top1_hit_rate": 0.4,
-        "mrr": 0.55,
-        "race_logloss": 1.3,
-        "mean_winner_rank": 2.2,
+        "top3_hit_rate": 0.6,
+        "top3_mrr": 0.55,
     }]
 
     summary = summarize_permutations(baseline, shuffled)
 
     assert summary["auc_drop_mean"] == pytest.approx(0.05)
-    assert summary["top1_drop_mean"] == pytest.approx(0.1)
-    assert summary["mrr_drop_mean"] == pytest.approx(0.05)
-    assert summary["race_logloss_increase_mean"] == pytest.approx(0.1)
-    assert summary["winner_rank_increase_mean"] == pytest.approx(0.2)
+    assert summary["top3_hit_drop_mean"] == pytest.approx(0.1)
+    assert summary["top3_mrr_drop_mean"] == pytest.approx(0.05)
 
 
-def test_eligible_races_skip_missing_or_multiple_winners():
+def test_eligible_races_require_four_runners_and_exactly_three_top3():
     frame = pd.DataFrame({
-        "race_id": [1, 1, 2, 2, 3, 3],
+        "race_id": [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3],
         "start_time_iso": [
-            "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z",
-            "2026-01-02T00:00:00Z", "2026-01-02T00:00:00Z",
-            "2026-01-03T00:00:00Z", "2026-01-03T00:00:00Z",
+            *["2026-01-01T00:00:00Z"] * 4,
+            *["2026-01-02T00:00:00Z"] * 4,
+            *["2026-01-03T00:00:00Z"] * 3,
         ],
-        "is_winner": [1, 0, 0, 0, 1, 1],
+        "top3_mask": [1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1],
     })
 
     races, skipped = eligible_race_table(frame)
@@ -171,3 +300,21 @@ def test_activate_top_manifest_features_removes_them_from_zero_bucket(tmp_path):
 
     assert activated == ["speed"]
     assert payload["zeroed_features"] == ["distance", "weight"]
+
+
+def test_top_features_select_sql_is_copy_pasteable_and_quotes_columns():
+    sql = top_features_select_sql(["speed", 'odd"name'], competition_id=580)
+
+    assert '"race_id",\n    "selection_id",\n    "runner_number"' in sql
+    assert '"speed",\n    "odd""name"' in sql
+    assert 'AND "competition_id" = 580' in sql
+    assert 'WHERE "top3_mask" IN (0, 1)' in sql
+    assert sql.endswith(
+        'ORDER BY "start_time_iso", "race_id", "runner_number";'
+    )
+
+
+def test_top_features_select_sql_accepts_multiple_competitions():
+    sql = top_features_select_sql(["speed"], competition_id=[570, 580, 335])
+
+    assert 'AND "competition_id" IN (570, 580, 335)' in sql
