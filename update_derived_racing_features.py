@@ -20,15 +20,49 @@ from src.advanced_racing_features import (
 from src.derived_racing_features import DERIVED_FEATURE_NAMES, derive_racing_features
 
 
+MARKET_DISAGREEMENT_COMPARISONS = {
+    "finish": "recent_finish_percentile_weighted_6_rank_in_race",
+    "margin": "recent_weighted_avg_margin_rank",
+    "distance_speed": "recent_similar_distance_speed_rank",
+    "jockey": "horse_jockey_win_rate_rank",
+    "career": "career_win_rate_rank",
+    "prize_money": "prize_money_rank",
+}
+MARKET_DISAGREEMENT_FEATURE_NAMES = tuple(
+    feature
+    for name in MARKET_DISAGREEMENT_COMPARISONS
+    for feature in (
+        f"{name}_rank_minus_market_rank",
+        f"{name}_market_rank_abs_gap",
+    )
+)
 FEATURES_TO_STORE = (
     *DERIVED_FEATURE_NAMES,
     *ADVANCED_FEATURE_NAMES,
+    *MARKET_DISAGREEMENT_FEATURE_NAMES,
 )
 CALCULATION_VERSION_COLUMN = "derived_racing_features_version"
 # Increment this whenever a formula or registry change requires existing rows to
 # be rebuilt. A version marker is reliable where feature NULLs are not: many
 # leakage-safe features are legitimately NULL because a horse has no history.
-CALCULATION_VERSION = "2026-08-13-v3"
+CALCULATION_VERSION = "2026-08-15-v4"
+
+
+def add_market_disagreement_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Compare independent evidence ranks with the current fluc2 market rank."""
+    df = df.copy()
+    market_rank_col = "fluc2_price_rank"
+    if market_rank_col not in df.columns:
+        return df
+
+    market_rank = pd.to_numeric(df[market_rank_col], errors="coerce")
+    for name, feature in MARKET_DISAGREEMENT_COMPARISONS.items():
+        if feature not in df.columns:
+            continue
+        gap_col = f"{name}_rank_minus_market_rank"
+        df[gap_col] = pd.to_numeric(df[feature], errors="coerce") - market_rank
+        df[f"{name}_market_rank_abs_gap"] = df[gap_col].abs()
+    return df
 
 
 def parse_args() -> argparse.Namespace:
@@ -82,6 +116,9 @@ def main() -> None:
         "active_field_size", "field_size",
         "jockey", "trainer", "finish_place", "career_starts", "career_wins",
         "career_seconds", "career_thirds", "place_percentage",
+        "fluc2_price_rank", "recent_weighted_avg_margin_rank",
+        "recent_similar_distance_speed_rank", "horse_jockey_win_rate_rank",
+        "career_win_rate_rank", "prize_money_rank",
         *(f"recent_{run}_{stem}" for run in range(1, 7) for stem in (
             "place", "margin", "total_runners", "barrier", "starting_price",
             "distance_m", "last600", "time", "class", "weight_kg",
@@ -175,6 +212,20 @@ def main() -> None:
                               derive_sectional_class_features(frame),
                               entity_target], axis=1)
             derived = pd.concat([base, derive_context_features(frame, base)], axis=1)
+            disagreement_inputs = pd.concat([
+                derived,
+                frame.loc[:, [
+                    "fluc2_price_rank", "recent_weighted_avg_margin_rank",
+                    "recent_similar_distance_speed_rank",
+                    "horse_jockey_win_rate_rank", "career_win_rate_rank",
+                    "prize_money_rank",
+                ]],
+            ], axis=1)
+            disagreement = add_market_disagreement_features(disagreement_inputs)
+            derived = pd.concat([
+                derived,
+                disagreement.loc[:, MARKET_DISAGREEMENT_FEATURE_NAMES],
+            ], axis=1)
         missing_outputs = [name for name in FEATURES_TO_STORE if name not in derived.columns]
         if missing_outputs:
             raise ValueError("Registered features were not generated: " + ", ".join(missing_outputs))

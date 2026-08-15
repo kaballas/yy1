@@ -1,0 +1,243 @@
+{
+  "feature_manifest": "/home/theo/yy1/winner_ranker_features.json",
+  "feature_manifest_sha256": "d1aba29a42c3728662c84e042a99b220eeaf50b40ab154f2465c5bc4afa37232",
+  "model_labels": [
+    "form",
+    "market_aware",
+    "x1",
+    "fun",
+    "x2",
+    "x3",
+    "x4",
+    "x5",
+    "gpt_pick",
+    "gpt_pick_v2",
+    "gpt_open",
+    "gpt_fluc2",
+    "market_corrector"
+  ],
+  "model_paths": {
+    "form": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/form_chronological_train_seed_42.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/form_chronological_train_seed_1051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/form_chronological_train_seed_2060.json"
+    ],
+    "fun": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/fun_chronological_train_seed_150042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/fun_chronological_train_seed_151051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/fun_chronological_train_seed_152060.json"
+    ],
+    "gpt_fluc2": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_fluc2_chronological_train_seed_550042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_fluc2_chronological_train_seed_551051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_fluc2_chronological_train_seed_552060.json"
+    ],
+    "gpt_open": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_open_chronological_train_seed_500042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_open_chronological_train_seed_501051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_open_chronological_train_seed_502060.json"
+    ],
+    "gpt_pick": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_pick_chronological_train_seed_400042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_pick_chronological_train_seed_401051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_pick_chronological_train_seed_402060.json"
+    ],
+    "gpt_pick_v2": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_pick_v2_chronological_train_seed_450042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_pick_v2_chronological_train_seed_451051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/gpt_pick_v2_chronological_train_seed_452060.json"
+    ],
+    "market_aware": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/market_aware_chronological_train_seed_50042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/market_aware_chronological_train_seed_51051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/market_aware_chronological_train_seed_52060.json"
+    ],
+    "market_corrector": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/market_corrector_chronological_train_seed_600042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/market_corrector_chronological_train_seed_601051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/market_corrector_chronological_train_seed_602060.json"
+    ],
+    "x1": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x1_chronological_train_seed_100042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x1_chronological_train_seed_101051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x1_chronological_train_seed_102060.json"
+    ],
+    "x2": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x2_chronological_train_seed_200042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x2_chronological_train_seed_201051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x2_chronological_train_seed_202060.json"
+    ],
+    "x3": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x3_chronological_train_seed_250042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x3_chronological_train_seed_251051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x3_chronological_train_seed_252060.json"
+    ],
+    "x4": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x4_chronological_train_seed_300042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x4_chronological_train_seed_301051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x4_chronological_train_seed_302060.json"
+    ],
+    "x5": [
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x5_chronological_train_seed_350042.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x5_chronological_train_seed_351051.json",
+      "/home/theo/yy1/outputs/winner_ranker_chronological/x5_chronological_train_seed_352060.json"
+    ]
+  },
+  "race_counts": {
+    "sealed_test": 1000,
+    "train": 6541,
+    "validation": 1000
+  },
+  "schema_version": 1,
+  "sealed_test_market_deviation": {
+    "market_losses_corrected": 18.0,
+    "market_wins_damaged": 34.0,
+    "net_winners_gained": -16.0,
+    "races": 1000.0,
+    "top_pick_change_rate": 0.11,
+    "top_pick_changes": 110.0
+  },
+  "sealed_test_metrics": {
+    "frozen_validation_blend": {
+      "mean_winner_rank": 3.065,
+      "mrr": 0.5365153499278499,
+      "race_logloss": 2.04359470574964,
+      "races": 1000.0,
+      "top1_hit_rate": 0.32,
+      "top3_hit_rate": 0.676
+    },
+    "raw_market_benchmark": {
+      "mean_winner_rank": 2.992,
+      "mrr": 0.5476460317460318,
+      "race_logloss": 2.0298551595422283,
+      "races": 1000.0,
+      "top1_hit_rate": 0.336,
+      "top3_hit_rate": 0.682
+    }
+  },
+  "sealed_test_retuned": false,
+  "selected_weights": {
+    "form": 0.164,
+    "fun": 0.0,
+    "gpt_fluc2": 0.167,
+    "gpt_open": 0.0,
+    "gpt_pick": 0.0,
+    "gpt_pick_v2": 0.011,
+    "market": 0.0,
+    "market_aware": 0.0,
+    "market_corrector": 0.657,
+    "x1": 0.001,
+    "x2": 0.0,
+    "x3": 0.0,
+    "x4": 0.0,
+    "x5": 0.0
+  },
+  "selection_cohort": "chronological_validation",
+  "time_bounds": {
+    "sealed_test": {
+      "first": "2026-07-24T03:14:00+00:00",
+      "last": "2026-08-15T02:53:00+00:00"
+    },
+    "train": {
+      "first": "2026-02-14T01:05:00+00:00",
+      "last": "2026-07-04T06:40:00+00:00"
+    },
+    "validation": {
+      "first": "2026-07-04T06:45:00+00:00",
+      "last": "2026-07-24T03:10:00+00:00"
+    }
+  },
+  "tree_counts_selected_inside_training": {
+    "form": [
+      61,
+      14,
+      23
+    ],
+    "fun": [
+      90,
+      55,
+      46
+    ],
+    "gpt_fluc2": [
+      167,
+      30,
+      77
+    ],
+    "gpt_open": [
+      16,
+      30,
+      23
+    ],
+    "gpt_pick": [
+      49,
+      50,
+      123
+    ],
+    "gpt_pick_v2": [
+      33,
+      55,
+      86
+    ],
+    "market_aware": [
+      25,
+      14,
+      24
+    ],
+    "market_corrector": [
+      22,
+      10,
+      24
+    ],
+    "x1": [
+      155,
+      32,
+      23
+    ],
+    "x2": [
+      4,
+      19,
+      16
+    ],
+    "x3": [
+      16,
+      9,
+      12
+    ],
+    "x4": [
+      7,
+      5,
+      40
+    ],
+    "x5": [
+      84,
+      16,
+      22
+    ]
+  },
+  "validation_market_deviation": {
+    "market_losses_corrected": 30.0,
+    "market_wins_damaged": 17.0,
+    "net_winners_gained": 13.0,
+    "races": 1000.0,
+    "top_pick_change_rate": 0.094,
+    "top_pick_changes": 94.0
+  },
+  "validation_metrics": {
+    "frozen_validation_blend": {
+      "mean_winner_rank": 3.01,
+      "mrr": 0.5572806748806749,
+      "race_logloss": 2.0470373972185447,
+      "races": 1000.0,
+      "top1_hit_rate": 0.355,
+      "top3_hit_rate": 0.69
+    },
+    "raw_market_benchmark": {
+      "mean_winner_rank": 3.004,
+      "mrr": 0.5512725191475191,
+      "race_logloss": 2.037580804945534,
+      "races": 1000.0,
+      "top1_hit_rate": 0.342,
+      "top3_hit_rate": 0.696
+    }
+  }
+}

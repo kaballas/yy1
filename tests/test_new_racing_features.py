@@ -9,7 +9,11 @@ from src.advanced_racing_features import (
     race_relative_runner_mask,
 )
 from src.derived_racing_features import DERIVED_FEATURE_NAMES, derive_racing_features
-from update_derived_racing_features import FEATURES_TO_STORE
+from update_derived_racing_features import (
+    FEATURES_TO_STORE,
+    MARKET_DISAGREEMENT_FEATURE_NAMES,
+    add_market_disagreement_features,
+)
 
 
 def history_frame() -> pd.DataFrame:
@@ -188,8 +192,23 @@ def test_feature_registry_exactly_matches_generated_outputs():
                       derive_sectional_class_features(frame)], axis=1)
     base["jockey_trainer_history_smoothed_top3_rate"] = .3
     context = derive_context_features(frame, base)
-    generated = set(base) | set(context) | set(ADVANCED_FEATURE_NAMES)
-    assert set(FEATURES_TO_STORE) == set(DERIVED_FEATURE_NAMES) | set(ADVANCED_FEATURE_NAMES)
+    disagreement_input = pd.concat([base, context], axis=1)
+    disagreement_input["fluc2_price_rank"] = 1.
+    for source in (
+        "recent_weighted_avg_margin_rank",
+        "recent_similar_distance_speed_rank",
+        "horse_jockey_win_rate_rank",
+        "career_win_rate_rank",
+        "prize_money_rank",
+    ):
+        disagreement_input[source] = 2.
+    disagreement = add_market_disagreement_features(disagreement_input)
+    generated = set(base) | set(context) | set(disagreement) | set(ADVANCED_FEATURE_NAMES)
+    assert set(FEATURES_TO_STORE) == (
+        set(DERIVED_FEATURE_NAMES)
+        | set(ADVANCED_FEATURE_NAMES)
+        | set(MARKET_DISAGREEMENT_FEATURE_NAMES)
+    )
     assert set(FEATURES_TO_STORE) <= generated
     assert "recent3_vs_career_finish_percentile" not in FEATURES_TO_STORE
     assert "recent6_vs_career_finish_percentile" not in FEATURES_TO_STORE

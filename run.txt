@@ -371,7 +371,7 @@ python train_raceformer.py \
       --ranking tuned \
       --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
       --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
-      --race-id 10807160
+      --race-id 10812195
 
   Outputs:
 

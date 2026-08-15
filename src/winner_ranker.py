@@ -56,6 +56,18 @@ CURRENT_MARKET_EXACT = {
     "race_overlay_rank",
     "race_signal_agreement_score",
     "race_signal_agreement_rank",
+    "finish_rank_minus_market_rank",
+    "margin_rank_minus_market_rank",
+    "distance_speed_rank_minus_market_rank",
+    "jockey_rank_minus_market_rank",
+    "career_rank_minus_market_rank",
+    "prize_money_rank_minus_market_rank",
+    "finish_market_rank_abs_gap",
+    "margin_market_rank_abs_gap",
+    "distance_speed_market_rank_abs_gap",
+    "jockey_market_rank_abs_gap",
+    "career_market_rank_abs_gap",
+    "prize_money_market_rank_abs_gap",
 }
 
 CURRENT_MARKET_PREFIXES = (

@@ -76,6 +76,8 @@ def test_form_selection_excludes_results_identifiers_and_current_market():
         "historical_market_overperformance_weighted_3", "form"
     ]
     assert is_current_market_feature("fluc2")
+    assert is_current_market_feature("finish_rank_minus_market_rank")
+    assert is_current_market_feature("finish_market_rank_abs_gap")
     assert not is_current_market_feature(
         "historical_market_overperformance_weighted_3"
     )
