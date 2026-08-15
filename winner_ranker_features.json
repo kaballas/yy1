@@ -224,6 +224,32 @@
         "open_price",
         "fluc2"
       ]
+    },
+    "gpt_pick_v2": {
+      "features": [
+        "recent_finish_percentile_weighted_6_rank_in_race",
+        "recent_weighted_avg_margin_rank",
+        "recent_margin_quality_weighted_3_minus_race_mean",
+        "class_adjusted_finish_percentile_weighted_3_rank_in_race",
+        "form_class_level_weighted_3",
+        "best_finish_percentile_at_stronger_class",
+        "recent_similar_distance_speed_rank",
+        "recent_best_speed_mps",
+        "hidden_sectional_run_best_3_gap_to_best",
+        "recent_last600_best_3",
+        "best_run_recency_index",
+        "recent_days_since_last_run",
+        "distance_minus_recent_avg",
+        "current_weight_change_pct",
+        "horse_jockey_win_rate_rank",
+        "jockey_recent_top3_excess",
+        "trainer_history_top3_excess",
+        "jockey_trainer_history_smoothed_top3_rate_gap_to_best",
+        "career_win_rate_rank",
+        "prize_money_rank",
+        "historical_market_overperformance_slope_3",
+        "recent_market_edge_weighted"
+      ]
     }
   }
 }
