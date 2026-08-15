@@ -51,6 +51,34 @@ METADATA = [
     "derived_racing_features_version",
 ]
 
+MIN_EXACT_COHORT_RACES = 5
+
+
+def select_historical_cohort(
+    predictions: pd.DataFrame,
+    competition_id: int,
+    race_number: int,
+    minimum_exact_races: int = MIN_EXACT_COHORT_RACES,
+) -> tuple[pd.DataFrame, str, int]:
+    """Prefer competition/race-number history, broadening tiny cohorts."""
+    try:
+        exact = filter_complete_races(
+            predictions, competition_id, None, None, race_number
+        )
+    except ValueError as exc:
+        if "No complete OOF races match" not in str(exc):
+            raise
+        exact_races = 0
+    else:
+        exact_races = int(exact["race_id"].nunique())
+        if exact_races >= minimum_exact_races:
+            return exact, "competition_id+race_number", exact_races
+
+    competition = filter_complete_races(
+        predictions, competition_id, None, None, None
+    )
+    return competition, "competition_id", exact_races
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -228,6 +256,8 @@ def main() -> None:
     cohort_strategy: str | None = None
     cohort_strategy_metrics: dict[str, Any] | None = None
     cohort_strategy_fallback: str | None = None
+    cohort_scope: str | None = None
+    exact_cohort_races: int | None = None
     if args.ranking in {"tuned", "benchmark"}:
         if args.ranking == "tuned":
             config_path = args.blend_config.resolve()
@@ -247,12 +277,12 @@ def main() -> None:
                     predictions_path, oof_model_labels
                 )
                 try:
-                    cohort = filter_complete_races(
-                        predictions,
-                        int(frame.iloc[0]["competition_id"]),
-                        None,
-                        None,
-                        int(frame.iloc[0]["race_number"]),
+                    cohort, cohort_scope, exact_cohort_races = (
+                        select_historical_cohort(
+                            predictions,
+                            int(frame.iloc[0]["competition_id"]),
+                            int(frame.iloc[0]["race_number"]),
+                        )
                     )
                 except ValueError as exc:
                     if "No complete OOF races match" not in str(exc):
@@ -340,6 +370,9 @@ def main() -> None:
         )
         if cohort_strategy is not None and cohort_strategy_metrics is not None:
             heading += (
+                f"cohort_scope={cohort_scope} "
+                f"exact_race_number_oof_races={exact_cohort_races} "
+                f"minimum_exact_cohort_races={MIN_EXACT_COHORT_RACES}\n"
                 f"cohort_best_strategy={cohort_strategy} "
                 f"historical_oof_races="
                 f"{int(cohort_strategy_metrics['races'])} "

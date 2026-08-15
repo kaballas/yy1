@@ -6,7 +6,11 @@ import pytest
 
 pytest.importorskip("xgboost")
 
-from rank_winner_models import load_active_race, ranked_output
+from rank_winner_models import (
+    load_active_race,
+    ranked_output,
+    select_historical_cohort,
+)
 from src.winner_ranker import (
     blend_scores,
     blend_named_scores,
@@ -16,7 +20,9 @@ from src.winner_ranker import (
     is_current_market_feature,
     market_deviation_metrics,
     model_feature_matrix,
+    finishing_relevance,
     rank_percentiles,
+    ranking_targets,
     select_blend_weights,
     select_form_features,
     validate_ranker_groups,
@@ -55,6 +61,81 @@ def test_named_blend_includes_dynamic_model_groups():
     )
 
     np.testing.assert_allclose(result, [0.25, 0.75])
+
+
+def test_finish_order_relevance_uses_rank_label_for_nonfinishers():
+    frame = pd.DataFrame({
+        "race_id": [1, 1, 1, 1],
+        "finish_place": [1, 2, 3, np.nan],
+        "rank_label": ["1", "2", "3", "5"],
+        "is_winner": [1, 0, 0, 0],
+    })
+
+    relevance = finishing_relevance(frame)
+
+    np.testing.assert_allclose(relevance, [1.0, 2 / 3, 1 / 3, 0.0])
+
+
+def test_margin_aware_target_matches_frozen_formula():
+    frame = pd.DataFrame({
+        "race_id": [1, 1, 1],
+        "finish_place": [1, 2, 3],
+        "rank_label": ["1", "2", "3"],
+        "is_winner": [1, 0, 0],
+        "beaten_margin": [2.5, 5.0, 10.0],
+    })
+
+    target = ranking_targets(frame, "margin_aware_finish_order")
+    expected_finish = np.asarray([1.0, 0.5, 0.0])
+    expected_margin = np.exp(-np.asarray([0.0, 5.0, 10.0]) / 5.0)
+
+    np.testing.assert_allclose(
+        target, 0.75 * expected_finish + 0.25 * expected_margin
+    )
+
+
+def test_margin_aware_target_rejects_missing_current_race_margin():
+    frame = pd.DataFrame({
+        "race_id": [1, 1],
+        "finish_place": [1, 2],
+        "rank_label": ["1", "2"],
+        "is_winner": [1, 0],
+    })
+
+    with pytest.raises(ValueError, match="current-race beaten-margin"):
+        ranking_targets(frame, "margin_aware_finish_order")
+
+
+def test_historical_cohort_broadens_when_exact_race_number_has_under_five():
+    predictions = pd.DataFrame({
+        "race_id": [1, 2, 3, 4, 5, 6],
+        "competition_id": [256] * 6,
+        "race_number": [7, 7, 7, 1, 2, 3],
+    })
+
+    cohort, scope, exact_races = select_historical_cohort(
+        predictions, competition_id=256, race_number=7
+    )
+
+    assert scope == "competition_id"
+    assert exact_races == 3
+    assert cohort["race_id"].nunique() == 6
+
+
+def test_historical_cohort_keeps_exact_race_number_at_five():
+    predictions = pd.DataFrame({
+        "race_id": [1, 2, 3, 4, 5, 6],
+        "competition_id": [279] * 6,
+        "race_number": [9, 9, 9, 9, 9, 1],
+    })
+
+    cohort, scope, exact_races = select_historical_cohort(
+        predictions, competition_id=279, race_number=9
+    )
+
+    assert scope == "competition_id+race_number"
+    assert exact_races == 5
+    assert cohort["race_id"].nunique() == 5
 
 
 def test_form_selection_excludes_results_identifiers_and_current_market():

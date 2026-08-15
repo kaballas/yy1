@@ -106,7 +106,7 @@ def load_training_rows(database: Path, numeric_columns: list[str]) -> pd.DataFra
     metadata = [
         "race_id", "start_time_iso", "competition_id", "competition_name",
         "race_number", "race_name", "runner_number", "runner_name", "fluc2",
-        "is_winner", "derived_racing_features_version",
+        "rank_label", "is_winner", "derived_racing_features_version",
     ]
     requested = list(dict.fromkeys([*metadata, *numeric_columns]))
     selected = ", ".join(quote_identifier(column) for column in requested)
@@ -261,6 +261,78 @@ def model_feature_matrix(frame: pd.DataFrame, features: list[str]) -> pd.DataFra
 def group_sizes(frame: pd.DataFrame) -> np.ndarray:
     """Return XGBoost query-group sizes for already race-sorted rows."""
     return frame.groupby("race_id", sort=False).size().to_numpy(dtype=np.uint32)
+
+
+RANKING_TARGETS = (
+    "winner",
+    "finish_order",
+    "margin_aware_finish_order",
+)
+
+
+def finishing_relevance(frame: pd.DataFrame) -> np.ndarray:
+    """Return a bounded full-order relevance label for every active runner.
+
+    ``finish_place`` is preferred. Some resulted rows retain only a numeric
+    ``rank_label`` (typically a non-finisher placed behind the active field),
+    so that value is used as a deterministic fallback and clipped to last.
+    """
+    if "finish_place" not in frame:
+        raise ValueError("finish_order target requires finish_place")
+    place = pd.to_numeric(frame["finish_place"], errors="coerce")
+    if "rank_label" in frame:
+        place = place.fillna(pd.to_numeric(frame["rank_label"], errors="coerce"))
+    if place.isna().any():
+        raise ValueError(
+            "finish_order target has unresolved finish places for "
+            f"{int(place.isna().sum()):,} runners"
+        )
+    if (place < 1).any():
+        raise ValueError("finish_order target requires finish places >= 1")
+    field_size = frame.groupby("race_id", sort=False)["race_id"].transform("size")
+    if (field_size < 2).any():
+        raise ValueError("finish_order target requires at least two runners per race")
+    bounded_place = np.minimum(
+        place.to_numpy(dtype=np.float64),
+        field_size.to_numpy(dtype=np.float64),
+    )
+    relevance = 1.0 - (
+        (bounded_place - 1.0) /
+        (field_size.to_numpy(dtype=np.float64) - 1.0)
+    )
+    return np.clip(relevance, 0.0, 1.0)
+
+
+def ranking_targets(
+    frame: pd.DataFrame,
+    target: str,
+    beaten_margin_column: str = "beaten_margin",
+) -> np.ndarray:
+    """Build one of the frozen-supervision experiment's three targets."""
+    if target not in RANKING_TARGETS:
+        raise ValueError(f"Unknown ranking target: {target}")
+    if target == "winner":
+        return frame["is_winner"].to_numpy(dtype=np.float64)
+
+    finish_score = finishing_relevance(frame)
+    if target == "finish_order":
+        return finish_score
+
+    if beaten_margin_column not in frame:
+        raise ValueError(
+            "margin_aware_finish_order requires a current-race beaten-margin "
+            f"column; database column {beaten_margin_column!r} does not exist"
+        )
+    margin = pd.to_numeric(frame[beaten_margin_column], errors="coerce")
+    # A winner's stored winning margin is not a beaten margin.
+    margin = margin.mask(frame["is_winner"].astype(bool), 0.0)
+    if margin.isna().any() or (margin < 0).any():
+        raise ValueError(
+            "margin_aware_finish_order requires finite non-negative beaten "
+            "margins for every runner"
+        )
+    margin_score = np.exp(-margin.to_numpy(dtype=np.float64) / 5.0)
+    return 0.75 * finish_score + 0.25 * margin_score
 
 
 def validate_ranker_groups(
