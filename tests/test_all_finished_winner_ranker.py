@@ -6,10 +6,13 @@ import pytest
 pytest.importorskip("xgboost")
 
 from train_tune_all_finished_winner_ranker import (
+    aggregate_tree_counts,
     crossfit_fold_ids,
+    inner_tree_count_split,
     load_model_feature_sets,
     merge_reused_oof_scores,
     print_model_feature_report,
+    tree_count_eval_metrics,
     tree_counts,
     tune_dynamic_model_blend,
 )
@@ -48,6 +51,47 @@ def test_tree_counts_has_deterministic_fallback(tmp_path):
     )
 
     assert counts == [44, 44, 44]
+
+
+def test_inner_tree_count_split_uses_chronological_tail_and_twenty_percent_cap():
+    inner_train, inner_validation = inner_tree_count_split(
+        list(range(1, 101)), maximum_validation_races=50
+    )
+
+    assert inner_train == list(range(1, 81))
+    assert inner_validation == list(range(81, 101))
+    assert set(inner_train).isdisjoint(inner_validation)
+
+
+def test_inner_tree_count_split_respects_smaller_configured_maximum():
+    inner_train, inner_validation = inner_tree_count_split(
+        list(range(1, 101)), maximum_validation_races=7
+    )
+
+    assert inner_train == list(range(1, 94))
+    assert inner_validation == list(range(94, 101))
+
+
+def test_aggregate_tree_counts_uses_per_member_fold_medians():
+    counts = aggregate_tree_counts([
+        [10, 100, 30],
+        [20, 80, 35],
+        [30, 120, 25],
+        [40, 90, 40],
+        [50, 110, 20],
+    ])
+
+    assert counts == [30, 100, 30]
+
+
+@pytest.mark.parametrize(("objective", "metric"), [
+    ("top1", "ndcg@1"),
+    ("top3", "ndcg@3"),
+    ("mrr", "map"),
+    ("composite", "map"),
+])
+def test_tree_count_selection_metric_matches_objective(objective, metric):
+    assert tree_count_eval_metrics(objective)[-1] == metric
 
 
 def test_model_feature_sets_show_exact_inputs_for_each_model(tmp_path):

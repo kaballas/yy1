@@ -418,3 +418,15 @@ python train_raceformer.py \
 
   python train_tune_all_finished_winner_ranker.py \
     --models x3
+
+
+ python train_tune_all_finished_winner_ranker.py \
+    --folds 5 \
+    --jobs 22 \
+    --objective top3 \
+    --weight-step 0.001 \
+    --max-estimators 700 \
+    --early-stopping-rounds 60 \
+    --tree-count-validation-races 1000
+
+

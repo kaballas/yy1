@@ -18,6 +18,40 @@ import numpy as np
 import pandas as pd
 
 
+def parse_competition_ids(value: str) -> list[int]:
+    """Parse one competition ID or a comma-separated list without duplicates."""
+    parts = [part.strip() for part in value.split(",")]
+    if not parts or any(not part for part in parts):
+        raise argparse.ArgumentTypeError(
+            "competition IDs must be comma-separated integers"
+        )
+    try:
+        competition_ids = [int(part) for part in parts]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "competition IDs must be comma-separated integers"
+        ) from exc
+    return list(dict.fromkeys(competition_ids))
+
+
+def parse_race_numbers(value: str) -> list[int]:
+    """Parse one race number or a comma-separated list without duplicates."""
+    parts = [part.strip() for part in value.split(",")]
+    if not parts or any(not part for part in parts):
+        raise argparse.ArgumentTypeError(
+            "race numbers must be comma-separated integers"
+        )
+    try:
+        race_numbers = [int(part) for part in parts]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "race numbers must be comma-separated integers"
+        ) from exc
+    if any(race_number < 1 for race_number in race_numbers):
+        raise argparse.ArgumentTypeError("race numbers must be positive integers")
+    return list(dict.fromkeys(race_numbers))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -40,7 +74,18 @@ def parse_args() -> argparse.Namespace:
             "beside --blend-config."
         ),
     )
-    parser.add_argument("--competition-id", type=int)
+    parser.add_argument(
+        "--competition-id",
+        type=parse_competition_ids,
+        metavar="ID[,ID...]",
+        help="Limit the backtest to one or more comma-separated competition IDs.",
+    )
+    parser.add_argument(
+        "--race-number",
+        type=parse_race_numbers,
+        metavar="NUMBER[,NUMBER...]",
+        help="Limit the backtest to one or more comma-separated race numbers.",
+    )
     parser.add_argument("--from-date", help="Inclusive UTC date/time filter.")
     parser.add_argument("--to-date", help="Inclusive UTC date/time filter.")
     parser.add_argument(
@@ -211,16 +256,25 @@ def load_predictions(path: Path, model_labels: list[str]) -> pd.DataFrame:
 
 def filter_complete_races(
     frame: pd.DataFrame,
-    competition_id: int | None,
+    competition_id: int | list[int] | None,
     from_date: str | None,
     to_date: str | None,
+    race_number: int | list[int] | None = None,
 ) -> pd.DataFrame:
     race_rows = frame.groupby("race_id", sort=False).head(1).copy()
     keep = pd.Series(True, index=race_rows.index)
     if competition_id is not None:
         if "competition_id" not in race_rows:
             raise ValueError("Predictions have no competition_id column")
-        keep &= race_rows["competition_id"] == competition_id
+        competition_ids = (
+            [competition_id] if isinstance(competition_id, int) else competition_id
+        )
+        keep &= race_rows["competition_id"].isin(competition_ids)
+    if race_number is not None:
+        if "race_number" not in race_rows:
+            raise ValueError("Predictions have no race_number column")
+        race_numbers = [race_number] if isinstance(race_number, int) else race_number
+        keep &= race_rows["race_number"].isin(race_numbers)
     if from_date is not None or to_date is not None:
         if "start_time_iso" not in race_rows:
             raise ValueError("Predictions have no start_time_iso column")
@@ -307,6 +361,18 @@ def backtest_summary(
     return summary, pd.concat(selection_frames, ignore_index=True)
 
 
+def best_backtest_strategy(
+    frame: pd.DataFrame,
+    model_labels: list[str],
+    strategies: dict[str, dict[str, float]],
+) -> tuple[str, dict[str, float], dict[str, Any]]:
+    """Select the same first-ranked strategy displayed in the OVERALL table."""
+    summary, _ = backtest_summary(frame, model_labels, strategies)
+    best = summary.iloc[0]
+    name = str(best["strategy"])
+    return name, dict(strategies[name]), best.to_dict()
+
+
 def fold_summary(
     frame: pd.DataFrame,
     model_labels: list[str],
@@ -320,6 +386,25 @@ def fold_summary(
         summary.insert(1, "crossfit_fold", fold)
         rows.append(summary)
     return pd.concat(rows, ignore_index=True)
+
+
+def blend_weights_table(
+    model_labels: list[str], strategies: dict[str, dict[str, float]]
+) -> pd.DataFrame:
+    """Show the normalized component weights actually used by each strategy."""
+    components = [*model_labels, "market"]
+    rows: list[dict[str, Any]] = []
+    for name, weights in strategies.items():
+        configured_sum = float(sum(weights.values()))
+        rows.append({
+            "strategy": name,
+            **{
+                component: float(weights.get(component, 0.0)) / configured_sum
+                for component in components
+            },
+            "configured_sum": configured_sum,
+        })
+    return pd.DataFrame(rows, columns=["strategy", *components, "configured_sum"])
 
 
 def main() -> None:
@@ -337,6 +422,7 @@ def main() -> None:
         args.competition_id,
         args.from_date,
         args.to_date,
+        args.race_number,
     )
     summary, selections = backtest_summary(frame, model_labels, strategies)
     folds = fold_summary(frame, model_labels, strategies)
@@ -370,6 +456,11 @@ def main() -> None:
             "NOTE non-unit weights are normalized by the production blend helper: "
             + json.dumps(non_unit, sort_keys=True)
         )
+
+    print("\nBLEND WEIGHTS (normalized values used)")
+    print(blend_weights_table(model_labels, strategies).to_string(
+        index=False, float_format=lambda value: f"{value:.5f}"
+    ))
 
     columns = [
         "strategy", "weight_sum", "races", "top1_hit_rate", "top3_hit_rate",

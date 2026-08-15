@@ -58,6 +58,10 @@ from src.winner_ranker import (
 from train_winner_ranker_pipeline import model_parameters, score_table
 
 
+class OOFCohortMismatchError(ValueError):
+    """Raised when saved OOF rows cannot be reused for the current cohort."""
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
@@ -70,7 +74,9 @@ def parse_args() -> argparse.Namespace:
         "--source-bundle",
         type=Path,
         default=Path("outputs/winner_ranker/winner_ranker_bundle.json"),
-        help="Provides already validated tree counts when available.",
+        help=(
+            "Provides validated tree counts when --no-tune-tree-counts is used."
+        ),
     )
     parser.add_argument(
         "--features-json",
@@ -82,8 +88,37 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--minimum-runners", type=int, default=4)
     parser.add_argument("--minimum-feature-coverage", type=float, default=0.20)
     parser.add_argument("--ensemble-size", type=int, default=3)
-    parser.add_argument("--default-form-estimators", type=int, default=120)
-    parser.add_argument("--default-market-aware-estimators", type=int, default=50)
+    parser.add_argument(
+        "--default-form-estimators",
+        type=int,
+        default=120,
+        help="Non-market fallback used only with --no-tune-tree-counts.",
+    )
+    parser.add_argument(
+        "--default-market-aware-estimators",
+        type=int,
+        default=50,
+        help="Market-aware fallback used only with --no-tune-tree-counts.",
+    )
+    parser.add_argument("--max-estimators", type=int, default=700)
+    parser.add_argument("--early-stopping-rounds", type=int, default=60)
+    parser.add_argument(
+        "--tree-count-validation-races",
+        type=int,
+        default=1000,
+        help=(
+            "Maximum chronological inner-validation races used to select tree "
+            "counts inside each outer OOF fold."
+        ),
+    )
+    parser.add_argument(
+        "--no-tune-tree-counts",
+        action="store_true",
+        help=(
+            "Disable nested early stopping and use counts from --source-bundle "
+            "or the estimator fallbacks."
+        ),
+    )
     parser.add_argument("--jobs", type=int, default=12)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
@@ -151,6 +186,104 @@ def tree_counts(
     if not counts:
         counts = [int(fallback)]
     return [counts[index % len(counts)] for index in range(ensemble_size)]
+
+
+def inner_tree_count_split(
+    race_ids: list[int], maximum_validation_races: int
+) -> tuple[list[int], list[int]]:
+    """Create a chronological inner split without consuming the outer holdout."""
+    if maximum_validation_races < 1:
+        raise ValueError("tree-count-validation-races must be positive")
+    if len(race_ids) < 2:
+        raise ValueError("Nested tree-count tuning requires at least two races")
+    validation_count = min(
+        maximum_validation_races,
+        max(1, len(race_ids) // 5),
+    )
+    return race_ids[:-validation_count], race_ids[-validation_count:]
+
+
+def tree_count_eval_metrics(objective: str) -> list[str]:
+    """Put the tree-count selection metric last, as required by XGBoost."""
+    if objective == "top1":
+        return ["map", "ndcg@3", "ndcg@1"]
+    if objective == "top3":
+        return ["map", "ndcg@1", "ndcg@3"]
+    if objective in {"mrr", "composite"}:
+        # With exactly one relevant runner per race, MAP is reciprocal rank.
+        return ["ndcg@1", "ndcg@3", "map"]
+    raise ValueError(f"Unknown tree-count objective: {objective}")
+
+
+def tune_tree_counts(
+    args: argparse.Namespace,
+    label: str,
+    training: pd.DataFrame,
+    configured_features: list[str],
+    seed_offset: int,
+) -> list[int]:
+    """Early-stop ensemble members on an inner chronological validation slice."""
+    ordered_race_ids = training.groupby("race_id", sort=False).head(1)[
+        "race_id"
+    ].astype(int).tolist()
+    inner_train_ids, inner_validation_ids = inner_tree_count_split(
+        ordered_race_ids, args.tree_count_validation_races
+    )
+    inner_train = rows_for_races(training, inner_train_ids)
+    inner_validation = rows_for_races(training, inner_validation_ids)
+    inner_train_y = inner_train["is_winner"].to_numpy(dtype=np.int64)
+    inner_validation_y = inner_validation["is_winner"].to_numpy(dtype=np.int64)
+    inner_train_groups = group_sizes(inner_train)
+    inner_validation_groups = group_sizes(inner_validation)
+    validate_ranker_groups(inner_train, inner_train_y, inner_train_groups)
+    validate_ranker_groups(
+        inner_validation, inner_validation_y, inner_validation_groups
+    )
+    train_matrix = model_feature_matrix(inner_train, configured_features)
+    validation_matrix = model_feature_matrix(
+        inner_validation, configured_features
+    )
+    counts: list[int] = []
+    for member in range(args.ensemble_size):
+        seed = args.seed + seed_offset + member * 1009
+        parameters = model_parameters(args, seed, args.max_estimators)
+        parameters["eval_metric"] = tree_count_eval_metrics(args.objective)
+        model = XGBRanker(
+            **parameters,
+            early_stopping_rounds=args.early_stopping_rounds,
+        )
+        model.fit(
+            train_matrix,
+            inner_train_y,
+            group=inner_train_groups,
+            eval_set=[
+                (train_matrix, inner_train_y),
+                (validation_matrix, inner_validation_y),
+            ],
+            eval_group=[inner_train_groups, inner_validation_groups],
+            verbose=False,
+        )
+        counts.append(int(model.best_iteration) + 1)
+    print(
+        f"tree_count_tuning={label} "
+        f"inner_train_races={len(inner_train_ids):,} "
+        f"inner_validation_races={len(inner_validation_ids):,} "
+        f"selection_metric={tree_count_eval_metrics(args.objective)[-1]} "
+        f"selected_trees={json.dumps(counts)}",
+        flush=True,
+    )
+    return counts
+
+
+def aggregate_tree_counts(fold_counts: list[list[int]]) -> list[int]:
+    """Take a deterministic per-member median of nested-fold tree counts."""
+    if not fold_counts or not fold_counts[0]:
+        raise ValueError("No nested-fold tree counts to aggregate")
+    width = len(fold_counts[0])
+    if any(len(counts) != width for counts in fold_counts):
+        raise ValueError("Nested-fold tree-count ensembles have inconsistent sizes")
+    values = np.asarray(fold_counts, dtype=np.int64)
+    return [int(math.floor(value + 0.5)) for value in np.median(values, axis=0)]
 
 
 def fit_ensemble(
@@ -278,7 +411,7 @@ def merge_reused_oof_scores(
     )
     unmatched = int((merged["_merge"] != "both").sum())
     if unmatched or len(merged) != len(existing_subset):
-        raise ValueError(
+        raise OOFCohortMismatchError(
             "Existing OOF cohort does not match the current eligible cohort: "
             f"fresh_rows={len(fresh):,} existing_rows={len(existing_subset):,} "
             f"unmatched_fresh_rows={unmatched:,}"
@@ -624,6 +757,12 @@ def main() -> None:
     args = parse_args()
     if args.ensemble_size < 1:
         raise ValueError("ensemble-size must be positive")
+    if args.max_estimators < 1:
+        raise ValueError("max-estimators must be positive")
+    if args.early_stopping_rounds < 1:
+        raise ValueError("early-stopping-rounds must be positive")
+    if args.tree_count_validation_races < 1:
+        raise ValueError("tree-count-validation-races must be positive")
     database = args.db.resolve()
     if not database.is_file():
         raise ValueError(f"Database does not exist: {database}")
@@ -715,26 +854,58 @@ def main() -> None:
         existing_oof = pd.read_csv(oof_path)
         # Fail before expensive cross-fitting if saved scores cannot be safely
         # paired with the current cohort.
-        merge_reused_oof_scores(
-            all_finished.loc[:, ["race_id", "runner_number"]].copy(),
-            existing_oof,
-            reused_labels,
-        )
+        try:
+            merge_reused_oof_scores(
+                all_finished.loc[:, ["race_id", "runner_number"]].copy(),
+                existing_oof,
+                reused_labels,
+            )
+        except OOFCohortMismatchError as exc:
+            # Reusing only the overlapping rows would leave new runners without
+            # genuine OOF predictions. Cross-fit every model group instead so
+            # blend tuning continues to compare like-for-like scores.
+            print(
+                f"selective_retraining_fallback=full reason={exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+            requested_labels = set(feature_sets)
+            training_labels = list(feature_sets)
+            reused_labels = []
+            existing_bundle = {}
+            existing_oof = None
     print_model_feature_report(feature_manifest, feature_sets)
     fold_ids = crossfit_fold_ids(eligible_ids, args.folds)
-    tree_counts_by_model = {
-        label: tree_counts(
-            args.source_bundle,
-            label,
-            args.ensemble_size,
-            (
-                args.default_market_aware_estimators
-                if label == "market_aware"
-                else args.default_form_estimators
-            ),
-        )
-        for label in feature_sets
-    }
+    fixed_tree_counts_by_model = (
+        {
+            label: tree_counts(
+                args.source_bundle,
+                label,
+                args.ensemble_size,
+                (
+                    args.default_market_aware_estimators
+                    if label == "market_aware"
+                    else args.default_form_estimators
+                ),
+            )
+            for label in feature_sets
+        }
+        if args.no_tune_tree_counts else {}
+    )
+    tree_count_mode = (
+        "source_bundle_or_fallback"
+        if args.no_tune_tree_counts else "nested_early_stopping"
+    )
+    tree_count_selection_metric = (
+        "not_applicable"
+        if args.no_tune_tree_counts
+        else tree_count_eval_metrics(args.objective)[-1]
+    )
+    fixed_counts_line = (
+        "fixed_tree_counts_by_model="
+        f"{json.dumps(fixed_tree_counts_by_model)}\n"
+        if args.no_tune_tree_counts else ""
+    )
     print(
         f"source=status_finished active_runner_only=yes "
         f"eligible_races={len(eligible_ids):,} rows={len(all_finished):,} "
@@ -742,7 +913,13 @@ def main() -> None:
         f"duplicates_removed={len(duplicates)}\n"
         f"models_retrained={json.dumps(training_labels)} "
         f"models_reused={json.dumps(reused_labels)}\n"
-        f"tree_counts_by_model={json.dumps(tree_counts_by_model)}\n"
+        f"tree_count_mode={tree_count_mode} "
+        f"selection_metric={tree_count_selection_metric} "
+        f"max_estimators={args.max_estimators} "
+        f"early_stopping_rounds={args.early_stopping_rounds} "
+        f"maximum_inner_validation_races="
+        f"{args.tree_count_validation_races}\n"
+        f"{fixed_counts_line}"
         f"ranker_group_audit={json.dumps(all_finished_audit)}\n"
         "crossfit_guarantee=each_race_scored_by_models_not_trained_on_that_race "
         "sealed_test=no",
@@ -750,6 +927,9 @@ def main() -> None:
     )
 
     oof_parts: list[pd.DataFrame] = []
+    nested_tree_counts: dict[str, list[list[int]]] = {
+        label: [] for label in training_labels
+    }
     all_id_set = set(eligible_ids)
     for fold_number, holdout_ids in enumerate(fold_ids, start=1):
         holdout_set = set(holdout_ids)
@@ -773,14 +953,26 @@ def main() -> None:
         ):
             if label not in requested_labels:
                 continue
+            seed_offset = fold_number * 100_000 + model_index * 10_000
+            if args.no_tune_tree_counts:
+                fold_tree_counts = fixed_tree_counts_by_model[label]
+            else:
+                fold_tree_counts = tune_tree_counts(
+                    args,
+                    label,
+                    training,
+                    configured_features,
+                    seed_offset,
+                )
+                nested_tree_counts[label].append(fold_tree_counts)
             models = fit_ensemble(
                 args,
                 label,
                 model_feature_matrix(training, configured_features),
                 train_y,
                 train_groups,
-                tree_counts_by_model[label],
-                fold_number * 100_000 + model_index * 10_000,
+                fold_tree_counts,
+                seed_offset,
             )
             model_scores[label] = ensemble_rank_scores(
                 models,
@@ -809,6 +1001,19 @@ def main() -> None:
     )
     if oof["race_id"].nunique() != len(eligible_ids):
         raise AssertionError("Not every eligible finished race received OOF scores")
+    final_tree_counts_by_model = {
+        label: (
+            fixed_tree_counts_by_model[label]
+            if args.no_tune_tree_counts
+            else aggregate_tree_counts(nested_tree_counts[label])
+        )
+        for label in training_labels
+    }
+    print(
+        "final_tree_counts_by_model="
+        + json.dumps(final_tree_counts_by_model, sort_keys=True),
+        flush=True,
+    )
     if existing_oof is not None:
         oof = merge_reused_oof_scores(oof, existing_oof, reused_labels)
     model_labels = list(feature_sets)
@@ -862,7 +1067,7 @@ def main() -> None:
             model_feature_matrix(all_finished, configured_features),
             all_y,
             all_groups,
-            tree_counts_by_model[label],
+            final_tree_counts_by_model[label],
             seed_offset,
         )
         model_paths[label] = save_ensemble(
@@ -897,6 +1102,14 @@ def main() -> None:
         "eligible_finished_races": len(eligible_ids),
         "eligible_finished_rows": len(all_finished),
         "crossfit_folds": args.folds,
+        "tree_count_selection": tree_count_mode,
+        "tree_count_selection_metric": tree_count_selection_metric,
+        "tuned_model_tree_counts": final_tree_counts_by_model,
+        "tree_count_max_estimators": args.max_estimators,
+        "tree_count_early_stopping_rounds": args.early_stopping_rounds,
+        "tree_count_maximum_inner_validation_races": (
+            args.tree_count_validation_races
+        ),
         "sealed_test_available": False,
     }
     deployment_model = "form" if "form" in feature_sets else next(iter(feature_sets))
@@ -909,7 +1122,7 @@ def main() -> None:
         for label in reused_labels
     }
     best_tree_counts.update({
-        label: tree_counts_by_model[label] for label in training_labels
+        label: final_tree_counts_by_model[label] for label in training_labels
     })
     bundle = {
         "schema_version": 3,
@@ -933,6 +1146,7 @@ def main() -> None:
         "derived_feature_versions": versions,
         "models": model_paths,
         "best_tree_counts": best_tree_counts,
+        "tree_count_selection": tree_count_mode,
         "all_finished_crossfit": recommendation,
         "database": str(database),
         "seed": args.seed,

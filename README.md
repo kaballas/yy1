@@ -85,6 +85,21 @@ python train_tune_all_finished_winner_ranker.py \
 With `--retune-only`, race reports and slices are regenerated from saved OOF
 predictions; feature importance requires a training/refit run.
 
+Inspect one finished race in a saved XGBoost model with native TreeSHAP:
+
+```bash
+python inspect_winner_ranker.py \
+  --race-id RACE_ID \
+  --model market_aware \
+  --top-features 20
+```
+
+The report shows the model ranking, the honest saved OOF ranking when present,
+global gain importance, and the feature contributions that pushed the selected
+runner above the actual winner. If the model selected the winner, it compares
+the winner with the model's runner-up instead. Use `--output-csv PATH` to save
+all contribution differences or `--trees-csv PATH` to export every tree node.
+
 Tune a two-model blend without giving raw market rank any weight:
 
 ```bash

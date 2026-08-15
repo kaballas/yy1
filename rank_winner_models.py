@@ -3,7 +3,8 @@
 
 Every model uses the exact ordered feature list stored in the bundle. Output
 explicitly reports whether the requested model or blend uses current-market
-features.
+features. Tuned rankings can select the strongest historical OOF strategy for
+the target race's competition and race number.
 """
 
 from __future__ import annotations
@@ -35,6 +36,12 @@ from src.winner_ranker import (
     rank_percentiles,
 )
 from src.advanced_racing_features import race_relative_runner_mask
+from backtest_all_finished_winner_blends import (
+    artifact_strategies,
+    best_backtest_strategy,
+    filter_complete_races,
+    load_predictions,
+)
 
 
 METADATA = [
@@ -58,14 +65,27 @@ def parse_args() -> argparse.Namespace:
         default="deployment",
         help=(
             "Ranking to display: deployment, tuned, market, or any model-group "
-            "name from the bundle (for example form, market_aware, or fun)."
+            "name from the bundle (for example form, market_aware, or fun). "
+            "Tuned uses the best matching competition/race-number OOF strategy "
+            "when all-finished predictions are available."
         ),
     )
     parser.add_argument(
         "--blend-config",
         type=Path,
         default=Path("outputs/winner_ranker/form_market_aware_blend.json"),
-        help="Validation-selected form/market-aware weights used by --ranking tuned.",
+        help=(
+            "Blend strategies and fallback weights used by --ranking tuned."
+        ),
+    )
+    parser.add_argument(
+        "--predictions",
+        type=Path,
+        help=(
+            "Saved all-finished OOF predictions used to choose the best tuned "
+            "strategy for the target competition and race number. Defaults to "
+            "all_finished_oof_predictions.csv beside --blend-config."
+        ),
     )
     parser.add_argument("--output-csv", type=Path)
     return parser.parse_args()
@@ -205,6 +225,9 @@ def main() -> None:
     scores["deployment"] = scores[deployment_model]
     scores["selected"] = scores[deployment_model]
     diagnostic_weights: dict[str, float] | None = None
+    cohort_strategy: str | None = None
+    cohort_strategy_metrics: dict[str, Any] | None = None
+    cohort_strategy_fallback: str | None = None
     if args.ranking in {"tuned", "benchmark"}:
         if args.ranking == "tuned":
             config_path = args.blend_config.resolve()
@@ -214,9 +237,43 @@ def main() -> None:
                     "backtest_winner_blend.py first"
                 )
             config = json.loads(config_path.read_text(encoding="utf-8"))
-            diagnostic_weights = dict(config.get("selected_weights", {}))
-            if float(diagnostic_weights.get("market", 0.0)) != 0.0:
-                raise ValueError("Tuned model blend must have raw market weight zero")
+            configured_weights = dict(config.get("selected_weights", {}))
+            predictions_path = args.predictions or (
+                config_path.parent / "all_finished_oof_predictions.csv"
+            )
+            if predictions_path.resolve().is_file():
+                oof_model_labels, strategies = artifact_strategies(bundle, config)
+                predictions = load_predictions(
+                    predictions_path, oof_model_labels
+                )
+                try:
+                    cohort = filter_complete_races(
+                        predictions,
+                        int(frame.iloc[0]["competition_id"]),
+                        None,
+                        None,
+                        int(frame.iloc[0]["race_number"]),
+                    )
+                except ValueError as exc:
+                    if "No complete OOF races match" not in str(exc):
+                        raise
+                    diagnostic_weights = configured_weights
+                    cohort_strategy_fallback = str(exc)
+                else:
+                    (
+                        cohort_strategy,
+                        diagnostic_weights,
+                        cohort_strategy_metrics,
+                    ) = best_backtest_strategy(
+                        cohort, oof_model_labels, strategies
+                    )
+            else:
+                diagnostic_weights = configured_weights
+                cohort_strategy_fallback = (
+                    f"OOF predictions do not exist: {predictions_path.resolve()}"
+                )
+            if not diagnostic_weights:
+                raise ValueError("Blend recommendation contains no usable weights")
             scores["tuned"] = blend_named_scores(scores, diagnostic_weights)
         elif args.ranking == "benchmark":
             if "form" not in scores or "market_aware" not in scores:
@@ -240,14 +297,17 @@ def main() -> None:
     )
     displayed_features = model_features.get(displayed_model, [])
     if args.ranking == "tuned" and diagnostic_weights is not None:
-        market_used = any(
-            float(diagnostic_weights.get(label, 0.0)) > 0
-            and any(
-                feature in MARKET_ENGINEERED_FEATURES
-                or is_current_market_feature(feature)
-                for feature in model_features.get(label, [])
+        market_used = (
+            float(diagnostic_weights.get("market", 0.0)) > 0
+            or any(
+                float(diagnostic_weights.get(label, 0.0)) > 0
+                and any(
+                    feature in MARKET_ENGINEERED_FEATURES
+                    or is_current_market_feature(feature)
+                    for feature in model_features.get(label, [])
+                )
+                for label in model_features
             )
-            for label in model_features
         )
     else:
         market_used = args.ranking in {"market", "benchmark"} or any(
@@ -273,21 +333,41 @@ def main() -> None:
             + json.dumps(diagnostic_weights, sort_keys=True)
             + "\n"
         )
+    if args.ranking == "tuned":
+        heading += (
+            f"target_competition_id={int(race['competition_id'])} "
+            f"target_race_number={int(race['race_number'])}\n"
+        )
+        if cohort_strategy is not None and cohort_strategy_metrics is not None:
+            heading += (
+                f"cohort_best_strategy={cohort_strategy} "
+                f"historical_oof_races="
+                f"{int(cohort_strategy_metrics['races'])} "
+                f"top1_hit_rate="
+                f"{float(cohort_strategy_metrics['top1_hit_rate']):.5f} "
+                f"top3_hit_rate="
+                f"{float(cohort_strategy_metrics['top3_hit_rate']):.5f} "
+                f"mrr={float(cohort_strategy_metrics['mrr']):.5f}\n"
+            )
+        elif cohort_strategy_fallback is not None:
+            heading += (
+                "cohort_best_strategy=config_selected_fallback "
+                f"reason={cohort_strategy_fallback}\n"
+            )
     heading += (
         "market_to_form_upgrade: positive means the form model promotes the runner\n"
         "contrarian_top3: form top three while outside market top three"
     )
     print(heading)
-    dynamic_model_columns = [
-        column
+    dynamic_model_rank_columns = [
+        f"{label}_rank"
         for label in model_features
         if label in scores
-        for column in (f"{label}_score", f"{label}_rank")
     ]
     columns = [
         "display_rank", "runner_number", "runner_name", "fluc2",
-        f"{args.ranking}_score", f"{args.ranking}_rank",
-        *dynamic_model_columns, "market_rank",
+        f"{args.ranking}_rank",
+        *dynamic_model_rank_columns, "market_rank",
         "tuned_rank", "market_aware_rank", "benchmark_rank", "market_to_form_upgrade",
         "contrarian_top3",
     ]
