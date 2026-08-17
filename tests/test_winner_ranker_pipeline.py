@@ -8,8 +8,11 @@ pytest.importorskip("xgboost")
 
 from rank_winner_models import (
     load_active_race,
+    number_one_summary,
     ranked_output,
     select_historical_cohort,
+    terminal_display_table,
+    terminal_table_text,
 )
 from src.winner_ranker import (
     blend_scores,
@@ -136,6 +139,72 @@ def test_historical_cohort_keeps_exact_race_number_at_five():
     assert scope == "competition_id+race_number"
     assert exact_races == 5
     assert cohort["race_id"].nunique() == 5
+
+
+def test_historical_cohort_uses_global_race_number_when_exact_is_absent():
+    predictions = pd.DataFrame({
+        "race_id": [1, 2, 3, 4],
+        "competition_id": [4, 4, 9, 10],
+        "race_number": [1, 2, 4, 4],
+    })
+
+    cohort, scope, exact_races = select_historical_cohort(
+        predictions, competition_id=4, race_number=4
+    )
+
+    assert scope == "race_number"
+    assert exact_races == 0
+    assert cohort["race_id"].tolist() == [3, 4]
+
+
+def test_terminal_display_removes_rank_suffix_without_mutating_output():
+    output = pd.DataFrame({
+        "display_rank": [1],
+        "runner_number": [7],
+        "tuned_rank": [1],
+        "market_rank": [2],
+    })
+
+    table = terminal_display_table(output, list(output.columns))
+
+    assert table.columns.tolist() == ["display", "runner_number", "tuned", "market"]
+    assert output.columns.tolist() == [
+        "display_rank", "runner_number", "tuned_rank", "market_rank",
+    ]
+
+
+def test_terminal_table_colors_only_rank_ones():
+    output = pd.DataFrame({
+        "display_rank": [1, 2],
+        "runner_number": [1, 7],
+        "tuned_rank": [2, 1],
+        "market_rank": [1, 2],
+        "contrarian_top3": [1, 0],
+    })
+
+    rendered = terminal_table_text(output, list(output.columns), color=True)
+
+    assert rendered.count("\033[31m1\033[0m") == 3
+    assert "runner_number" in rendered
+    assert "contrarian_top3" in rendered
+
+
+def test_number_one_summary_counts_visible_rankings_but_not_display_order():
+    output = pd.DataFrame({
+        "display_rank": [1, 2, 3],
+        "runner_number": [4, 8, 1],
+        "runner_name": ["A", "B", "C"],
+        "fluc2": [3.0, 5.0, 7.0],
+        "tuned_rank": [1, 2, 3],
+        "form_rank": [2, 1, 3],
+        "market_rank": [1, 3, 2],
+    })
+
+    summary = number_one_summary(output, list(output.columns))
+
+    assert summary["runner_number"].tolist() == [4, 8]
+    assert summary["number_ones"].tolist() == [2, 1]
+    assert summary["picked_first_by"].tolist() == ["tuned,market", "form"]
 
 
 def test_form_selection_excludes_results_identifiers_and_current_market():

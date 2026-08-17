@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +62,7 @@ def select_historical_cohort(
     race_number: int,
     minimum_exact_races: int = MIN_EXACT_COHORT_RACES,
 ) -> tuple[pd.DataFrame, str, int]:
-    """Prefer competition/race-number history, broadening tiny cohorts."""
+    """Prefer exact history, broadening small or absent exact cohorts."""
     try:
         exact = filter_complete_races(
             predictions, competition_id, None, None, race_number
@@ -73,6 +75,12 @@ def select_historical_cohort(
         exact_races = int(exact["race_id"].nunique())
         if exact_races >= minimum_exact_races:
             return exact, "competition_id+race_number", exact_races
+
+    if exact_races == 0:
+        race_number_cohort = filter_complete_races(
+            predictions, None, None, None, race_number
+        )
+        return race_number_cohort, "race_number", exact_races
 
     competition = filter_complete_races(
         predictions, competition_id, None, None, None
@@ -193,6 +201,90 @@ def ranked_output(
     )
     output.insert(0, "display_rank", np.arange(1, len(output) + 1))
     return output
+
+
+def terminal_display_table(
+    output: pd.DataFrame, columns: list[str]
+) -> pd.DataFrame:
+    """Shorten rank headers for terminal display without changing artifacts."""
+    table = output.loc[:, columns].copy()
+    return table.rename(columns={
+        column: column.removesuffix("_rank")
+        for column in table.columns
+        if column.endswith("_rank")
+    })
+
+
+def terminal_table_text(
+    output: pd.DataFrame,
+    columns: list[str],
+    *,
+    color: bool | None = None,
+) -> str:
+    """Render the table with rank-one cells red on color terminals."""
+    table = terminal_display_table(output, columns)
+    rank_columns = {
+        column.removesuffix("_rank")
+        for column in columns
+        if column.endswith("_rank")
+    }
+    use_color = (
+        sys.stdout.isatty()
+        and "NO_COLOR" not in os.environ
+        and os.environ.get("TERM", "") != "dumb"
+        if color is None else color
+    )
+    sentinel = "¤"
+    formatters = {
+        column: (
+            lambda value: sentinel
+            if pd.notna(value) and float(value) == 1.0
+            else str(int(value))
+        )
+        for column in rank_columns
+        if column in table
+    }
+    rendered = table.to_string(
+        index=False,
+        float_format=lambda value: f"{value:.4f}",
+        formatters=formatters,
+    )
+    replacement = "\033[31m1\033[0m" if use_color else "1"
+    return rendered.replace(sentinel, replacement)
+
+
+def number_one_summary(
+    output: pd.DataFrame, columns: list[str]
+) -> pd.DataFrame:
+    """Summarize how many displayed rankings select each runner first."""
+    rank_columns = [
+        column for column in columns
+        if column.endswith("_rank") and column != "display_rank" and column in output
+    ]
+    summary = output[[
+        "display_rank", "runner_number", "runner_name", "fluc2",
+    ]].copy()
+    if not rank_columns:
+        summary["number_ones"] = 0
+        summary["picked_first_by"] = ""
+    else:
+        first = output.loc[:, rank_columns].eq(1)
+        summary["number_ones"] = first.sum(axis=1).astype(int)
+        labels = [column.removesuffix("_rank") for column in rank_columns]
+        summary["picked_first_by"] = [
+            ",".join(label for label, selected in zip(labels, row) if selected)
+            for row in first.to_numpy(dtype=bool)
+        ]
+    return (
+        summary.loc[summary["number_ones"] > 0]
+        .sort_values(
+            ["number_ones", "display_rank", "runner_number"],
+            ascending=[False, True, True],
+            kind="stable",
+        )
+        .drop(columns="display_rank")
+        .reset_index(drop=True)
+    )
 
 
 def main() -> None:
@@ -407,9 +499,15 @@ def main() -> None:
     visible_columns = [
         column for column in dict.fromkeys(columns) if column in output.columns
     ]
-    print(output.loc[:, visible_columns].to_string(
-        index=False, float_format=lambda value: f"{value:.4f}"
-    ))
+    print(terminal_table_text(output, visible_columns))
+    number_ones = number_one_summary(output, visible_columns)
+    print("\nNUMBER-ONE TOTALS")
+    if number_ones.empty:
+        print("No displayed ranking selected a runner first")
+    else:
+        print(number_ones.to_string(
+            index=False, float_format=lambda value: f"{value:.4f}"
+        ))
     if int(race["competition_id"]) == 999:
         print(
             "WARNING competition_id=999 is a post-result market-miss label, not a "

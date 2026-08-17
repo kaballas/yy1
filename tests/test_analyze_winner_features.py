@@ -44,6 +44,18 @@ def test_feature_selection_excludes_leakage_market_and_sparse_columns():
     assert features == ["recent_1_starting_price", "form_signal"]
 
 
+def test_feature_selection_excludes_market_disagreement_columns():
+    frame = pd.DataFrame({
+        "form_signal": [0.1, 0.2, 0.3, 0.4],
+        "finish_rank_minus_market_rank": [-2.0, 1.0, 0.0, 3.0],
+        "finish_market_rank_abs_gap": [2.0, 1.0, 0.0, 3.0],
+    })
+
+    features = select_features(frame, minimum_observations=2)
+
+    assert features == ["form_signal"]
+
+
 def test_feature_selection_combines_observation_and_coverage_thresholds():
     frame = pd.DataFrame({
         "well_covered": [1.0, 2.0, 3.0, 4.0],

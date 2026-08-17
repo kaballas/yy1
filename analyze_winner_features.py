@@ -32,6 +32,8 @@ try:
 except ImportError:  # Keep metric/selection helpers importable in tests.
     XGBClassifier = None  # type: ignore[assignment,misc]
 
+from src.winner_ranker import is_current_market_feature as _is_current_market_feature
+
 
 OUTCOME_LEAKAGE = {
     "is_winner",
@@ -52,26 +54,6 @@ IDENTIFIERS = {
     "competition_id",
     "race_number",
     "feature_schema_version",
-}
-
-# Current-race market columns are excluded. Historical starting prices and
-# historical market-derived form remain eligible because they were known before
-# the current race.
-CURRENT_MARKET_EXACT = {
-    "sp_starting_price",
-    "open_price",
-    "fluc1",
-    "fluc2",
-    "open_price_rank",
-    "fluc1_price_rank",
-    "fluc2_price_rank",
-    "market_steam_rank",
-    "race_consensus_score",
-    "race_consensus_rank",
-    "race_overlay_score",
-    "race_overlay_rank",
-    "race_signal_agreement_score",
-    "race_signal_agreement_rank",
 }
 
 METRIC_COLUMNS = {
@@ -178,7 +160,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def is_current_market_feature(name: str) -> bool:
-    return name in CURRENT_MARKET_EXACT or name.startswith("market_")
+    """Use the production winner-ranker's current-market leakage boundary."""
+    return _is_current_market_feature(name) or name.startswith("market_")
 
 
 def select_features(
