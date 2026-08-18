@@ -10,6 +10,7 @@ finished races because they were refit on all eligible finished races.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -52,6 +53,16 @@ def parse_race_numbers(value: str) -> list[int]:
     return list(dict.fromkeys(race_numbers))
 
 
+def parse_model_labels(value: str) -> list[str]:
+    """Parse a non-empty, comma-separated model shortlist."""
+    labels = [part.strip() for part in value.split(",")]
+    if not labels or any(not label for label in labels):
+        raise argparse.ArgumentTypeError(
+            "model labels must be non-empty comma-separated names"
+        )
+    return list(dict.fromkeys(labels))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -92,6 +103,45 @@ def parse_args() -> argparse.Namespace:
         "--output-csv",
         type=Path,
         help="Optional race-level selections, returns, and profits.",
+    )
+    parser.add_argument(
+        "--optuna-trials",
+        type=int,
+        default=0,
+        help="Run this many Optuna blend-weight trials; zero disables tuning.",
+    )
+    parser.add_argument("--optuna-jobs", type=int, default=1)
+    parser.add_argument("--optuna-seed", type=int, default=42)
+    parser.add_argument(
+        "--optuna-storage",
+        type=Path,
+        help=(
+            "Persistent SQLite study path. Defaults to winner_blend_optuna.db "
+            "beside --blend-config."
+        ),
+    )
+    parser.add_argument(
+        "--optuna-study-name",
+        help="Study name; defaults to a name derived from the search shortlist.",
+    )
+    parser.add_argument(
+        "--optuna-models",
+        type=parse_model_labels,
+        metavar="MODEL[,MODEL...]",
+        help=(
+            "Tune only this model shortlist and assign all other models zero "
+            "weight. Useful for focused sparse searches."
+        ),
+    )
+    parser.add_argument(
+        "--optuna-include-market",
+        action="store_true",
+        help="Allow raw market score to receive weight (disabled by default).",
+    )
+    parser.add_argument(
+        "--optuna-output",
+        type=Path,
+        help="Best-weight JSON path; defaults beside --blend-config.",
     )
     return parser.parse_args()
 
@@ -307,6 +357,179 @@ def strategy_scores(
     return blend_named_scores(available, weights)
 
 
+def optuna_trial_weights(
+    trial: Any,
+    model_labels: list[str],
+    include_market: bool = False,
+) -> dict[str, float]:
+    """Suggest continuous non-negative weights and normalize to the simplex."""
+    components = [*model_labels, *(["market"] if include_market else [])]
+    raw = {
+        component: float(trial.suggest_float(f"raw_{component}", 0.0, 1.0))
+        for component in components
+    }
+    total = float(sum(raw.values()))
+    if not np.isfinite(total) or total <= 0:
+        # This has probability zero for continuous samplers, but keeps custom and
+        # test samplers from producing an invalid blend.
+        raw = {component: 1.0 for component in components}
+        total = float(len(components))
+    weights = {component: value / total for component, value in raw.items()}
+    if not include_market:
+        weights["market"] = 0.0
+    return weights
+
+
+def optuna_cohort_fingerprint(
+    frame: pd.DataFrame, model_labels: list[str]
+) -> str:
+    """Identify the exact OOF cohort and scores used by a persistent study."""
+    columns = [
+        "race_id", "runner_number", "is_winner", "market_score",
+        *(f"{label}_score" for label in model_labels),
+    ]
+    hashes = pd.util.hash_pandas_object(frame.loc[:, columns], index=False).values
+    return hashlib.sha256(hashes.tobytes()).hexdigest()
+
+
+def optuna_baseline_parameters(
+    model_labels: list[str],
+    include_market: bool = False,
+    pair_steps: int = 0,
+) -> list[dict[str, float]]:
+    """Return simplex corners, equal blend, and optional pairwise mixtures."""
+    if pair_steps < 0:
+        raise ValueError("pair_steps must be non-negative")
+    components = [*model_labels, *(["market"] if include_market else [])]
+    corners = [{
+        f"raw_{component}": float(component == selected)
+        for component in components
+    } for selected in components]
+    baselines = [*corners, {
+        f"raw_{component}": 1.0 for component in components
+    }]
+    if pair_steps:
+        for left_index, left in enumerate(components):
+            for right in components[left_index + 1:]:
+                for step in range(1, pair_steps + 1):
+                    left_weight = step / (pair_steps + 1)
+                    baselines.append({
+                        f"raw_{component}": (
+                            left_weight if component == left
+                            else 1.0 - left_weight if component == right
+                            else 0.0
+                        )
+                        for component in components
+                    })
+    return baselines
+
+
+def tune_optuna_blend(
+    frame: pd.DataFrame,
+    model_labels: list[str],
+    *,
+    trials: int,
+    jobs: int,
+    seed: int,
+    storage_path: Path,
+    study_name: str,
+    include_market: bool = False,
+    pair_steps: int = 0,
+) -> tuple[dict[str, float], dict[str, Any], Any]:
+    """Tune blend weights on OOF races and safely resume a persistent study."""
+    if trials < 1:
+        raise ValueError("optuna-trials must be positive")
+    if jobs < 1:
+        raise ValueError("optuna-jobs must be positive")
+    try:
+        import optuna
+    except ImportError as exc:
+        raise SystemExit(
+            "Optuna tuning requires optuna: pip install -r requirements.txt"
+        ) from exc
+
+    resolved_storage = storage_path.resolve()
+    resolved_storage.parent.mkdir(parents=True, exist_ok=True)
+    storage_url = f"sqlite:///{resolved_storage}"
+    effective_jobs = 1
+    if jobs != effective_jobs:
+        print(
+            "NOTE SQLite-backed Optuna studies run with effective_jobs=1 to "
+            "avoid concurrent trial-claim/completion races; "
+            f"requested_jobs={jobs}",
+            flush=True,
+        )
+    sampler = optuna.samplers.TPESampler(
+        seed=seed,
+        multivariate=True,
+        constant_liar=False,
+    )
+    study = optuna.create_study(
+        study_name=study_name,
+        storage=storage_url,
+        direction="maximize",
+        sampler=sampler,
+        load_if_exists=True,
+    )
+    fingerprint = optuna_cohort_fingerprint(frame, model_labels)
+    definition = {
+        "cohort_fingerprint": fingerprint,
+        "model_labels": model_labels,
+        "include_market": include_market,
+        "pair_steps": pair_steps,
+        "primary_objective": "top1_hit_rate",
+    }
+    previous = study.user_attrs.get("winner_blend_definition")
+    if previous is None and study.trials:
+        raise ValueError(
+            "Existing Optuna study has trials but no winner-blend definition; "
+            "choose another --optuna-study-name or storage file"
+        )
+    if previous is not None and previous != definition:
+        raise ValueError(
+            "Persistent Optuna study was created for a different cohort or search "
+            "space; choose another --optuna-study-name or storage file"
+        )
+    study.set_user_attr("winner_blend_definition", definition)
+    baseline_key = "winner_blend_baselines_enqueued"
+    if not study.user_attrs.get(baseline_key, False):
+        # Independent U(0, 1) raw weights overwhelmingly produce dense blends in
+        # a high-dimensional simplex. Seed its important corners so TPE observes
+        # every individual model and can learn toward sparse solutions.
+        for parameters in optuna_baseline_parameters(
+            model_labels, include_market, pair_steps
+        ):
+            study.enqueue_trial(parameters)
+        study.set_user_attr(baseline_key, True)
+    targets = frame["is_winner"].to_numpy(dtype=np.int64)
+    race_ids = frame["race_id"].to_numpy(dtype=np.int64)
+
+    def objective(trial: Any) -> float:
+        weights = optuna_trial_weights(trial, model_labels, include_market)
+        metrics = winner_metrics(
+            targets, strategy_scores(frame, model_labels, weights), race_ids
+        )
+        for name, value in metrics.items():
+            trial.set_user_attr(name, float(value))
+        trial.set_user_attr("normalized_weights", weights)
+        return float(metrics["top1_hit_rate"])
+
+    study.optimize(objective, n_trials=trials, n_jobs=effective_jobs)
+    best = study.best_trial
+    weights = {
+        str(name): float(value)
+        for name, value in best.user_attrs["normalized_weights"].items()
+    }
+    metrics = {
+        name: float(best.user_attrs[name])
+        for name in (
+            "top1_hit_rate", "top3_hit_rate", "mrr", "mean_winner_rank",
+            "race_logloss", "races",
+        )
+    }
+    return weights, metrics, study
+
+
 def race_selections(
     frame: pd.DataFrame, strategy: str, scores: np.ndarray
 ) -> pd.DataFrame:
@@ -424,6 +647,75 @@ def main() -> None:
         args.to_date,
         args.race_number,
     )
+    optuna_result: tuple[dict[str, float], dict[str, Any], Any] | None = None
+    if args.optuna_trials:
+        optimized_labels = args.optuna_models or model_labels
+        unknown_optuna_labels = sorted(set(optimized_labels) - set(model_labels))
+        if unknown_optuna_labels:
+            raise ValueError(
+                "Unknown --optuna-models: " + ", ".join(unknown_optuna_labels)
+            )
+        sparse_search = args.optuna_models is not None
+        study_name = args.optuna_study_name
+        if study_name is None:
+            study_name = "winner_blend_weights"
+            if sparse_search:
+                study_name += "_sparse_" + "_".join(optimized_labels)
+        storage_path = args.optuna_storage or (
+            args.blend_config.parent / "winner_blend_optuna.db"
+        )
+        optuna_result = tune_optuna_blend(
+            frame,
+            optimized_labels,
+            trials=args.optuna_trials,
+            jobs=args.optuna_jobs,
+            seed=args.optuna_seed,
+            storage_path=storage_path,
+            study_name=study_name,
+            include_market=args.optuna_include_market,
+            pair_steps=9 if sparse_search else 0,
+        )
+        optuna_weights, optuna_metrics, study = optuna_result
+        strategies["optuna_best"] = optuna_weights
+        default_output_name = "winner_blend_optuna_best.json"
+        if sparse_search:
+            default_output_name = (
+                "winner_blend_optuna_best_sparse_"
+                + "_".join(optimized_labels)
+                + ".json"
+            )
+        optuna_output = args.optuna_output or (
+            args.blend_config.parent / default_output_name
+        )
+        resolved_output = optuna_output.resolve()
+        resolved_output.parent.mkdir(parents=True, exist_ok=True)
+        resolved_output.write_text(json.dumps({
+            "schema_version": 1,
+            "selection_scope": "saved_out_of_fold_predictions",
+            "sealed_test_used": False,
+            "study_name": study.study_name,
+            "storage": str(storage_path.resolve()),
+            "best_trial_number": study.best_trial.number,
+            "best_value": study.best_value,
+            "completed_trials": len(study.trials),
+            "model_labels": model_labels,
+            "optimized_model_labels": optimized_labels,
+            "include_market": args.optuna_include_market,
+            "selected_weights": optuna_weights,
+            "oof_metrics": optuna_metrics,
+            "cohort_fingerprint": optuna_cohort_fingerprint(
+                frame, optimized_labels
+            ),
+        }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(
+            "OPTUNA BLEND TUNING COMPLETE\n"
+            f"study={study.study_name} trials={len(study.trials)} "
+            f"best_trial={study.best_trial.number} "
+            f"top1={study.best_value:.6f}\n"
+            f"selected_weights={json.dumps(optuna_weights, sort_keys=True)}\n"
+            f"saved_optuna_best={resolved_output}",
+            flush=True,
+        )
     summary, selections = backtest_summary(frame, model_labels, strategies)
     folds = fold_summary(frame, model_labels, strategies)
 
@@ -476,7 +768,7 @@ def main() -> None:
             folds["strategy"].isin([
                 "config_selected", "bundle_selected",
                 "bundle_all_finished_tuned", "bundle_deployment",
-                "raw_market_benchmark",
+                "raw_market_benchmark", "optuna_best",
             ]),
             [
                 "strategy", "crossfit_fold", "races", "top1_hit_rate",

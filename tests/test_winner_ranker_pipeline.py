@@ -7,7 +7,9 @@ import pytest
 pytest.importorskip("xgboost")
 
 from rank_winner_models import (
+    completed_winner_model_results,
     load_active_race,
+    model_rank_total_summary,
     number_one_summary,
     ranked_output,
     select_historical_cohort,
@@ -205,6 +207,46 @@ def test_number_one_summary_counts_visible_rankings_but_not_display_order():
     assert summary["runner_number"].tolist() == [4, 8]
     assert summary["number_ones"].tolist() == [2, 1]
     assert summary["picked_first_by"].tolist() == ["tuned,market", "form"]
+
+
+def test_model_rank_totals_sum_only_dynamic_model_columns():
+    output = pd.DataFrame({
+        "runner_number": [1, 2, 3],
+        "runner_name": ["A", "B", "C"],
+        "fluc2": [3.0, 5.0, 7.0],
+        "tuned_rank": [1, 2, 3],
+        "x1_rank": [3, 1, 2],
+        "x2_rank": [2, 1, 3],
+        "market_rank": [1, 2, 3],
+    })
+
+    summary = model_rank_total_summary(output, ["x1_rank", "x2_rank"])
+
+    assert summary["runner_number"].tolist() == [2, 1, 3]
+    assert summary["model_rank_total"].tolist() == [2, 5, 5]
+    assert summary["models_counted"].tolist() == [2, 2, 2]
+    assert summary["number_ones"].tolist() == [2, 0, 0]
+
+
+def test_completed_race_lists_models_that_ranked_actual_winner_first():
+    frame = pd.DataFrame({
+        "runner_number": [4, 8], "runner_name": ["Winner", "Other"],
+        "status": ["finished", "finished"], "is_winner": [1, 0],
+    })
+    output = pd.DataFrame({
+        "runner_number": [4, 8], "x1_rank": [1, 2], "x2_rank": [2, 1],
+    })
+
+    winner, results = completed_winner_model_results(
+        frame.loc[frame["is_winner"] == 1].iloc[0],
+        output,
+        {"x1": ["speed", "form"], "x2": ["market"]},
+    )
+
+    assert winner["runner_name"] == "Winner"
+    assert results.set_index("model").loc["x1", "winner_correct"]
+    assert not results.set_index("model").loc["x2", "winner_correct"]
+    assert results.set_index("model").loc["x1", "features"] == '["speed", "form"]'
 
 
 def test_form_selection_excludes_results_identifiers_and_current_market():

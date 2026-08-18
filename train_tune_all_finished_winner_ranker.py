@@ -145,8 +145,16 @@ def parse_args() -> argparse.Namespace:
         nargs="+",
         metavar="MODEL",
         help=(
-            "Retrain only these JSON model groups (for example --models form fun). "
-            "Other groups are preserved from the existing output bundle and OOF file."
+            "Train only these JSON model groups (for example --models f). "
+            "Unlisted groups are excluded from training, blending, and output."
+        ),
+    )
+    parser.add_argument(
+        "--reuse-unselected-models",
+        action="store_true",
+        help=(
+            "With --models, preserve unlisted groups from an existing output "
+            "bundle and matching OOF file instead of excluding them."
         ),
     )
     return parser.parse_args()
@@ -367,6 +375,44 @@ def load_model_feature_sets(
                 + ", ".join(unavailable)
             )
     return feature_sets
+
+
+def select_requested_model_groups(
+    feature_sets: dict[str, list[str]],
+    requested: list[str] | None,
+    reuse_unselected: bool,
+) -> tuple[dict[str, list[str]], list[str], list[str]]:
+    """Resolve an exclusive run or explicit selective-retraining run."""
+    if reuse_unselected and not requested:
+        raise ValueError("--reuse-unselected-models requires --models")
+    if requested and len(requested) != len(set(requested)):
+        raise ValueError("--models contains duplicate model names")
+    requested_labels = set(requested or feature_sets)
+    unknown = sorted(requested_labels - set(feature_sets))
+    if unknown:
+        raise ValueError(
+            "Requested models are absent from the feature manifest: "
+            + ", ".join(unknown)
+        )
+    training = [label for label in feature_sets if label in requested_labels]
+    if reuse_unselected:
+        reused = [label for label in feature_sets if label not in requested_labels]
+        return feature_sets, training, reused
+    selected = {label: feature_sets[label] for label in training}
+    return selected, training, []
+
+
+def normalize_requested_models(requested: list[str] | None) -> list[str] | None:
+    """Accept both ``--models f x1`` and ``--models f,x1`` forms."""
+    if requested is None:
+        return None
+    labels: list[str] = []
+    for value in requested:
+        parts = [part.strip() for part in value.split(",")]
+        if any(not part for part in parts):
+            raise ValueError("--models contains an empty model name")
+        labels.extend(parts)
+    return labels
 
 
 def print_model_feature_report(
@@ -755,6 +801,7 @@ def retune_saved_predictions(
 
 def main() -> None:
     args = parse_args()
+    args.models = normalize_requested_models(args.models)
     if args.ensemble_size < 1:
         raise ValueError("ensemble-size must be positive")
     if args.max_estimators < 1:
@@ -773,6 +820,8 @@ def main() -> None:
     sweep_path = output_dir / "all_finished_weight_sweep.csv"
     recommendation_path = output_dir / "all_finished_blend.json"
     feature_manifest = args.features_json.resolve()
+    if args.reuse_unselected_models and not args.models:
+        raise ValueError("--reuse-unselected-models requires --models")
     if args.retune_only and args.models:
         raise ValueError("--retune-only and --models cannot be used together")
     if args.retune_only:
@@ -818,17 +867,10 @@ def main() -> None:
     if not eligible_features:
         raise ValueError("No eligible model features")
     feature_sets = load_model_feature_sets(feature_manifest, eligible_features)
-    if args.models and len(args.models) != len(set(args.models)):
-        raise ValueError("--models contains duplicate model names")
-    requested_labels = set(args.models or feature_sets)
-    unknown_labels = sorted(requested_labels - set(feature_sets))
-    if unknown_labels:
-        raise ValueError(
-            "Requested models are absent from the feature manifest: "
-            + ", ".join(unknown_labels)
-        )
-    training_labels = [label for label in feature_sets if label in requested_labels]
-    reused_labels = [label for label in feature_sets if label not in requested_labels]
+    feature_sets, training_labels, reused_labels = select_requested_model_groups(
+        feature_sets, args.models, args.reuse_unselected_models
+    )
+    requested_labels = set(training_labels)
     existing_bundle: dict[str, Any] = {}
     existing_oof: pd.DataFrame | None = None
     if reused_labels:
@@ -861,19 +903,12 @@ def main() -> None:
                 reused_labels,
             )
         except OOFCohortMismatchError as exc:
-            # Reusing only the overlapping rows would leave new runners without
-            # genuine OOF predictions. Cross-fit every model group instead so
-            # blend tuning continues to compare like-for-like scores.
-            print(
-                f"selective_retraining_fallback=full reason={exc}",
-                file=sys.stderr,
-                flush=True,
-            )
-            requested_labels = set(feature_sets)
-            training_labels = list(feature_sets)
-            reused_labels = []
-            existing_bundle = {}
-            existing_oof = None
+            raise ValueError(
+                "Cannot reuse unselected models because the existing OOF cohort "
+                "does not match the current eligible cohort. Run without "
+                "--reuse-unselected-models for an exclusive model run, or rebuild "
+                "the reused model scores."
+            ) from exc
     print_model_feature_report(feature_manifest, feature_sets)
     fold_ids = crossfit_fold_ids(eligible_ids, args.folds)
     fixed_tree_counts_by_model = (

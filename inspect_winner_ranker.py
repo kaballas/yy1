@@ -40,8 +40,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--race-id", required=True, type=int)
     parser.add_argument(
         "--model",
-        default="market_aware",
-        help="Model group from the bundle, such as form, market_aware, x1, or fun.",
+        help=(
+            "Model group from the bundle. When omitted, inspect every available "
+            "model group."
+        ),
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument(
@@ -205,6 +207,51 @@ def contribution_delta_table(
     }).sort_values("absolute_delta", ascending=False, kind="stable", ignore_index=True)
 
 
+def runner_vs_field_contribution_table(
+    matrix: pd.DataFrame,
+    member_contributions: np.ndarray,
+    runner: int,
+) -> pd.DataFrame:
+    """Explain one runner's raw margin relative to the average field runner."""
+    feature_contributions = member_contributions[:, :, :-1].mean(axis=0)
+    runner_shap = feature_contributions[runner]
+    field_shap = feature_contributions.mean(axis=0)
+    values = matrix.to_numpy(dtype=np.float64)
+    runner_values = values[runner]
+    return pd.DataFrame({
+        "feature": list(matrix.columns),
+        "winner_value": runner_values,
+        "field_median": matrix.median(axis=0, skipna=True).to_numpy(),
+        "field_min": matrix.min(axis=0, skipna=True).to_numpy(),
+        "field_max": matrix.max(axis=0, skipna=True).to_numpy(),
+        "winner_shap_mean": runner_shap,
+        "field_shap_mean": field_shap,
+        "winner_vs_field_shap": runner_shap - field_shap,
+        "winner_value_missing": ~np.isfinite(runner_values),
+    })
+
+
+def ensemble_member_runner_diagnostics(
+    member_contributions: np.ndarray, runner: int
+) -> pd.DataFrame:
+    """Show how consistently individual ensemble members ranked one runner."""
+    raw = member_contributions.sum(axis=2)
+    race_ids = np.zeros(raw.shape[1], dtype=np.int64)
+    rows = []
+    for member_index, member_raw in enumerate(raw, start=1):
+        order = np.argsort(-member_raw, kind="stable")
+        rank = int(np.flatnonzero(order == runner)[0]) + 1
+        score = float(rank_percentiles(member_raw, race_ids)[runner])
+        rows.append({
+            "member": member_index,
+            "winner_rank": rank,
+            "field_size": len(member_raw),
+            "winner_rank_score": score,
+            "winner_raw_margin": float(member_raw[runner]),
+        })
+    return pd.DataFrame(rows)
+
+
 def attach_oof_scores(
     output: pd.DataFrame, path: Path, race_id: int, label: str
 ) -> pd.DataFrame:
@@ -245,20 +292,66 @@ def global_gain_table(models: list[XGBRanker]) -> pd.DataFrame:
     }).sort_values("mean_gain", ascending=False, kind="stable", ignore_index=True)
 
 
-def main() -> None:
-    args = parse_args()
-    if args.top_features < 1:
-        raise ValueError("top-features must be positive")
-    bundle_path = args.bundle.resolve()
-    bundle = load_bundle(bundle_path)
-    available = bundle.get("models", {})
-    paths = list(available.get(args.model, []))
-    if not paths:
-        raise ValueError(
-            f"Model {args.model!r} is unavailable; choose from "
-            + ", ".join(sorted(available))
-        )
-    features = model_features_from_bundle(bundle, args.model)
+def combined_global_gain_table(
+    model_tables: dict[str, pd.DataFrame],
+) -> pd.DataFrame:
+    """Average gain across model groups, counting absent features as zero."""
+    if not model_tables:
+        return pd.DataFrame(columns=[
+            "feature", "mean_gain_across_models", "models_using_feature",
+            "members_using_feature",
+        ])
+    features = sorted({
+        str(feature)
+        for table in model_tables.values()
+        for feature in table["feature"]
+    })
+    indexed = {
+        label: table.set_index("feature") for label, table in model_tables.items()
+    }
+    rows = []
+    for feature in features:
+        gains = []
+        models_using = 0
+        members_using = 0
+        for table in indexed.values():
+            if feature in table.index:
+                row = table.loc[feature]
+                gains.append(float(row["mean_gain"]))
+                models_using += 1
+                members_using += int(row["members_using_feature"])
+            else:
+                gains.append(0.0)
+        rows.append({
+            "feature": feature,
+            "mean_gain_across_models": float(np.mean(gains)),
+            "models_using_feature": models_using,
+            "members_using_feature": members_using,
+        })
+    return pd.DataFrame(rows).sort_values(
+        "mean_gain_across_models", ascending=False, kind="stable", ignore_index=True
+    )
+
+
+def model_output_path(path: Path | None, label: str, multiple: bool) -> Path | None:
+    """Keep explicit single-model paths, and avoid collisions for all-model runs."""
+    if path is None:
+        return None
+    resolved = path.resolve()
+    if not multiple:
+        return resolved
+    return resolved.with_name(f"{resolved.stem}_{label}{resolved.suffix}")
+
+
+def inspect_model(
+    args: argparse.Namespace,
+    bundle: dict[str, Any],
+    bundle_path: Path,
+    label: str,
+    paths: list[str],
+    multiple: bool,
+) -> pd.DataFrame:
+    features = model_features_from_bundle(bundle, label)
     frame = load_finished_race(args.db, args.race_id, features)
     versions = sorted(
         str(value)
@@ -287,30 +380,31 @@ def main() -> None:
     )
 
     ranking = frame[["runner_number", "runner_name", "fluc2", "is_winner"]].copy()
-    ranking[f"{args.model}_score"] = scores
-    ranking[f"{args.model}_rank"] = pd.Series(scores).rank(
+    ranking[f"{label}_score"] = scores
+    ranking[f"{label}_rank"] = pd.Series(scores).rank(
         method="first", ascending=False
     ).astype(int)
-    ranking[f"{args.model}_raw_margin_mean"] = raw_margin
+    ranking[f"{label}_raw_margin_mean"] = raw_margin
     oof_path = (
         args.oof_predictions.resolve()
         if args.oof_predictions
         else bundle_path.with_name("all_finished_oof_predictions.csv")
     )
-    ranking = attach_oof_scores(ranking, oof_path, args.race_id, args.model)
+    ranking = attach_oof_scores(ranking, oof_path, args.race_id, label)
     ranking = ranking.sort_values(
-        f"{args.model}_rank", kind="stable", ignore_index=True
+        f"{label}_rank", kind="stable", ignore_index=True
     )
 
     selected_row = frame.iloc[selected]
     comparison_row = frame.iloc[comparison]
     winner_row = frame.iloc[int(np.flatnonzero(targets == 1)[0])]
+    winner = int(np.flatnonzero(targets == 1)[0])
     race = frame.iloc[0]
     print(
         "XGBOOST WINNER-RANKER INSPECTION\n"
         f"race_id={args.race_id} race={race['race_name']} "
         f"venue={race['competition_name']} start={race['start_time_iso']}\n"
-        f"model={args.model} ensemble_members={len(models)} features={len(features)}\n"
+        f"model={label} ensemble_members={len(models)} features={len(features)}\n"
         f"selected={selected_row['runner_number']} {selected_row['runner_name']} "
         f"actual_winner={winner_row['runner_number']} {winner_row['runner_name']}\n"
         f"comparison={comparison_kind}: {selected_row['runner_name']} minus "
@@ -328,10 +422,66 @@ def main() -> None:
         index=False, float_format=lambda value: f"{value:.6f}"
     ))
     print("\nGLOBAL GAIN IMPORTANCE")
-    print(global_gain_table(models).head(args.top_features).to_string(
+    gain = global_gain_table(models)
+    print(gain.head(args.top_features).to_string(
         index=False, float_format=lambda value: f"{value:.6f}"
     ))
-    if f"{args.model}_score" in ranking and f"{args.model}_oof_rank" in ranking:
+
+    winner_diagnosis = runner_vs_field_contribution_table(
+        matrix, member_contributions, winner
+    )
+    member_diagnosis = ensemble_member_runner_diagnostics(
+        member_contributions, winner
+    )
+    winner_rank = int(ranking.loc[
+        ranking["runner_number"] == winner_row["runner_number"], f"{label}_rank"
+    ].iloc[0])
+    prices = pd.to_numeric(frame["fluc2"], errors="coerce").to_numpy(float)
+    finite_price = np.isfinite(prices) & (prices > 0)
+    market_order = np.concatenate([
+        np.flatnonzero(finite_price)[
+            np.argsort(prices[finite_price], kind="stable")
+        ],
+        np.flatnonzero(~finite_price),
+    ])
+    market_rank = int(np.flatnonzero(market_order == winner)[0]) + 1
+    winner_raw_delta = float(raw_margin[winner] - np.mean(raw_margin))
+    print("\nWHY THE ACTUAL WINNER RANKED LOW")
+    print(
+        f"winner={winner_row['runner_number']} {winner_row['runner_name']} "
+        f"model_rank={winner_rank}/{len(frame)} "
+        f"market_rank={market_rank}/{len(frame)} fluc2={prices[winner]:.6g}\n"
+        f"winner_raw_margin={raw_margin[winner]:.6f} "
+        f"field_raw_margin_mean={np.mean(raw_margin):.6f} "
+        f"winner_minus_field={winner_raw_delta:.6f}\n"
+        "Negative values below are features pushing the winner below the average "
+        "runner; positive values are offsets helping the winner."
+    )
+    print("\nWINNER RANK BY ENSEMBLE MEMBER")
+    print(member_diagnosis.to_string(
+        index=False, float_format=lambda value: f"{value:.6f}"
+    ))
+    diagnosis_columns = [
+        "feature", "winner_value", "field_median", "field_min", "field_max",
+        "winner_shap_mean", "field_shap_mean", "winner_vs_field_shap",
+        "winner_value_missing",
+    ]
+    negative = winner_diagnosis.loc[
+        winner_diagnosis["winner_vs_field_shap"] < 0
+    ].sort_values("winner_vs_field_shap", kind="stable")
+    positive = winner_diagnosis.loc[
+        winner_diagnosis["winner_vs_field_shap"] > 0
+    ].sort_values("winner_vs_field_shap", ascending=False, kind="stable")
+    diagnosis_limit = min(args.top_features, 15)
+    print("\nSTRONGEST REASONS THE WINNER WAS RATED BELOW THE FIELD")
+    print(negative.head(diagnosis_limit)[diagnosis_columns].to_string(
+        index=False, float_format=lambda value: f"{value:.6f}"
+    ))
+    print("\nSTRONGEST FEATURES HELPING THE WINNER")
+    print(positive.head(diagnosis_limit)[diagnosis_columns].to_string(
+        index=False, float_format=lambda value: f"{value:.6f}"
+    ))
+    if f"{label}_score" in ranking and f"{label}_oof_rank" in ranking:
         print(
             "\nOOF columns are honest cross-fit predictions. SHAP columns explain "
             "the saved full-history model, which trained on this finished race."
@@ -342,13 +492,13 @@ def main() -> None:
             "finished race; it is an inspection, not held-out evidence."
         )
 
-    if args.output_csv:
-        path = args.output_csv.resolve()
+    path = model_output_path(args.output_csv, label, multiple)
+    if path:
         path.parent.mkdir(parents=True, exist_ok=True)
         delta.to_csv(path, index=False)
         print(f"saved_shap_deltas={path}")
-    if args.trees_csv:
-        path = args.trees_csv.resolve()
+    path = model_output_path(args.trees_csv, label, multiple)
+    if path:
         path.parent.mkdir(parents=True, exist_ok=True)
         tree_parts = []
         for member, model in enumerate(models, start=1):
@@ -357,6 +507,42 @@ def main() -> None:
             tree_parts.append(trees)
         pd.concat(tree_parts, ignore_index=True).to_csv(path, index=False)
         print(f"saved_trees={path}")
+    return gain
+
+
+def main() -> None:
+    args = parse_args()
+    if args.top_features < 1:
+        raise ValueError("top-features must be positive")
+    bundle_path = args.bundle.resolve()
+    bundle = load_bundle(bundle_path)
+    available = bundle.get("models", {})
+    if args.model is not None:
+        labels = [args.model]
+    else:
+        labels = sorted(label for label, paths in available.items() if paths)
+    missing = [label for label in labels if not available.get(label)]
+    if missing:
+        raise ValueError(
+            f"Model {missing[0]!r} is unavailable; choose from "
+            + ", ".join(sorted(label for label, paths in available.items() if paths))
+        )
+    if not labels:
+        raise ValueError("Bundle contains no available models")
+    multiple = len(labels) > 1
+    gain_tables: dict[str, pd.DataFrame] = {}
+    for index, label in enumerate(labels):
+        if index:
+            print("\n" + "=" * 100 + "\n")
+        gain_tables[label] = inspect_model(
+            args, bundle, bundle_path, label, list(available[label]), multiple
+        )
+    if multiple:
+        print("\n" + "=" * 100)
+        print("\nFINAL GLOBAL GAIN IMPORTANCE ACROSS ALL MODELS")
+        print(combined_global_gain_table(gain_tables).head(args.top_features).to_string(
+            index=False, float_format=lambda value: f"{value:.6f}"
+        ))
 
 
 if __name__ == "__main__":

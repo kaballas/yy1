@@ -10,6 +10,8 @@ from train_tune_all_finished_winner_ranker import (
     crossfit_fold_ids,
     inner_tree_count_split,
     load_model_feature_sets,
+    normalize_requested_models,
+    select_requested_model_groups,
     merge_reused_oof_scores,
     print_model_feature_report,
     tree_count_eval_metrics,
@@ -171,6 +173,35 @@ def test_dynamic_blend_tunes_every_model_group():
     )
     assert {"form_weight", "market_aware_weight", "fun_weight"} <= set(sweep)
     assert "global_simplex" in set(sweep["phase"])
+
+
+def test_models_option_creates_an_exclusive_single_model_run():
+    feature_sets = {"f": ["speed"], "m1": ["weight"], "x1": ["barrier"]}
+
+    selected, training, reused = select_requested_model_groups(
+        feature_sets, ["f"], False
+    )
+
+    assert selected == {"f": ["speed"]}
+    assert training == ["f"]
+    assert reused == []
+
+
+def test_models_option_accepts_comma_and_space_separated_names():
+    assert normalize_requested_models(["f,x1"]) == ["f", "x1"]
+    assert normalize_requested_models(["f", "x1,m1"]) == ["f", "x1", "m1"]
+
+
+def test_reusing_unselected_models_must_be_explicit():
+    feature_sets = {"f": ["speed"], "m1": ["weight"]}
+
+    selected, training, reused = select_requested_model_groups(
+        feature_sets, ["f"], True
+    )
+
+    assert selected == feature_sets
+    assert training == ["f"]
+    assert reused == ["m1"]
 
 
 def test_selective_retraining_merges_reused_model_oof_scores():

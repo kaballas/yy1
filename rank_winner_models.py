@@ -287,6 +287,106 @@ def number_one_summary(
     )
 
 
+def model_rank_total_summary(
+    output: pd.DataFrame, model_rank_columns: list[str]
+) -> pd.DataFrame:
+    """Aggregate every configured model rank into a Borda-style consensus."""
+    rank_columns = list(dict.fromkeys(
+        column for column in model_rank_columns if column in output.columns
+    ))
+    if not rank_columns:
+        return pd.DataFrame(columns=[
+            "consensus_rank", "runner_number", "runner_name", "fluc2",
+            "models_counted", "model_rank_total", "average_model_rank",
+            "best_model_rank", "worst_model_rank", "number_ones",
+        ])
+    ranks = output.loc[:, rank_columns].apply(pd.to_numeric, errors="raise")
+    summary = output[["runner_number", "runner_name", "fluc2"]].copy()
+    summary["models_counted"] = len(rank_columns)
+    summary["model_rank_total"] = ranks.sum(axis=1).astype(int)
+    summary["average_model_rank"] = ranks.mean(axis=1)
+    summary["best_model_rank"] = ranks.min(axis=1).astype(int)
+    summary["worst_model_rank"] = ranks.max(axis=1).astype(int)
+    summary["number_ones"] = ranks.eq(1).sum(axis=1).astype(int)
+    summary = summary.sort_values(
+        [
+            "model_rank_total", "average_model_rank", "best_model_rank",
+            "worst_model_rank", "number_ones", "runner_number",
+        ],
+        ascending=[True, True, True, True, False, True],
+        kind="stable",
+        ignore_index=True,
+    )
+    summary.insert(0, "consensus_rank", np.arange(1, len(summary) + 1))
+    return summary
+
+
+def load_finished_actual_winner(
+    database: Path, frame: pd.DataFrame
+) -> pd.Series | None:
+    """Load outcome identity only after the race is known to be finished."""
+    status = frame["status"].astype("string").str.strip().str.casefold()
+    if not status.eq("finished").all():
+        return None
+    race_ids = frame["race_id"].drop_duplicates()
+    if len(race_ids) != 1:
+        raise ValueError("Ranking frame must contain exactly one race")
+    with sqlite3.connect(
+        f"file:{database.resolve()}?mode=ro", uri=True
+    ) as connection:
+        schema = {
+            str(row[1])
+            for row in connection.execute('PRAGMA table_info("race_runners")')
+        }
+        if "is_winner" not in schema:
+            raise ValueError("Finished race database is missing is_winner")
+        winners = pd.read_sql_query(
+            'SELECT runner_number, runner_name FROM "race_runners" '
+            "WHERE race_id = ? AND runner_mask = 1 AND status = 'finished' "
+            "AND is_winner = 1 ORDER BY runner_number",
+            connection,
+            params=(int(race_ids.iloc[0]),),
+        )
+    if len(winners) != 1:
+        raise ValueError("Finished race must contain exactly one is_winner=1 row")
+    winner_number = int(winners.iloc[0]["runner_number"])
+    if winner_number not in set(frame["runner_number"].astype(int)):
+        raise ValueError("Actual winner is not present in the active ranking field")
+    return winners.iloc[0]
+
+
+def completed_winner_model_results(
+    winner: pd.Series | None,
+    output: pd.DataFrame,
+    model_features: dict[str, list[str]],
+) -> tuple[pd.Series, pd.DataFrame] | None:
+    """Return the actual winner and every configured model's rank/features."""
+    if winner is None:
+        return None
+    winner_number = int(winner["runner_number"])
+    output_winner = output.loc[output["runner_number"] == winner_number]
+    if len(output_winner) != 1:
+        raise ValueError("Actual winner is missing or duplicated in ranking output")
+    ranked = output_winner.iloc[0]
+    rows: list[dict[str, Any]] = []
+    for label, features in model_features.items():
+        rank_column = f"{label}_rank"
+        if rank_column not in output:
+            continue
+        winner_rank = int(ranked[rank_column])
+        rows.append({
+            "model": label,
+            "winner_rank": winner_rank,
+            "winner_correct": winner_rank == 1,
+            "feature_count": len(features),
+            "features": json.dumps(features),
+        })
+    results = pd.DataFrame(rows).sort_values(
+        ["winner_rank", "model"], kind="stable", ignore_index=True
+    )
+    return winner, results
+
+
 def main() -> None:
     args = parse_args()
     bundle = load_bundle(args.bundle)
@@ -508,6 +608,48 @@ def main() -> None:
         print(number_ones.to_string(
             index=False, float_format=lambda value: f"{value:.4f}"
         ))
+    rank_totals = model_rank_total_summary(output, dynamic_model_rank_columns)
+    print("\nMODEL RANK TOTALS (lower is better)")
+    if rank_totals.empty:
+        print("No model rank columns are available")
+    else:
+        print(rank_totals.to_string(
+            index=False, float_format=lambda value: f"{value:.4f}"
+        ))
+    actual_winner = load_finished_actual_winner(args.db, frame)
+    completed_results = completed_winner_model_results(
+        actual_winner, output, model_features
+    )
+    if completed_results is not None:
+        actual_winner, model_results = completed_results
+        print("\nACTUAL WINNER MODEL RESULTS")
+        print(
+            f"winner={int(actual_winner['runner_number'])} "
+            f"{actual_winner['runner_name']}"
+        )
+        print(model_results.loc[:, [
+            "model", "winner_rank", "winner_correct", "feature_count",
+        ]].to_string(index=False))
+        correct = model_results.loc[model_results["winner_correct"]]
+        print("\nWINNER-CORRECT MODEL FEATURES")
+        if correct.empty:
+            print("No configured model ranked the actual winner #1")
+        else:
+            for row in correct.itertuples(index=False):
+                print(
+                    f"model={row.model} feature_count={row.feature_count}\n"
+                    f"features={row.features}"
+                )
+        strategy_columns = [
+            column for column in (f"{args.ranking}_rank", "market_rank")
+            if column in output
+        ]
+        ranked_winner = output.loc[
+            output["runner_number"] == int(actual_winner["runner_number"])
+        ].iloc[0]
+        print("\nACTUAL WINNER STRATEGY RANKS")
+        for column in dict.fromkeys(strategy_columns):
+            print(f"{column.removesuffix('_rank')}={int(ranked_winner[column])}")
     if int(race["competition_id"]) == 999:
         print(
             "WARNING competition_id=999 is a post-result market-miss label, not a "

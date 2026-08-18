@@ -94,11 +94,36 @@ python inspect_winner_ranker.py \
   --top-features 20
 ```
 
+Omit `--model` to run the same inspection for every model group available in
+the bundle. In that mode, CSV output paths receive a model suffix (for example,
+`shap.csv` becomes `shap_x1.csv`) so each model's export is preserved. A final
+global gain table also summarizes feature importance across every model group.
+
 The report shows the model ranking, the honest saved OOF ranking when present,
 global gain importance, and the feature contributions that pushed the selected
 runner above the actual winner. If the model selected the winner, it compares
 the winner with the model's runner-up instead. Use `--output-csv PATH` to save
 all contribution differences or `--trees-csv PATH` to export every tree node.
+
+Discover how every individual numeric database feature ranks actual Top-3
+runners, without fitting a model or combining features:
+
+```bash
+python feature_hinter.py --race-id 10812199 --detail dry_rating
+python feature_hinter.py --race-ids 10812199,10812200,10812201
+python feature_hinter.py --all-races --output-csv outputs/feature_hints.csv
+python feature_hinter.py --all-races --competition-id 580,570 --minimum-races 10
+python feature_hinter.py --all-races --competition-id 999 --allow-competition-999
+```
+
+With the explicit flag, `999` selects all race IDs in
+`v_market_top3_complete_misses` as one derived diagnostic entity; it does not
+only select rows whose current `race_runners.competition_id` literally equals
+999.
+
+Each feature is tested ASC and DESC within each race before race-level results
+are aggregated. Current-result leakage, identifiers, text, constants, empty
+features, and control columns are excluded; missing values always rank last.
 
 Tune a two-model blend without giving raw market rank any weight:
 
@@ -146,6 +171,41 @@ This all-finished mode deliberately has no sealed test cohort: every race is
 used for model fitting or blend selection. Its grouped OOF figures are tuning
 diagnostics, not an untouched chronological performance claim. Use the command
 printed at completion to rank with its separate bundle and blend file.
+
+To replace the discrete blend-weight grid with a persistent Optuna search over
+the saved OOF scores:
+
+```bash
+python backtest_all_finished_winner_blends.py \
+  --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+  --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
+  --optuna-trials 500 \
+  --optuna-seed 42
+```
+
+The study resumes from `winner_blend_optuna.db`, records Top-1, Top-3, MRR,
+winner rank, and race log loss for every trial, and writes the best normalized
+weights to `winner_blend_optuna_best.json`. Raw market weight is excluded unless
+`--optuna-include-market` is supplied. Persistent studies are fingerprinted to
+the exact OOF cohort and score columns so they cannot silently resume on changed
+data. These remain blend-selection diagnostics; no sealed-test results are read.
+SQLite-backed studies deliberately execute one trial at a time. Passing
+`--optuna-jobs` above one is reduced to one to avoid concurrent SQLite trial
+claim/completion races; completed trials still persist and resume normally.
+
+For a lower-dimensional sparse search around the strongest models, provide a
+shortlist. This creates a separate study, seeds every model corner and nine
+pairwise mixtures per model pair, and assigns zero weight to unlisted models:
+
+```bash
+python backtest_all_finished_winner_blends.py \
+  --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+  --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
+  --optuna-models g4,x5,m1,x3 \
+  --optuna-include-market \
+  --optuna-trials 250 \
+  --optuna-seed 42
+```
 
 Important: `competition_id=999` is not a genuine competition in this database.
 It was assigned after results to races selected by

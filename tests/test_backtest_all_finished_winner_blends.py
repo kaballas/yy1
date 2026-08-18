@@ -8,9 +8,67 @@ from backtest_all_finished_winner_blends import (
     best_backtest_strategy,
     blend_weights_table,
     filter_complete_races,
+    optuna_baseline_parameters,
+    optuna_cohort_fingerprint,
+    optuna_trial_weights,
     parse_competition_ids,
+    parse_model_labels,
     parse_race_numbers,
 )
+
+
+class FixedTrial:
+    def __init__(self, values):
+        self.values = values
+
+    def suggest_float(self, name, low, high):
+        return self.values[name]
+
+
+def test_optuna_trial_weights_are_normalized_and_exclude_market_by_default():
+    weights = optuna_trial_weights(
+        FixedTrial({"raw_form": 1.0, "raw_x1": 3.0}), ["form", "x1"]
+    )
+
+    assert weights == {"form": 0.25, "x1": 0.75, "market": 0.0}
+    assert sum(weights.values()) == pytest.approx(1.0)
+
+
+def test_optuna_baselines_cover_all_corners_and_equal_blend():
+    parameters = optuna_baseline_parameters(["f", "g4"])
+
+    assert parameters == [
+        {"raw_f": 1.0, "raw_g4": 0.0},
+        {"raw_f": 0.0, "raw_g4": 1.0},
+        {"raw_f": 1.0, "raw_g4": 1.0},
+    ]
+
+
+def test_optuna_pair_baselines_cover_intermediate_sparse_mixtures():
+    parameters = optuna_baseline_parameters(["g4", "x5"], pair_steps=3)
+
+    assert parameters[-3:] == [
+        {"raw_g4": 0.25, "raw_x5": 0.75},
+        {"raw_g4": 0.50, "raw_x5": 0.50},
+        {"raw_g4": 0.75, "raw_x5": 0.25},
+    ]
+
+
+def test_model_labels_accept_shortlist_without_duplicates():
+    assert parse_model_labels("g4, x5,g4,m1") == ["g4", "x5", "m1"]
+
+
+def test_optuna_cohort_fingerprint_changes_when_scores_change():
+    frame = pd.DataFrame({
+        "race_id": [1, 1], "runner_number": [1, 2], "is_winner": [1, 0],
+        "market_score": [0.6, 0.4], "x1_score": [0.8, 0.2],
+    })
+    changed = frame.copy()
+    changed.loc[0, "x1_score"] = 0.7
+
+    assert optuna_cohort_fingerprint(frame, ["x1"]) != optuna_cohort_fingerprint(
+        changed, ["x1"]
+    )
 
 
 def test_artifact_strategies_keep_different_config_and_bundle_blends():
