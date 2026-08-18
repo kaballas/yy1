@@ -12,11 +12,8 @@ from feature_hinter import candidate_features, database_schema
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [
-    "active_field_size",
-    "market_fluc1_to_fluc2_move",
-    "market_implied_prob_change_fluc1_to_fluc2",
-    "recent_4_barrier",
-    "horse_jockey_wins",
+    "recent_1_place",
+        "trainer_history_starts"
 ]
 
 # Optional permanent exclusions. Add race_runners feature names here when they
@@ -26,7 +23,7 @@ EXCLUDED_FEATURES: list[str] = [
     "fluc2",
     "fluc2_price_rank",
     "fluc1_price_rank",
-    "open_price",
+    "open_price","race_consensus_rank","race_consensus_score","market_fluc1_to_fluc2_move","open_price_rank","market_implied_prob_change_open_to_fluc2"
 ]
 
 

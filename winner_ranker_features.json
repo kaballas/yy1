@@ -18,71 +18,77 @@
     },
     "x2": {
       "features": [
-        "open_price_rank",
-        "current_form_strength_gap_to_best",
-        "race_consensus_rank"
+        "recent_days_since_last_run",
+        "distance_m",
+        "weight_kg",
+        "active_field_size",
+        "market_fluc1_to_fluc2_move",
+        "hidden_sectional_run_best_3_gap_to_best",
+        "recent_margin_quality_slope_3",
+        "soft_wins"
       ]
     },
     "x3": {
       "features": [
         "recent_1_place",
-        "race_consensus_score",
-        "trainer_history_starts"
+        "trainer_history_starts",
+        "market_fluc1_to_fluc2_move",
+        "recent_best_similar_distance_speed_mps"
       ]
     },
     "x4": {
       "features": [
-        "draw_number","market_fluc1_to_fluc2_move","recent_margin_weighted_6","market_fluc1_to_fluc2_move_pct"
+        "draw_number",
+        "market_fluc1_to_fluc2_move",
+        "recent_margin_weighted_6",
+        "market_fluc1_to_fluc2_move_pct"
       ]
     },
     "x5": {
       "features": [
         "active_field_size",
-  "market_fluc1_to_fluc2_move",
-  "market_implied_prob_change_fluc1_to_fluc2",
-  "horse_jockey_wins",
-  "recent_1_barrier",
-  "hidden_sectional_run_best_3_minus_race_mean",
-  "recent_margin_slope_3"
-
+        "market_fluc1_to_fluc2_move",
+        "market_implied_prob_change_fluc1_to_fluc2",
+        "horse_jockey_wins",
+        "recent_1_barrier",
+        "hidden_sectional_run_best_3_minus_race_mean",
+        "recent_margin_slope_3"
       ]
-    }
-    ,
+    },
     "x6": {
       "features": [
-       
-"active_field_size","market_fluc1_to_fluc2_move", "recent_finish_percentile_best_3", "recent_margin_quality_avg_6", "same_track_distance_runs", "recent_1_track_status_value"
+        "active_field_size",
+        "market_fluc1_to_fluc2_move",
+        "recent_finish_percentile_best_3",
+        "recent_margin_quality_avg_6",
+        "same_track_distance_runs",
+        "recent_1_track_status_value"
       ]
     },
     "x7": {
       "features": [
-       
-"recent_days_since_last_run",
-  "market_fluc1_to_fluc2_move",
-  "recent_5_margin",
-  "recent_last600_slope_3",
-  "recent_best_similar_distance_speed_mps",
-  "market_implied_prob_change_fluc1_to_fluc2",
-  "distanceFamiliarity",
-  "good_starts",
-  "recent_top3_rate_5",
-  "recent3_vs_career_place_rate"
-
+        "recent_days_since_last_run",
+        "market_fluc1_to_fluc2_move",
+        "recent_5_margin",
+        "recent_last600_slope_3",
+        "recent_best_similar_distance_speed_mps",
+        "market_implied_prob_change_fluc1_to_fluc2",
+        "distanceFamiliarity",
+        "good_starts",
+        "recent_top3_rate_5",
+        "recent3_vs_career_place_rate"
       ]
-    }
-    ,
+    },
     "x8": {
       "features": [
-      "recent_days_since_last_run",
-  "distance_m",
-  "race_consensus_score",
-  "market_fluc1_to_fluc2_move",
-  "recent6_vs_career_place_rate",
-  "career_rank_minus_market_rank",
-  "recent_finish_percentile_last1",
-  "recent_best_margin"
-
-
+        "recent_days_since_last_run",
+        "distance_m",
+        "race_consensus_score",
+        "market_fluc1_to_fluc2_move",
+        "recent6_vs_career_place_rate",
+        "career_rank_minus_market_rank",
+        "recent_finish_percentile_last1",
+        "recent_best_margin"
       ]
     }
   }
