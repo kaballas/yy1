@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -27,6 +28,10 @@ from src.winner_ranker import (
     rows_for_races,
 )
 from train_winner_ranker_pipeline import model_parameters
+
+
+CPU_THREADS = os.cpu_count() or 1
+DEFAULT_JOBS = max(1, int(CPU_THREADS * 0.80))
 
 
 def parse_competition_ids(value: str) -> list[int]:
@@ -70,7 +75,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--minimum-runners", type=int, default=4)
     parser.add_argument("--max-estimators", type=int, default=300)
     parser.add_argument("--early-stopping-rounds", type=int, default=40)
-    parser.add_argument("--jobs", type=int, default=12)
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=DEFAULT_JOBS,
+        help=(
+            "XGBoost CPU threads. Defaults to 80%% of available logical CPU "
+            "threads."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--top", type=int, default=20)
     parser.add_argument(
@@ -277,6 +290,22 @@ def best_improving_result(
     )
 
 
+def forward_selection_model_parameters(
+    parameter_args: SimpleNamespace,
+    seed: int,
+    max_estimators: int,
+) -> dict[str, Any]:
+    """Return stable parameters for nested forward-feature comparisons."""
+    parameters = model_parameters(parameter_args, seed, max_estimators)
+    # Sampling makes a candidate fit non-nested: merely adding a column changes
+    # which baseline columns and rows each tree sees. Full sampling lets XGBoost
+    # ignore an unhelpful candidate and makes forward comparisons interpretable.
+    parameters["colsample_bytree"] = 1.0
+    parameters["subsample"] = 1.0
+    parameters["eval_metric"] = ["ndcg@1", "map", "ndcg@3"]
+    return parameters
+
+
 def fit_feature_set(
     args: argparse.Namespace,
     parameter_args: SimpleNamespace,
@@ -288,8 +317,9 @@ def fit_feature_set(
     validation_groups: np.ndarray,
     features: list[str],
 ) -> dict[str, Any]:
-    parameters = model_parameters(parameter_args, args.seed, args.max_estimators)
-    parameters["eval_metric"] = ["ndcg@1", "map", "ndcg@3"]
+    parameters = forward_selection_model_parameters(
+        parameter_args, args.seed, args.max_estimators
+    )
     model = XGBRanker(
         **parameters,
         early_stopping_rounds=args.early_stopping_rounds,
@@ -384,6 +414,7 @@ def run_forward_selection(
         f"features={len(current_features)}",
         flush=True,
     )
+    print("forward_sampling=full colsample_bytree=1.0 subsample=1.0", flush=True)
 
     round_number = 1
     while remaining:
@@ -542,6 +573,12 @@ def save_results(
 
 def main() -> None:
     args = parse_args()
+    print(
+        f"cpu_threads={CPU_THREADS}\n"
+        f"xgboost_jobs={args.jobs}\n"
+        f"cpu_target={'80%' if args.jobs == DEFAULT_JOBS else 'manual'}",
+        flush=True,
+    )
     if args.validation_races < 1 or args.max_estimators < 1:
         raise ValueError("validation-races and max-estimators must be positive")
     if args.early_stopping_rounds < 1 or args.jobs < 1 or args.top < 1:

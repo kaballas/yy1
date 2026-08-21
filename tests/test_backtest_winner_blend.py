@@ -5,11 +5,36 @@ import pytest
 from backtest_winner_blend import (
     candidate_form_weights,
     cohort_metrics,
+    filter_competitions,
     load_prediction_cohort,
+    parse_competition_ids,
     select_form_weight,
     validate_holdout_order,
     winner_ranks_for_weights,
 )
+
+
+def test_competition_ids_accept_one_or_multiple_values_without_duplicates():
+    assert parse_competition_ids("6") == [6]
+    assert parse_competition_ids("6, 10,6") == [6, 10]
+
+
+def test_filter_competitions_keeps_requested_complete_races():
+    frame = prediction_frame()
+    frame["competition_id"] = [6, 6, 10, 10, 6, 6]
+
+    filtered = filter_competitions(frame, [6], "Validation")
+
+    assert filtered["race_id"].tolist() == [1, 1, 3, 3]
+    assert filtered["competition_id"].tolist() == [6, 6, 6, 6]
+
+
+def test_filter_competitions_requires_column_and_matching_rows():
+    with pytest.raises(ValueError, match="missing competition_id"):
+        filter_competitions(prediction_frame(), [6], "Validation")
+    frame = prediction_frame().assign(competition_id=10)
+    with pytest.raises(ValueError, match="no races"):
+        filter_competitions(frame, [6], "Test")
 
 
 def prediction_frame() -> pd.DataFrame:

@@ -430,3 +430,23 @@ python train_raceformer.py \
     --tree-count-validation-races 1000
 
 
+ python train_tune_all_finished_winner_ranker.py \
+    --objective top1 \
+    --folds 5 \
+    --ensemble-size 3 \
+    --max-estimators 700 \
+    --early-stopping-rounds 60 \
+    --tree-count-validation-races 1000 \
+    --ranker-diagnostics
+
+
+  python train_tune_all_finished_winner_ranker.py \
+    --models x23 \
+    --objective top1 \
+    --folds 5 \
+    --ensemble-size 3 \
+    --max-estimators 700 \
+    --early-stopping-rounds 60 \
+    --tree-count-validation-races 1000
+
+

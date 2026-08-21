@@ -36,16 +36,99 @@ MARKET_DISAGREEMENT_FEATURE_NAMES = tuple(
         f"{name}_market_rank_abs_gap",
     )
 )
+RACE_AGGREGATE_FEATURE_NAMES = (
+    "total_prize_money",
+    "race_field_avg_prize_money",
+    "race_field_max_prize_money",
+    "race_field_avg_speed_rating",
+    "race_field_max_speed_rating",
+    "weight_vs_field_mean",
+    "num_scratchings",
+)
+PREPARATION_FEATURE_NAMES = (
+    "preparation_run_number",
+    "runs_this_preparation_before_race",
+    "first_up_flag",
+    "second_up_flag",
+    "third_up_flag",
+)
 FEATURES_TO_STORE = (
     *DERIVED_FEATURE_NAMES,
     *ADVANCED_FEATURE_NAMES,
     *MARKET_DISAGREEMENT_FEATURE_NAMES,
+    *RACE_AGGREGATE_FEATURE_NAMES,
+    *PREPARATION_FEATURE_NAMES,
 )
 CALCULATION_VERSION_COLUMN = "derived_racing_features_version"
 # Increment this whenever a formula or registry change requires existing rows to
 # be rebuilt. A version marker is reliable where feature NULLs are not: many
 # leakage-safe features are legitimately NULL because a horse has no history.
-CALCULATION_VERSION = "2026-08-15-v4"
+CALCULATION_VERSION = "2026-08-20-v6"
+
+
+def add_race_aggregate_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add aggregates calculated from the runners stored for each race."""
+    df = df.copy()
+    prize_money = pd.to_numeric(df["prize_money"], errors="coerce")
+    speed_rating = pd.to_numeric(df["speed_rating"], errors="coerce")
+    weight = pd.to_numeric(df["weight_kg"], errors="coerce")
+    race_id = df["race_id"]
+    grouped_prize = prize_money.groupby(race_id, sort=False)
+    grouped_speed = speed_rating.groupby(race_id, sort=False)
+    grouped_weight = weight.groupby(race_id, sort=False)
+    df["total_prize_money"] = grouped_prize.transform(
+        lambda values: values.sum(min_count=1)
+    )
+    df["race_field_avg_prize_money"] = grouped_prize.transform("mean")
+    df["race_field_max_prize_money"] = grouped_prize.transform("max")
+    df["race_field_avg_speed_rating"] = grouped_speed.transform("mean")
+    df["race_field_max_speed_rating"] = grouped_speed.transform("max")
+    df["weight_vs_field_mean"] = weight - grouped_weight.transform("mean")
+    field_size = pd.to_numeric(df["field_size"], errors="coerce")
+    active_field_size = pd.to_numeric(df["active_field_size"], errors="coerce")
+    df["num_scratchings"] = (field_size - active_field_size).clip(lower=0)
+    # A missing race ID cannot establish that two rows belong to the same race.
+    unknown_race = race_id.isna()
+    df.loc[unknown_race, "total_prize_money"] = prize_money[unknown_race]
+    df.loc[unknown_race, "race_field_avg_prize_money"] = prize_money[unknown_race]
+    df.loc[unknown_race, "race_field_max_prize_money"] = prize_money[unknown_race]
+    df.loc[unknown_race, "race_field_avg_speed_rating"] = speed_rating[unknown_race]
+    df.loc[unknown_race, "race_field_max_speed_rating"] = speed_rating[unknown_race]
+    df.loc[unknown_race, "weight_vs_field_mean"] = 0.0
+    return df
+
+
+def add_preparation_features(
+    df: pd.DataFrame,
+    spell_days: int = 90,
+) -> pd.DataFrame:
+    """Infer the current preparation from pre-race dates using a spell threshold."""
+    df = df.copy()
+    race_date = pd.to_datetime(df["start_time_iso"], utc=True, errors="coerce")
+    recent_dates = [
+        pd.to_datetime(df[f"recent_{run}_date"], utc=True, errors="coerce")
+        for run in range(1, 7)
+    ]
+    gaps = [(race_date - recent_dates[0]).dt.days]
+    gaps.extend(
+        (recent_dates[run - 1] - recent_dates[run]).dt.days
+        for run in range(1, 6)
+    )
+    known_current = gaps[0].notna()
+    prior_runs = pd.Series(0.0, index=df.index)
+    continuing = known_current & gaps[0].lt(spell_days) & gaps[0].ge(0)
+    prior_runs = prior_runs.where(~continuing, 1.0)
+    for gap in gaps[1:]:
+        continuing &= gap.notna() & gap.lt(spell_days) & gap.ge(0)
+        prior_runs = prior_runs.where(~continuing, prior_runs + 1.0)
+    prior_runs = prior_runs.where(known_current)
+    run_number = prior_runs + 1.0
+    df["runs_this_preparation_before_race"] = prior_runs
+    df["preparation_run_number"] = run_number
+    df["first_up_flag"] = run_number.eq(1).astype(float).where(run_number.notna())
+    df["second_up_flag"] = run_number.eq(2).astype(float).where(run_number.notna())
+    df["third_up_flag"] = run_number.eq(3).astype(float).where(run_number.notna())
+    return df
 
 
 def add_market_disagreement_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -118,11 +201,11 @@ def main() -> None:
         "career_seconds", "career_thirds", "place_percentage",
         "fluc2_price_rank", "recent_weighted_avg_margin_rank",
         "recent_similar_distance_speed_rank", "horse_jockey_win_rate_rank",
-        "career_win_rate_rank", "prize_money_rank",
+        "career_win_rate_rank", "speed_rating", "prize_money", "prize_money_rank",
         *(f"recent_{run}_{stem}" for run in range(1, 7) for stem in (
             "place", "margin", "total_runners", "barrier", "starting_price",
             "distance_m", "last600", "time", "class", "weight_kg",
-            "track_name", "track_status",
+            "track_name", "track_status", "date",
         )),
     ]))
     with sqlite3.connect(database) as connection:
@@ -212,6 +295,13 @@ def main() -> None:
                               derive_sectional_class_features(frame),
                               entity_target], axis=1)
             derived = pd.concat([base, derive_context_features(frame, base)], axis=1)
+            race_aggregates = add_race_aggregate_features(frame)
+            preparation = add_preparation_features(frame)
+            derived = pd.concat([
+                derived,
+                race_aggregates.loc[:, RACE_AGGREGATE_FEATURE_NAMES],
+                preparation.loc[:, PREPARATION_FEATURE_NAMES],
+            ], axis=1)
             disagreement_inputs = pd.concat([
                 derived,
                 frame.loc[:, [

@@ -12,6 +12,10 @@ from src.derived_racing_features import DERIVED_FEATURE_NAMES, derive_racing_fea
 from update_derived_racing_features import (
     FEATURES_TO_STORE,
     MARKET_DISAGREEMENT_FEATURE_NAMES,
+    PREPARATION_FEATURE_NAMES,
+    RACE_AGGREGATE_FEATURE_NAMES,
+    add_preparation_features,
+    add_race_aggregate_features,
     add_market_disagreement_features,
 )
 
@@ -188,6 +192,11 @@ def test_advanced_weighting_uses_linear_recent_weights():
 
 def test_feature_registry_exactly_matches_generated_outputs():
     frame = history_frame()
+    frame["prize_money"] = 1000.
+    frame["speed_rating"] = 80.
+    frame["start_time_iso"] = "2026-08-20"
+    for run in range(1, 7):
+        frame[f"recent_{run}_date"] = f"2026-0{7 - run}-01"
     base = pd.concat([derive_racing_features(frame),
                       derive_sectional_class_features(frame)], axis=1)
     base["jockey_trainer_history_smoothed_top3_rate"] = .3
@@ -203,11 +212,19 @@ def test_feature_registry_exactly_matches_generated_outputs():
     ):
         disagreement_input[source] = 2.
     disagreement = add_market_disagreement_features(disagreement_input)
-    generated = set(base) | set(context) | set(disagreement) | set(ADVANCED_FEATURE_NAMES)
+    race_aggregates = add_race_aggregate_features(frame)
+    preparation = add_preparation_features(frame)
+    generated = (
+        set(base) | set(context) | set(disagreement) | set(race_aggregates)
+        | set(preparation)
+        | set(ADVANCED_FEATURE_NAMES)
+    )
     assert set(FEATURES_TO_STORE) == (
         set(DERIVED_FEATURE_NAMES)
         | set(ADVANCED_FEATURE_NAMES)
         | set(MARKET_DISAGREEMENT_FEATURE_NAMES)
+        | set(RACE_AGGREGATE_FEATURE_NAMES)
+        | set(PREPARATION_FEATURE_NAMES)
     )
     assert set(FEATURES_TO_STORE) <= generated
     assert "recent3_vs_career_finish_percentile" not in FEATURES_TO_STORE

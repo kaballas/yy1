@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -56,6 +57,10 @@ from src.winner_ranker import (
     xgb_ensemble_feature_importance,
 )
 from train_winner_ranker_pipeline import model_parameters, score_table
+
+
+CPU_THREADS = os.cpu_count() or 1
+DEFAULT_JOBS = max(1, int(CPU_THREADS * 0.80))
 
 
 class OOFCohortMismatchError(ValueError):
@@ -119,7 +124,15 @@ def parse_args() -> argparse.Namespace:
             "or the estimator fallbacks."
         ),
     )
-    parser.add_argument("--jobs", type=int, default=12)
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=DEFAULT_JOBS,
+        help=(
+            "XGBoost CPU threads. Defaults to 80%% of available logical CPU "
+            "threads."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--objective", choices=("top1", "mrr", "top3", "composite"),
@@ -801,6 +814,14 @@ def retune_saved_predictions(
 
 def main() -> None:
     args = parse_args()
+    print(
+        f"cpu_threads={CPU_THREADS}\n"
+        f"xgboost_jobs={args.jobs}\n"
+        f"cpu_target={'80%' if args.jobs == DEFAULT_JOBS else 'manual'}",
+        flush=True,
+    )
+    if args.jobs < 1:
+        raise ValueError("--jobs must be at least 1")
     args.models = normalize_requested_models(args.models)
     if args.ensemble_size < 1:
         raise ValueError("ensemble-size must be positive")
@@ -1036,7 +1057,7 @@ def main() -> None:
     )
     if oof["race_id"].nunique() != len(eligible_ids):
         raise AssertionError("Not every eligible finished race received OOF scores")
-    final_tree_counts_by_model = {
+    oof_tree_counts_by_model = {
         label: (
             fixed_tree_counts_by_model[label]
             if args.no_tune_tree_counts
@@ -1045,8 +1066,8 @@ def main() -> None:
         for label in training_labels
     }
     print(
-        "final_tree_counts_by_model="
-        + json.dumps(final_tree_counts_by_model, sort_keys=True),
+        "oof_tree_counts_by_model="
+        + json.dumps(oof_tree_counts_by_model, sort_keys=True),
         flush=True,
     )
     if existing_oof is not None:
@@ -1085,6 +1106,30 @@ def main() -> None:
             oof, model_labels, selected_weights, output_dir
         )
 
+    # OOF fold medians are appropriate for unbiased cross-fit diagnostics. The
+    # deployable models have a different job: predict races after the complete
+    # historical cohort. Tune their capacity on the latest chronological slice
+    # of all available history, then refit at that fixed capacity on every race.
+    deployment_tree_counts_by_model = (
+        dict(oof_tree_counts_by_model)
+        if args.no_tune_tree_counts
+        else {
+            label: tune_tree_counts(
+                args,
+                label,
+                all_finished,
+                feature_sets[label],
+                1_000_000 + model_index * 10_000,
+            )
+            for model_index, label in enumerate(training_labels)
+        }
+    )
+    print(
+        "deployment_tree_counts_by_model="
+        + json.dumps(deployment_tree_counts_by_model, sort_keys=True),
+        flush=True,
+    )
+
     all_y = all_finished["is_winner"].to_numpy(dtype=np.int64)
     all_groups = group_sizes(all_finished)
     model_paths: dict[str, list[str]] = {
@@ -1102,7 +1147,7 @@ def main() -> None:
             model_feature_matrix(all_finished, configured_features),
             all_y,
             all_groups,
-            final_tree_counts_by_model[label],
+            deployment_tree_counts_by_model[label],
             seed_offset,
         )
         model_paths[label] = save_ensemble(
@@ -1139,7 +1184,13 @@ def main() -> None:
         "crossfit_folds": args.folds,
         "tree_count_selection": tree_count_mode,
         "tree_count_selection_metric": tree_count_selection_metric,
-        "tuned_model_tree_counts": final_tree_counts_by_model,
+        "oof_median_tree_counts": oof_tree_counts_by_model,
+        "tuned_model_tree_counts": deployment_tree_counts_by_model,
+        "deployment_tree_count_selection": (
+            "source_bundle_or_fallback"
+            if args.no_tune_tree_counts
+            else "full_history_chronological_tail_early_stopping"
+        ),
         "tree_count_max_estimators": args.max_estimators,
         "tree_count_early_stopping_rounds": args.early_stopping_rounds,
         "tree_count_maximum_inner_validation_races": (
@@ -1157,7 +1208,7 @@ def main() -> None:
         for label in reused_labels
     }
     best_tree_counts.update({
-        label: final_tree_counts_by_model[label] for label in training_labels
+        label: deployment_tree_counts_by_model[label] for label in training_labels
     })
     bundle = {
         "schema_version": 3,

@@ -105,6 +105,17 @@ def parse_args() -> argparse.Namespace:
         help="Optional race-level selections, returns, and profits.",
     )
     parser.add_argument(
+        "--top-strategies",
+        type=int,
+        default=5,
+        help="Number of leading strategies shown in the concise report.",
+    )
+    parser.add_argument(
+        "--show-all-strategies",
+        action="store_true",
+        help="Print the full weight matrix and every strategy result.",
+    )
+    parser.add_argument(
         "--optuna-trials",
         type=int,
         default=0,
@@ -632,6 +643,8 @@ def blend_weights_table(
 
 def main() -> None:
     args = parse_args()
+    if args.top_strategies < 1:
+        raise ValueError("--top-strategies must be positive")
     bundle = load_json(args.bundle, "Bundle")
     blend = load_json(args.blend_config, "Blend config")
     if bundle.get("objective") != "single_winner_ranking":
@@ -749,27 +762,66 @@ def main() -> None:
             + json.dumps(non_unit, sort_keys=True)
         )
 
-    print("\nBLEND WEIGHTS (normalized values used)")
-    print(blend_weights_table(model_labels, strategies).to_string(
-        index=False, float_format=lambda value: f"{value:.5f}"
-    ))
-
     columns = [
         "strategy", "weight_sum", "races", "top1_hit_rate", "top3_hit_rate",
         "mrr", "mean_winner_rank", "race_logloss", "priced_races",
         "flat_win_profit", "flat_win_roi",
     ]
-    print("\nOVERALL")
-    print(summary.loc[:, columns].to_string(
+    market_row = summary.loc[summary["strategy"].eq("raw_market_benchmark")]
+    market_top1 = (
+        float(market_row["top1_hit_rate"].iloc[0]) if not market_row.empty else np.nan
+    )
+    market_roi = (
+        float(market_row["flat_win_roi"].iloc[0]) if not market_row.empty else np.nan
+    )
+    core_names = {
+        "config_selected", "bundle_selected", "bundle_all_finished_tuned",
+        "bundle_deployment", "raw_market_benchmark", "optuna_best",
+    }
+    leading_names = summary.head(args.top_strategies)["strategy"].tolist()
+    shown_names = set(leading_names) | core_names
+    shown = summary.loc[summary["strategy"].isin(shown_names)].copy()
+    shown["top1_vs_market"] = shown["top1_hit_rate"] - market_top1
+    shown["roi_vs_market"] = shown["flat_win_roi"] - market_roi
+    concise_columns = [
+        "strategy", "races", "top1_hit_rate", "top1_vs_market",
+        "top3_hit_rate", "mrr", "flat_win_roi", "roi_vs_market",
+    ]
+    print("\nDECISION SUMMARY (ranked by top-1, deltas versus raw market)")
+    print(shown.loc[:, concise_columns].to_string(
         index=False, float_format=lambda value: f"{value:.5f}"
     ))
+    best = summary.iloc[0]
+    print(
+        f"recommendation=best_oof_strategy strategy={best['strategy']} "
+        f"top1={best['top1_hit_rate']:.2%} top3={best['top3_hit_rate']:.2%} "
+        f"roi={best['flat_win_roi']:.2%}"
+    )
+    for name in shown["strategy"]:
+        weights = strategies[str(name)]
+        nonzero = {
+            key: round(float(value) / sum(weights.values()), 6)
+            for key, value in weights.items() if float(value) > 0
+        }
+        if len(nonzero) > 1 or str(name) in core_names:
+            print(f"weights[{name}]={json.dumps(nonzero, sort_keys=True)}")
+
+    if args.show_all_strategies:
+        print("\nALL BLEND WEIGHTS (normalized values used)")
+        print(blend_weights_table(model_labels, strategies).to_string(
+            index=False, float_format=lambda value: f"{value:.5f}"
+        ))
+        print("\nALL STRATEGIES")
+        print(summary.loc[:, columns].to_string(
+            index=False, float_format=lambda value: f"{value:.5f}"
+        ))
     if folds is not None:
+        fold_names = {
+            str(best["strategy"]), "config_selected", "bundle_deployment",
+            "raw_market_benchmark", "optuna_best",
+        }
         focus = folds.loc[
-            folds["strategy"].isin([
-                "config_selected", "bundle_selected",
-                "bundle_all_finished_tuned", "bundle_deployment",
-                "raw_market_benchmark", "optuna_best",
-            ]),
+            folds["strategy"].isin(fold_names),
             [
                 "strategy", "crossfit_fold", "races", "top1_hit_rate",
                 "top3_hit_rate", "mrr", "flat_win_roi",

@@ -10,6 +10,78 @@ combines:
 - positive and negative prototypes built directly from normalized historical
   runner features.
 
+## Repository layout
+
+The codebase is organized around a few major areas:
+
+- `src/` is the core Python package for data loading, preprocessing, feature
+  engineering, training, validation, inference, and the race-aware model code.
+- `src/model/` contains the model implementations, including the TabFM stack in
+  `src/model/tabfm_model/` and a raceformer variant in `src/model/raceformer.py`.
+- `tabfm_split/` contains split-manifest and eligibility utilities used to
+  enforce chronological, labelled, and competition-aware dataset boundaries.
+- `sql/` holds SQL views used to build training/validation tables and special
+  diagnostics such as market-top-3 misses.
+- `db/` and the root SQLite files are the local datasets used for training,
+  ranking, and validation experiments.
+- `output/` and `outputs/` contain checkpoints, predictions, feature audits,
+  and backtest reports generated during experiments.
+- `tests/` and `src/model/tests/` validate the feature pipeline, model behavior,
+  and winner-ranker contracts.
+- `Model.md` is the deeper architecture note; this README is the operational
+  runbook and CLI reference.
+
+### Major training and evaluation entry points
+
+- Scratch model training: `train_model.py`, `finetune_model.py`,
+  `train_raceformer.py`, `train_corrected_raceformer_pipeline.py`
+- Winner/ranking pipelines: `train_winner_ranker_pipeline.py`,
+  `train_tune_all_finished_winner_ranker.py`, `rank_winner_models.py`,
+  `inspect_winner_ranker.py`, `backtest_winner_blend.py`,
+  `backtest_all_finished_winner_blends.py`
+- Feature and diagnostic scripts: `feature_hinter.py`,
+  `analyze_winner_features.py`, `audit_production_features.py`,
+  `audit_market_residual_features.py`, `validate_chronological_winner_blend.py`,
+  `expand_validation_cohort.py`
+- Inference and prediction: `predict_race.py`, `predict_raceformer.py`,
+  `rank_raceformer_models.py`
+- Data preparation: `update_derived_racing_features.py`,
+  `build_market_mover_manifest.py`, `train_chronological_winner_targets.py`
+- Support utilities: `debug_race.py`, `debug_raceformer.py`,
+  `merge_model_weights.py`, `merge_pytorch_models.py`
+
+The current repo still includes older prototype and experimental checkpoints in
+`output/`, `backup/`, and `outputs/`; they are useful for comparison, but the
+active workflow is the TabFM and winner-ranker training scripts above.
+
+### Root-level script inventory
+
+The repository contains a large set of experiment and analysis scripts at the
+project root; the most important ones are grouped below:
+
+- Training and fine-tuning: `train_model.py`, `finetune_model.py`,
+  `train_raceformer.py`, `train_corrected_raceformer_pipeline.py`,
+  `train_market_mover_tests.py`, `train_chronological_winner_targets.py`,
+  `train_winner_ranker_pipeline.py`, `train_tune_all_finished_winner_ranker.py`
+- Prediction and ranking: `predict_race.py`, `predict_raceformer.py`,
+  `rank_winner_models.py`, `rank_raceformer_models.py`,
+  `inspect_winner_ranker.py`
+- Backtesting and evaluation: `backtest_winner_blend.py`,
+  `backtest_all_finished_winner_blends.py`, `backtest_context_windows.py`,
+  `validate_chronological_winner_blend.py`, `evaluate_model_stages.py`,
+  `compare_label_context_reports.py`
+- Feature/market analysis: `feature_hinter.py`, `analyze_winner_features.py`,
+  `analyze_sealed_market_disagreements.py`, `audit_production_features.py`,
+  `audit_market_residual_features.py`, `audit_standardized_features.py`,
+  `build_market_mover_manifest.py`, `update_derived_racing_features.py`,
+  `expand_validation_cohort.py`
+- Debugging and utilities: `debug_race.py`, `debug_raceformer.py`,
+  `merge_model_weights.py`, `merge_pytorch_models.py`, `test_tabfm_classifier.py`
+
+This root inventory matches the current repository state and is kept in sync with
+`src/`, `src/model/`, `tabfm_split/`, and `sql/` as the canonical implementation
+areas for the project.
+
 ## Environment
 
 Activate the PyTorch environment and enter this checkout:
@@ -125,6 +197,27 @@ Each feature is tested ASC and DESC within each race before race-level results
 are aggregated. Current-result leakage, identifiers, text, constants, empty
 features, and control columns are excluded; missing values always rank last.
 
+Greedily test individual additions to a declared market-mover baseline with a
+chronological race holdout:
+
+```bash
+python train_market_mover_tests.py \
+  --features-json test.json \
+  --competition-id 6 \
+  --validation-races 200 \
+  --max-estimators 700 \
+  --early-stopping-rounds 20 \
+  --forward-select
+```
+
+Forward selection forces `colsample_bytree=1.0` and `subsample=1.0`. Full
+sampling keeps each candidate fit nested with the baseline instead of changing
+which baseline columns or rows each tree happens to see. Ordinary training
+retains the regularized sampling parameters. The run prints
+`forward_sampling=full` as confirmation. Candidate decisions still use the
+specified validation cohort and seed; use multiple seeds and an untouched test
+cohort before treating small uplifts as production evidence.
+
 Tune a two-model blend without giving raw market rank any weight:
 
 ```bash
@@ -132,6 +225,21 @@ python backtest_winner_blend.py \
   --objective top1 \
   --weight-step 0.001
 ```
+
+Both prediction files may be restricted to one or more competitions when that
+competition is present in both chronological cohorts:
+
+```bash
+python backtest_winner_blend.py \
+  --competition-id 580,570 \
+  --output-json outputs/winner_ranker/competitions_580_570_blend.json \
+  --sweep-csv outputs/winner_ranker/competitions_580_570_weight_sweep.csv
+```
+
+The command fails rather than producing an empty or one-sided comparison when
+the requested competition is absent from either cohort. For competitions such
+as `6` that exist only in the all-finished OOF artifact, use the all-finished
+backtester documented below.
 
 The weight is selected on `validation_predictions.csv` only and then evaluated
 once on the later `test_predictions.csv` cohort. The report compares form-only,
@@ -156,21 +264,54 @@ tuning followed by a full-data refit:
 ```bash
 python train_tune_all_finished_winner_ranker.py \
   --folds 5 \
-  --jobs 12 \
+  --ensemble-size 3 \
   --objective top1 \
-  --weight-step 0.001
+  --weight-step 0.001 \
+  --max-estimators 700 \
+  --early-stopping-rounds 60 \
+  --tree-count-validation-races 1000 \
+  --ranker-diagnostics
 ```
 
 Every race is scored out of fold by models that did not train on that race.
-Those OOF scores tune the form/market-aware weight with raw market weight fixed
-at zero. Both ensembles are then fitted again using all eligible finished
-races. Races without exactly one winner, fields below the minimum runner count,
-and inactive runners cannot be used for supervised winner ranking.
+Those OOF scores tune a dynamic blend over the model groups declared in
+`winner_ranker_features.json`, with raw market weight fixed at zero. Every
+selected ensemble is then fitted again using all eligible finished races. Races
+without exactly one winner, fields below the minimum runner count, and inactive
+runners cannot be used for supervised winner ranking.
+
+Tree counts used for OOF scoring are selected by nested chronological early
+stopping inside each outer fold. For the saved live-prediction models, tree
+counts are tuned again using the most recent chronological tail of the complete
+history, after which each ensemble member is refitted on every eligible race.
+The output distinguishes `oof_tree_counts_by_model` from
+`deployment_tree_counts_by_model`. Do not pass `--no-tune-tree-counts` when
+building the recommended deployment bundle; that flag deliberately reuses
+source-bundle or fallback counts instead. XGBoost jobs default to 80% of the
+available logical CPUs and can still be overridden with `--jobs`.
 
 This all-finished mode deliberately has no sealed test cohort: every race is
 used for model fitting or blend selection. Its grouped OOF figures are tuning
 diagnostics, not an untouched chronological performance claim. Use the command
 printed at completion to rank with its separate bundle and blend file.
+
+Backtest one or more competitions from the saved all-finished OOF predictions:
+
+```bash
+python backtest_all_finished_winner_blends.py \
+  --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+  --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
+  --competition-id 6 \
+  --top-strategies 5 \
+  --output-csv outputs/winner_ranker_all_finished/competition_6_backtest.csv
+```
+
+The default report is concise: it shows the leading strategies, configured and
+deployment choices, raw-market benchmark, deltas versus market, nonzero blend
+weights, and fold stability. Add `--show-all-strategies` for the exhaustive
+weight matrix and every one-model strategy. This remains an OOF diagnostic—the
+configured blend weights were selected on the broader OOF cohort, so the
+competition-filtered result is not a sealed future test.
 
 To replace the discrete blend-weight grid with a persistent Optuna search over
 the saved OOF scores:
@@ -953,6 +1094,21 @@ speed relative to whole-race speed, normalized current/recent class levels, and
 strictly time-causal jockey, trainer, and jockey-trainer top-three excess. Entity
 statistics use only results with a start time strictly earlier than the row, so
 other runners at the same start time cannot leak their outcomes.
+
+It also stores race-card aggregates and preparation context that can be
+reconstructed without a new upstream data source:
+
+- `total_prize_money`, field average/max prize money, and field average/max
+  speed rating;
+- `weight_vs_field_mean` and `num_scratchings`; and
+- preparation run number, prior runs this preparation, and first-/second-/
+  third-up flags inferred with a 90-day spell threshold.
+
+The current registry marker is `2026-08-20-v6`. A version change causes existing
+finished rows to be rebuilt, while unfinished races are recalculated on every
+run because their source card can still change. Raw pace positions, detailed
+sectionals, surface, rail, weather, claims, official ratings, trials, and gear
+history cannot be reconstructed by this updater and must be captured upstream.
 
 An eight-fold screen initially found a small gain for best six-run last-600 +
 recent trainer excess + prior field strength (mean composite delta `+0.00125`,

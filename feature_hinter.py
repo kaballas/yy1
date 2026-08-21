@@ -5,16 +5,27 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sqlite3
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 import numpy as np
 import pandas as pd
 
 from src.config import DEFAULT_DB
+
+
+CPU_THREADS = os.cpu_count() or 1
+DEFAULT_JOBS = max(1, int(CPU_THREADS * 0.80))
 
 
 EXCLUDED_COLUMNS = {
@@ -135,7 +146,13 @@ def parse_args() -> argparse.Namespace:
         "--feature-batch-size",
         type=int,
         default=64,
-        help="Numeric columns loaded per batch in --all-races mode.",
+        help="Numeric columns evaluated per worker batch.",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=DEFAULT_JOBS,
+        help="Number of worker processes. Defaults to 80%% of logical CPU threads.",
     )
     parser.add_argument(
         "--detail",
@@ -434,6 +451,38 @@ def evaluate_features(frame: pd.DataFrame, features: list[str]) -> pd.DataFrame:
     )
 
 
+def evaluate_feature_batch(
+    frame: pd.DataFrame, batch: list[str]
+) -> pd.DataFrame:
+    """Evaluate one feature batch from an already-loaded race frame."""
+    columns = [
+        "race_id", "runner_number", "runner_name", "top3_mask", "is_winner",
+        *batch,
+    ]
+    return evaluate_features(frame.loc[:, columns], batch)
+
+
+def evaluate_database_feature_batch(
+    database: Path,
+    batch: list[str],
+    competition_ids: list[int] | None,
+    competition_999_entity: bool,
+    valid_ids: set[int],
+) -> pd.DataFrame:
+    """Load and evaluate one database-backed feature batch."""
+    batch_frame = load_finished_runners(
+        database,
+        batch,
+        None,
+        competition_ids,
+        competition_999_entity=competition_999_entity,
+    )
+    batch_frame = batch_frame.loc[
+        batch_frame["race_id"].isin(valid_ids)
+    ].reset_index(drop=True)
+    return evaluate_features(batch_frame, batch)
+
+
 def sort_feature_results(results: pd.DataFrame) -> pd.DataFrame:
     return results.sort_values(
         [
@@ -597,6 +646,9 @@ def winner_rank_one_payload(
 
 def main() -> None:
     args = parse_args()
+    print(f"cpu_threads={CPU_THREADS}\njobs={args.jobs}\ncpu_target=80%")
+    if args.jobs < 1:
+        raise ValueError("--jobs must be at least 1")
     if args.race_id is not None and args.race_id < 1:
         raise ValueError("race-id must be positive")
     if args.top_features < 1:
@@ -626,6 +678,10 @@ def main() -> None:
         args.allow_competition_999 and args.competition_id == [999]
     )
     features = candidate_features(schema)
+    feature_batches = [
+        features[start:start + args.feature_batch_size]
+        for start in range(0, len(features), args.feature_batch_size)
+    ]
     if args.all_races:
         frame, invalid_ids = usable_races(
             load_finished_runners(
@@ -635,17 +691,27 @@ def main() -> None:
         )
         valid_ids = set(frame["race_id"].astype(int))
         result_parts: list[pd.DataFrame] = []
-        for start in range(0, len(features), args.feature_batch_size):
-            batch = features[start:start + args.feature_batch_size]
-            batch_frame = load_finished_runners(
-                database, batch, None, args.competition_id,
-                competition_999_entity=competition_999_entity,
-            )
-            batch_frame = batch_frame.loc[
-                batch_frame["race_id"].isin(valid_ids)
-            ].reset_index(drop=True)
-            result_parts.append(evaluate_features(batch_frame, batch))
-        results = sort_feature_results(pd.concat(result_parts, ignore_index=True))
+        if args.jobs == 1:
+            for batch in feature_batches:
+                result_parts.append(evaluate_database_feature_batch(
+                    database, batch, args.competition_id,
+                    competition_999_entity, valid_ids,
+                ))
+        else:
+            with ProcessPoolExecutor(max_workers=args.jobs) as executor:
+                futures = [
+                    executor.submit(
+                        evaluate_database_feature_batch,
+                        database,
+                        batch,
+                        args.competition_id,
+                        competition_999_entity,
+                        valid_ids,
+                    )
+                    for batch in feature_batches
+                ]
+                for future in as_completed(futures):
+                    result_parts.append(future.result())
     else:
         frame, invalid_ids = usable_races(
             load_finished_runners(
@@ -653,7 +719,21 @@ def main() -> None:
                 competition_999_entity=competition_999_entity,
             )
         )
-        results = evaluate_features(frame, features)
+        result_parts = []
+        if args.jobs == 1:
+            for batch in feature_batches:
+                result_parts.append(evaluate_feature_batch(frame, batch))
+        else:
+            with ProcessPoolExecutor(max_workers=args.jobs) as executor:
+                futures = [
+                    executor.submit(evaluate_feature_batch, frame, batch)
+                    for batch in feature_batches
+                ]
+                for future in as_completed(futures):
+                    result_parts.append(future.result())
+    results = sort_feature_results(
+        pd.concat(result_parts, ignore_index=True)
+    )
     if results.empty:
         raise ValueError("No numeric feature varied within any usable race")
     unfiltered_feature_count = len(results)

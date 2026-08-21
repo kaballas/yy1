@@ -26,6 +26,26 @@ MARKET_AWARE_SCORE_ALIASES = (
 )
 
 
+def parse_competition_ids(value: str) -> list[int]:
+    """Parse one competition ID or a comma-separated list without duplicates."""
+    parts = [part.strip() for part in value.split(",")]
+    if not parts or any(not part for part in parts):
+        raise argparse.ArgumentTypeError(
+            "competition IDs must be comma-separated positive integers"
+        )
+    try:
+        competition_ids = [int(part) for part in parts]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "competition IDs must be comma-separated positive integers"
+        ) from exc
+    if any(competition_id < 1 for competition_id in competition_ids):
+        raise argparse.ArgumentTypeError(
+            "competition IDs must be comma-separated positive integers"
+        )
+    return list(dict.fromkeys(competition_ids))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -43,6 +63,16 @@ def parse_args() -> argparse.Namespace:
         choices=("top1", "mrr", "top3", "composite"),
         default="top1",
         help="Validation-only metric used to select the weight.",
+    )
+    parser.add_argument(
+        "--competition-id", "--competition-ids",
+        dest="competition_ids",
+        type=parse_competition_ids,
+        metavar="ID[,ID...]",
+        help=(
+            "Limit both validation and sealed-test predictions to one or more "
+            "comma-separated competition IDs."
+        ),
     )
     parser.add_argument(
         "--weight-step",
@@ -112,6 +142,30 @@ def load_prediction_cohort(path: Path) -> tuple[pd.DataFrame, str, str]:
     ]
     frame = frame.sort_values(sort_columns, kind="stable", ignore_index=True)
     return frame, form_column, aware_column
+
+
+def filter_competitions(
+    frame: pd.DataFrame,
+    competition_ids: list[int] | None,
+    cohort: str,
+) -> pd.DataFrame:
+    """Filter a prediction cohort without allowing an empty evaluation."""
+    if competition_ids is None:
+        return frame
+    if "competition_id" not in frame.columns:
+        raise ValueError(
+            f"{cohort} predictions are missing competition_id; cannot apply "
+            "--competition-id"
+        )
+    competition = pd.to_numeric(frame["competition_id"], errors="coerce")
+    filtered = frame.loc[competition.isin(competition_ids)].copy()
+    if filtered.empty:
+        raise ValueError(
+            f"{cohort} predictions contain no races for competition IDs: "
+            + ", ".join(map(str, competition_ids))
+        )
+    filtered["competition_id"] = competition.loc[filtered.index].astype(int)
+    return filtered.reset_index(drop=True)
 
 
 def validate_holdout_order(validation: pd.DataFrame, test: pd.DataFrame) -> None:
@@ -306,6 +360,10 @@ def main() -> None:
         args.validation_predictions
     )
     test, test_form, test_aware = load_prediction_cohort(args.test_predictions)
+    validation = filter_competitions(
+        validation, args.competition_ids, "Validation"
+    )
+    test = filter_competitions(test, args.competition_ids, "Test")
     validate_holdout_order(validation, test)
     weights = candidate_form_weights(args.weight_step, args.minimum_form_weight)
     selected_form_weight, sweep = select_form_weight(
@@ -327,7 +385,8 @@ def main() -> None:
     print(
         f"tuning_cohort=validation validation_races={validation['race_id'].nunique():,} "
         f"sealed_test_races={test['race_id'].nunique():,} objective={args.objective} "
-        f"weight_step={args.weight_step:g}"
+        f"weight_step={args.weight_step:g} "
+        f"competition_ids={args.competition_ids or 'all'}"
     )
     print(
         "selected_weights=" + json.dumps(selected_weights, sort_keys=True)
@@ -359,6 +418,7 @@ def main() -> None:
         "objective": args.objective,
         "weight_step": args.weight_step,
         "minimum_form_weight": args.minimum_form_weight,
+        "competition_ids": args.competition_ids,
         "selected_weights": selected_weights,
         "validation_predictions": str(args.validation_predictions.resolve()),
         "test_predictions": str(args.test_predictions.resolve()),

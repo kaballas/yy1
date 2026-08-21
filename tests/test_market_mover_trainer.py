@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -8,12 +9,24 @@ import pytest
 from train_market_mover_tests import (
     best_improving_result,
     forward_feature_pool,
+    forward_selection_model_parameters,
     infer_ablation_features,
     load_feature_sets,
     parse_competition_ids,
     recommended_validation_races,
     top3_capture,
 )
+
+
+def test_forward_selection_uses_full_feature_and_row_sampling():
+    parameters = forward_selection_model_parameters(
+        SimpleNamespace(jobs=1), seed=42, max_estimators=100
+    )
+
+    assert parameters["colsample_bytree"] == 1.0
+    assert parameters["subsample"] == 1.0
+    assert parameters["random_state"] == 42
+    assert parameters["n_estimators"] == 100
 
 
 def test_top3_capture_is_aggregated_race_locally():

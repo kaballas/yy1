@@ -12,8 +12,25 @@ from feature_hinter import candidate_features, database_schema
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [
-    "recent_1_place",
-        "trainer_history_starts"
+ "distance_m",
+        "draw_number",
+        "field_size",
+        "market_open_to_fluc2_move",
+        "market_price_range_pct",
+        "market_open_to_fluc2_move_pct",
+        "jockey_market_rank_abs_gap",
+        "historical_run_quality_best_3",
+        "distance_minus_recent_weighted_avg",
+        "recent_1_starting_price",
+        "recent_barrier_percentile_avg_3",
+        "recent_avg_place",
+        "sectional_last600_trend",
+        "class_change_vs_recent_3",
+        "recent_weighted_avg_margin_rank",
+        "recent_weighted_top3_rate"
+
+
+
 ]
 
 # Optional permanent exclusions. Add race_runners feature names here when they
@@ -23,7 +40,15 @@ EXCLUDED_FEATURES: list[str] = [
     "fluc2",
     "fluc2_price_rank",
     "fluc1_price_rank",
-    "open_price","race_consensus_rank","race_consensus_score","market_fluc1_to_fluc2_move","open_price_rank","market_implied_prob_change_open_to_fluc2"
+    "open_price",
+    "race_consensus_rank",
+    "race_consensus_score",
+    "market_fluc1_to_fluc2_move",
+    "open_price_rank",
+    "market_implied_prob_change_open_to_fluc2",
+    "market_total_abs_movement",
+    "market_implied_prob_change_fluc1_to_fluc2",
+    "market_open_to_fluc1_move",
 ]
 
 
