@@ -12,25 +12,19 @@ from feature_hinter import candidate_features, database_schema
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [
- "distance_m",
-        "draw_number",
-        "field_size",
-        "market_open_to_fluc2_move",
-        "market_price_range_pct",
-        "market_open_to_fluc2_move_pct",
-        "jockey_market_rank_abs_gap",
-        "historical_run_quality_best_3",
-        "distance_minus_recent_weighted_avg",
-        "recent_1_starting_price",
-        "recent_barrier_percentile_avg_3",
-        "recent_avg_place",
-        "sectional_last600_trend",
-        "class_change_vs_recent_3",
-        "recent_weighted_avg_margin_rank",
-        "recent_weighted_top3_rate"
+"distance_m",
+  "draw_number",
+  "field_size",
+  "class_adjusted_finish_percentile_weighted_6",
+  "second_up_flag",
+  "historical_step_up_observations",
+  "market_fluc1_to_fluc2_move_pct",
+  "margin_rank_minus_market_rank",
+  "recent_weighted_avg_margin_rank",
+  "performance_at_current_or_stronger_class",
+  "recent_3_starting_price"
 
-
-
+  
 ]
 
 # Optional permanent exclusions. Add race_runners feature names here when they

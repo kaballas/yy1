@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -89,9 +90,33 @@ def parse_args() -> argparse.Namespace:
         default=Path(__file__).resolve().with_name("winner_ranker_features.json"),
         help="JSON manifest defining the exact ordered features for each model.",
     )
+    parser.add_argument(
+        "--race-models-manifest",
+        type=Path,
+        help=(
+            "Import every model and its input_features from a models_test "
+            "per_race_models_manifest.json and retrain them as standard model groups."
+        ),
+    )
+    parser.add_argument(
+        "--focus-top3-failures-bundle",
+        type=Path,
+        help=(
+            "Before training, score every eligible race with this existing bundle "
+            "and keep only races where no model exactly matches top3_mask."
+        ),
+    )
     parser.add_argument("--folds", type=int, default=5)
     parser.add_argument("--minimum-runners", type=int, default=4)
     parser.add_argument("--minimum-feature-coverage", type=float, default=0.20)
+    parser.add_argument(
+        "--training-weekday",
+        choices=(
+            "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+            "Saturday", "Sunday",
+        ),
+        help="Train only races whose UTC start_time_iso falls on this weekday.",
+    )
     parser.add_argument("--ensemble-size", type=int, default=3)
     parser.add_argument(
         "--default-form-estimators",
@@ -188,6 +213,27 @@ def crossfit_fold_ids(race_ids: list[int], folds: int) -> list[list[int]]:
     for index, race_id in enumerate(race_ids):
         result[index % folds].append(int(race_id))
     return result
+
+
+def filter_races_by_utc_weekday(
+    races: pd.DataFrame, weekday: str | None
+) -> pd.DataFrame:
+    """Keep races starting on the requested UTC weekday."""
+    if weekday is None:
+        return races
+    weekday_number = {
+        "Monday": 0,
+        "Tuesday": 1,
+        "Wednesday": 2,
+        "Thursday": 3,
+        "Friday": 4,
+        "Saturday": 5,
+        "Sunday": 6,
+    }[weekday]
+    times = pd.to_datetime(races["start_time"], errors="coerce", utc=True)
+    if times.isna().any():
+        raise ValueError("Eligible races contain invalid start times")
+    return races.loc[times.dt.dayofweek.eq(weekday_number)].reset_index(drop=True)
 
 
 def tree_counts(
@@ -353,6 +399,7 @@ def load_model_feature_sets(
 ) -> dict[str, list[str]]:
     """Load and validate the exact ordered input columns for each model."""
     path = manifest_path.resolve()
+    print(path)
     if not path.is_file():
         raise ValueError(f"Feature manifest does not exist: {path}")
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -388,6 +435,129 @@ def load_model_feature_sets(
                 + ", ".join(unavailable)
             )
     return feature_sets
+
+
+def load_race_model_feature_sets(
+    manifest_path: Path, eligible_features: list[str]
+) -> dict[str, list[str]]:
+    """Load unique per-race feature sets as standard trainable model groups."""
+    path = manifest_path.resolve()
+    if not path.is_file():
+        raise ValueError(f"Race-model manifest does not exist: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    models = payload.get("models")
+    if not isinstance(models, list) or not models:
+        raise ValueError(f"{path} must contain a non-empty models list")
+    eligible = set(eligible_features) | set(MARKET_ENGINEERED_FEATURES)
+    feature_sets: dict[str, list[str]] = {}
+    representative_by_features: dict[tuple[str, ...], str] = {}
+    duplicate_models: dict[str, str] = {}
+    for item in models:
+        if not isinstance(item, dict):
+            raise ValueError(f"{path} contains an invalid model entry")
+        label = str(item.get("name", ""))
+        details = item.get("details")
+        features = details.get("input_features") if isinstance(details, dict) else None
+        if not features:
+            sidecar_path = Path(str(item.get("features_file", "")))
+            if sidecar_path.is_file():
+                sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+                features = sidecar.get("input_features")
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*", label):
+            raise ValueError(f"{path} has invalid model name: {label!r}")
+        if not isinstance(features, list) or not features:
+            raise ValueError(f"{path} model {label} has no input_features")
+        normalized = list(dict.fromkeys(map(str, features)))
+        unavailable = [feature for feature in normalized if feature not in eligible]
+        if unavailable:
+            raise ValueError(
+                f"Race-model manifest has unavailable {label} features: "
+                + ", ".join(unavailable)
+            )
+        if label in feature_sets:
+            raise ValueError(f"{path} contains duplicate model name: {label}")
+        fingerprint = tuple(normalized)
+        if fingerprint in representative_by_features:
+            duplicate_models[label] = representative_by_features[fingerprint]
+            continue
+        representative_by_features[fingerprint] = label
+        feature_sets[label] = normalized
+    if duplicate_models:
+        print(
+            "duplicate_race_model_feature_sets_removed="
+            f"{len(duplicate_models):,} unique_feature_sets={len(feature_sets):,} "
+            "duplicate_to_representative="
+            + json.dumps(duplicate_models, sort_keys=True),
+            flush=True,
+        )
+    return feature_sets
+
+
+def focus_on_uncovered_top3_races(
+    frame: pd.DataFrame, bundle_path: Path
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Keep races whose actual top-three set is unmatched by every bundle model."""
+    path = bundle_path.resolve()
+    if not path.is_file():
+        raise ValueError(f"Top-three coverage bundle does not exist: {path}")
+    bundle = json.loads(path.read_text(encoding="utf-8"))
+    feature_sets = dict(bundle.get("model_features", {}))
+    model_paths = dict(bundle.get("models", {}))
+    if not feature_sets:
+        raise ValueError(f"Top-three coverage bundle contains no model_features: {path}")
+    if "top3_mask" not in frame:
+        raise ValueError("Training rows do not contain top3_mask")
+    race_ids = frame["race_id"].to_numpy(dtype=np.int64)
+    covered_races: set[int] = set()
+    coverage_by_model: dict[str, int] = {}
+    eligible_top3_races = {
+        int(race_id)
+        for race_id, race in frame.groupby("race_id", sort=False)
+        if int(pd.to_numeric(race["top3_mask"], errors="coerce").fillna(0).sum()) == 3
+    }
+    for label, configured_features in feature_sets.items():
+        paths = list(model_paths.get(label, []))
+        if not paths:
+            continue
+        models: list[XGBRanker] = []
+        for model_path in paths:
+            model = XGBRanker()
+            model.load_model(model_path)
+            models.append(model)
+        scores = ensemble_rank_scores(
+            models, model_feature_matrix(frame, list(configured_features)), race_ids
+        )
+        model_covered: set[int] = set()
+        for race_id, positions in frame.groupby("race_id", sort=False).indices.items():
+            numeric_race_id = int(race_id)
+            if numeric_race_id not in eligible_top3_races:
+                continue
+            position_array = np.asarray(positions, dtype=np.int64)
+            race = frame.iloc[position_array]
+            actual = set(
+                race.loc[
+                    pd.to_numeric(race["top3_mask"], errors="coerce").eq(1),
+                    "runner_number",
+                ].astype(int)
+            )
+            order = np.argsort(-scores[position_array], kind="stable")[:3]
+            predicted = set(race.iloc[order]["runner_number"].astype(int))
+            if predicted == actual:
+                model_covered.add(numeric_race_id)
+        coverage_by_model[str(label)] = len(model_covered)
+        covered_races.update(model_covered)
+    uncovered = frame.loc[~frame["race_id"].isin(covered_races)].copy()
+    report = {
+        "source_bundle": str(path),
+        "input_races": int(frame["race_id"].nunique()),
+        "races_with_exactly_three_top3_labels": len(eligible_top3_races),
+        "covered_races": len(covered_races),
+        "uncovered_races": int(uncovered["race_id"].nunique()),
+        "coverage_by_model": coverage_by_model,
+    }
+    if uncovered.empty:
+        raise ValueError("Existing models exactly match top3_mask for every race")
+    return uncovered.reset_index(drop=True), report
 
 
 def select_requested_model_groups(
@@ -446,8 +616,10 @@ def merge_reused_oof_scores(
     fresh: pd.DataFrame,
     existing: pd.DataFrame,
     reused_labels: list[str],
+    *,
+    warn_on_mismatch: bool = True,
 ) -> pd.DataFrame:
-    """Attach validated OOF scores for model groups not being retrained."""
+    """Attach reused OOF scores, retaining only complete matching races."""
     if not reused_labels:
         return fresh
     keys = ["race_id", "runner_number"]
@@ -465,17 +637,43 @@ def merge_reused_oof_scores(
     if fresh.duplicated(keys).any() or existing.duplicated(keys).any():
         raise ValueError("OOF predictions contain duplicate race/runner keys")
     existing_subset = existing.loc[:, [*keys, *reused_columns]]
-    merged = fresh.merge(
-        existing_subset, on=keys, how="left", validate="one_to_one", indicator=True
+    fresh_keys_by_race = fresh.groupby("race_id", sort=False)["runner_number"].agg(
+        lambda values: frozenset(values.tolist())
     )
-    unmatched = int((merged["_merge"] != "both").sum())
-    if unmatched or len(merged) != len(existing_subset):
-        raise OOFCohortMismatchError(
-            "Existing OOF cohort does not match the current eligible cohort: "
+    existing_keys_by_race = existing_subset.groupby(
+        "race_id", sort=False
+    )["runner_number"].agg(lambda values: frozenset(values.tolist()))
+    matching_races = {
+        race_id
+        for race_id, runner_numbers in fresh_keys_by_race.items()
+        if existing_keys_by_race.get(race_id) == runner_numbers
+    }
+    retained_fresh = fresh.loc[fresh["race_id"].isin(matching_races)].copy()
+    cohorts_match = (
+        len(matching_races) == len(fresh_keys_by_race)
+        and len(fresh) == len(existing_subset)
+    )
+    if not cohorts_match and warn_on_mismatch:
+        warnings.warn(
+            "Existing OOF cohort does not match the current eligible cohort; "
+            "blend evaluation will use only complete races with identical runner "
+            "sets: "
             f"fresh_rows={len(fresh):,} existing_rows={len(existing_subset):,} "
-            f"unmatched_fresh_rows={unmatched:,}"
+            f"retained_rows={len(retained_fresh):,} "
+            f"dropped_fresh_rows={len(fresh) - len(retained_fresh):,} "
+            f"retained_races={len(matching_races):,} "
+            f"dropped_fresh_races={len(fresh_keys_by_race) - len(matching_races):,}",
+            RuntimeWarning,
+            stacklevel=2,
         )
-    merged = merged.drop(columns="_merge")
+    if retained_fresh.empty:
+        raise OOFCohortMismatchError(
+            "Existing OOF cohort has no complete races matching the current "
+            "eligible cohort"
+        )
+    merged = retained_fresh.merge(
+        existing_subset, on=keys, how="left", validate="one_to_one"
+    )
     if merged[reused_columns].isna().any().any():
         raise ValueError("Existing OOF predictions contain missing reused scores")
     return merged
@@ -609,6 +807,22 @@ def tune_dynamic_model_blend(
         raise ValueError("minimum-form-weight requires a configured form model")
     grid = candidate_form_weights(step, 0.0)
     model_count = len(model_labels)
+    if model_count > 32:
+        one_hot = np.eye(model_count, dtype=np.float64)
+        metrics = blend_metrics_for_weights(
+            frame, [f"{label}_score" for label in model_labels], one_hot
+        )
+        metrics["objective_value"] = _blend_objective_values(metrics, objective)
+        for index, label in enumerate(model_labels):
+            metrics[f"{label}_weight"] = one_hot[:, index]
+        metrics.insert(0, "phase", "single_model_screen")
+        best_index = _best_blend_index(metrics, objective)
+        selected = {
+            label: float(index == best_index)
+            for index, label in enumerate(model_labels)
+        }
+        selected["market"] = 0.0
+        return selected, metrics
     initial = np.unique(
         _quantize_blend_weights(_simplex_lattice(model_count), step), axis=0
     )
@@ -845,6 +1059,8 @@ def main() -> None:
         raise ValueError("--reuse-unselected-models requires --models")
     if args.retune_only and args.models:
         raise ValueError("--retune-only and --models cannot be used together")
+    if args.retune_only and args.race_models_manifest:
+        raise ValueError("--retune-only and --race-models-manifest cannot be combined")
     if args.retune_only:
         retune_saved_predictions(args, output_dir, feature_manifest, bundle_path)
         return
@@ -858,8 +1074,39 @@ def main() -> None:
     numeric_columns = database_numeric_columns(database)
     frame = load_training_rows(database, numeric_columns)
     races = eligible_races(frame, args.minimum_runners)
+    all_weekday_eligible_races = len(races)
+    races = filter_races_by_utc_weekday(races, args.training_weekday)
+    if races.empty:
+        raise ValueError(
+            f"No eligible races match training weekday {args.training_weekday}"
+        )
+    if args.training_weekday:
+        print(
+            f"training_weekday_utc={args.training_weekday} "
+            f"weekday_races={len(races):,} "
+            f"all_weekday_eligible_races={all_weekday_eligible_races:,}",
+            flush=True,
+        )
     eligible_ids = races["race_id"].astype(int).tolist()
     all_finished = rows_for_races(frame, eligible_ids)
+    top3_failure_focus: dict[str, Any] | None = None
+    if args.focus_top3_failures_bundle:
+        all_finished, top3_failure_focus = focus_on_uncovered_top3_races(
+            all_finished, args.focus_top3_failures_bundle
+        )
+        eligible_ids = list(
+            dict.fromkeys(all_finished["race_id"].astype(int).tolist())
+        )
+        print(
+            "top3_failure_focus="
+            + json.dumps(top3_failure_focus, sort_keys=True),
+            flush=True,
+        )
+        if len(eligible_ids) < args.folds:
+            raise ValueError(
+                "Top-three failure cohort is too small for cross-fitting: "
+                f"races={len(eligible_ids)} folds={args.folds}"
+            )
     all_finished_audit = validate_ranker_groups(
         all_finished,
         all_finished["is_winner"].to_numpy(dtype=np.int64),
@@ -887,7 +1134,31 @@ def main() -> None:
             eligible_features.append(feature)
     if not eligible_features:
         raise ValueError("No eligible model features")
-    feature_sets = load_model_feature_sets(feature_manifest, eligible_features)
+    if args.race_models_manifest:
+        source_race_models_manifest = args.race_models_manifest.resolve()
+        feature_sets = load_race_model_feature_sets(
+            source_race_models_manifest, eligible_features
+        )
+        feature_manifest = output_dir / "winner_ranker_features.json"
+        feature_manifest.write_text(
+            json.dumps({
+                "schema_version": 1,
+                "source_race_models_manifest": str(source_race_models_manifest),
+                "models": {
+                    label: {"features": features}
+                    for label, features in feature_sets.items()
+                },
+            }, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(
+            f"race_models_manifest={source_race_models_manifest} "
+            f"imported_unique_model_groups={len(feature_sets):,} "
+            f"deduplicated_feature_manifest={feature_manifest.resolve()}",
+            flush=True,
+        )
+    else:
+        feature_sets = load_model_feature_sets(feature_manifest, eligible_features)
     feature_sets, training_labels, reused_labels = select_requested_model_groups(
         feature_sets, args.models, args.reuse_unselected_models
     )
@@ -915,21 +1186,13 @@ def main() -> None:
                     f"Cannot reuse {label}: existing saved model files are missing"
                 )
         existing_oof = pd.read_csv(oof_path)
-        # Fail before expensive cross-fitting if saved scores cannot be safely
-        # paired with the current cohort.
-        try:
-            merge_reused_oof_scores(
-                all_finished.loc[:, ["race_id", "runner_number"]].copy(),
-                existing_oof,
-                reused_labels,
-            )
-        except OOFCohortMismatchError as exc:
-            raise ValueError(
-                "Cannot reuse unselected models because the existing OOF cohort "
-                "does not match the current eligible cohort. Run without "
-                "--reuse-unselected-models for an exclusive model run, or rebuild "
-                "the reused model scores."
-            ) from exc
+        # Report cohort drift before expensive cross-fitting and confirm that
+        # at least one complete race can safely reuse the saved scores.
+        merge_reused_oof_scores(
+            all_finished.loc[:, ["race_id", "runner_number"]].copy(),
+            existing_oof,
+            reused_labels,
+        )
     print_model_feature_report(feature_manifest, feature_sets)
     fold_ids = crossfit_fold_ids(eligible_ids, args.folds)
     fixed_tree_counts_by_model = (
@@ -1071,7 +1334,9 @@ def main() -> None:
         flush=True,
     )
     if existing_oof is not None:
-        oof = merge_reused_oof_scores(oof, existing_oof, reused_labels)
+        oof = merge_reused_oof_scores(
+            oof, existing_oof, reused_labels, warn_on_mismatch=False
+        )
     model_labels = list(feature_sets)
     (
         selected_weights,
@@ -1197,8 +1462,14 @@ def main() -> None:
             args.tree_count_validation_races
         ),
         "sealed_test_available": False,
+        "training_weekday_utc": args.training_weekday,
+        "top3_failure_focus": top3_failure_focus,
     }
-    deployment_model = "form" if "form" in feature_sets else next(iter(feature_sets))
+    deployment_model = (
+        max(model_labels, key=lambda label: selected_weights.get(label, 0.0))
+        if args.race_models_manifest
+        else ("form" if "form" in feature_sets else next(iter(feature_sets)))
+    )
     deployment_uses_market = any(
         feature in MARKET_ENGINEERED_FEATURES or is_current_market_feature(feature)
         for feature in feature_sets[deployment_model]
@@ -1213,7 +1484,11 @@ def main() -> None:
     bundle = {
         "schema_version": 3,
         "objective": "single_winner_ranking",
-        "training_scope": "all_eligible_finished_races",
+        "training_scope": (
+            "eligible_finished_races_utc_weekday"
+            if args.training_weekday else "all_eligible_finished_races"
+        ),
+        "training_weekday_utc": args.training_weekday,
         "competition_scope": "all_eligible_races",
         "competition_id_feature_used": False,
         "form_features": feature_sets.get("form", []),
@@ -1236,6 +1511,7 @@ def main() -> None:
         "all_finished_crossfit": recommendation,
         "database": str(database),
         "seed": args.seed,
+        "top3_failure_focus": top3_failure_focus,
     }
     oof.to_csv(oof_path, index=False)
     sweep.to_csv(sweep_path, index=False)

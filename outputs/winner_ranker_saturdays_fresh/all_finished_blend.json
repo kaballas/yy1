@@ -1,0 +1,92 @@
+{
+  "blend": "all_finished_crossfit_dynamic_model_groups",
+  "crossfit_folds": 5,
+  "deployment_tree_count_selection": "source_bundle_or_fallback",
+  "eligible_finished_races": 2871,
+  "eligible_finished_rows": 28840,
+  "model_labels": [
+    "a1"
+  ],
+  "model_oof_metrics": {
+    "a1": {
+      "mean_winner_rank": 3.314176245210728,
+      "mrr": 0.5235752213140191,
+      "race_logloss": 2.0781613880019245,
+      "races": 2871.0,
+      "top1_hit_rate": 0.3173110414489725,
+      "top3_hit_rate": 0.6419366074538488
+    }
+  },
+  "objective": "top1",
+  "oof_market_deviation": {
+    "market_losses_corrected": 191.0,
+    "market_wins_damaged": 281.0,
+    "net_winners_gained": -90.0,
+    "races": 2871.0,
+    "top_pick_change_rate": 0.3225357018460467,
+    "top_pick_changes": 926.0
+  },
+  "oof_median_tree_counts": {
+    "a1": [
+      120,
+      120,
+      120
+    ]
+  },
+  "oof_metrics": {
+    "a1_only": {
+      "mean_winner_rank": 3.314176245210728,
+      "mrr": 0.5235752213140191,
+      "race_logloss": 2.0781613880019245,
+      "races": 2871.0,
+      "top1_hit_rate": 0.3173110414489725,
+      "top3_hit_rate": 0.6419366074538488
+    },
+    "equal_dynamic_blend": {
+      "mean_winner_rank": 3.314176245210728,
+      "mrr": 0.5235752213140191,
+      "race_logloss": 2.0781613880019245,
+      "races": 2871.0,
+      "top1_hit_rate": 0.3173110414489725,
+      "top3_hit_rate": 0.6419366074538488
+    },
+    "raw_market_benchmark": {
+      "mean_winner_rank": 2.8798328108672937,
+      "mrr": 0.5616401140173345,
+      "race_logloss": 2.0317486007417758,
+      "races": 2871.0,
+      "top1_hit_rate": 0.3486590038314176,
+      "top3_hit_rate": 0.7175200278648555
+    },
+    "tuned_dynamic_blend": {
+      "mean_winner_rank": 3.314176245210728,
+      "mrr": 0.5235752213140191,
+      "race_logloss": 2.0781613880019245,
+      "races": 2871.0,
+      "top1_hit_rate": 0.3173110414489725,
+      "top3_hit_rate": 0.6419366074538488
+    }
+  },
+  "raw_market_weight_fixed": 0.0,
+  "schema_version": 2,
+  "sealed_test_available": false,
+  "selected_weights": {
+    "a1": 1.0,
+    "market": 0.0
+  },
+  "selection_cohort": "all_eligible_finished_races_grouped_oof",
+  "top3_failure_focus": null,
+  "training_weekday_utc": "Saturday",
+  "tree_count_early_stopping_rounds": 60,
+  "tree_count_max_estimators": 700,
+  "tree_count_maximum_inner_validation_races": 1000,
+  "tree_count_selection": "source_bundle_or_fallback",
+  "tree_count_selection_metric": "not_applicable",
+  "tuned_model_tree_counts": {
+    "a1": [
+      120,
+      120,
+      120
+    ]
+  }
+}

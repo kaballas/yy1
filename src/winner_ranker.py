@@ -91,6 +91,25 @@ def is_current_market_feature(name: str) -> bool:
     return name in CURRENT_MARKET_EXACT or name.startswith(CURRENT_MARKET_PREFIXES)
 
 
+def uses_current_market_features(features: Iterable[str]) -> bool:
+    """Return whether a model consumes target-race market information."""
+    return any(
+        feature in MARKET_ENGINEERED_FEATURES or is_current_market_feature(feature)
+        for feature in features
+    )
+
+
+def current_market_free_model_labels(
+    model_features: dict[str, list[str]],
+) -> list[str]:
+    """Return model labels whose inputs exclude every target-race market feature."""
+    return [
+        label
+        for label, features in model_features.items()
+        if not uses_current_market_features(features)
+    ]
+
+
 def database_numeric_columns(database: Path) -> list[str]:
     """Return numeric race_runners columns in stable schema order."""
     with sqlite3.connect(f"file:{database.resolve()}?mode=ro", uri=True) as connection:
@@ -106,7 +125,7 @@ def load_training_rows(database: Path, numeric_columns: list[str]) -> pd.DataFra
     metadata = [
         "race_id", "start_time_iso", "competition_id", "competition_name",
         "race_number", "race_name", "runner_number", "runner_name", "fluc2",
-        "rank_label", "is_winner", "derived_racing_features_version",
+        "status", "rank_label", "is_winner", "derived_racing_features_version",
     ]
     requested = list(dict.fromkeys([*metadata, *numeric_columns]))
     selected = ", ".join(quote_identifier(column) for column in requested)
@@ -116,6 +135,7 @@ def load_training_rows(database: Path, numeric_columns: list[str]) -> pd.DataFra
         "AND is_winner IN (0, 1) "
         "ORDER BY start_time_iso, race_id, runner_number"
     )
+    #print(sql)
     with sqlite3.connect(f"file:{database.resolve()}?mode=ro", uri=True) as connection:
         return pd.read_sql_query(sql, connection)
 

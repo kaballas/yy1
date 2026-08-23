@@ -8,12 +8,16 @@ from backtest_all_finished_winner_blends import (
     best_backtest_strategy,
     blend_weights_table,
     filter_complete_races,
+    load_per_race_candidate_features,
+    load_predictions,
     optuna_baseline_parameters,
     optuna_cohort_fingerprint,
     optuna_trial_weights,
     parse_competition_ids,
     parse_model_labels,
     parse_race_numbers,
+    per_race_feature_subsets,
+    winner_rank_and_margin,
 )
 
 
@@ -23,6 +27,35 @@ class FixedTrial:
 
     def suggest_float(self, name, low, high):
         return self.values[name]
+
+
+def test_per_race_manifest_union_and_feature_subset_search(tmp_path):
+    manifest = tmp_path / "features.json"
+    manifest.write_text(
+        '{"models":{"a":{"features":["f1","f2"]},'
+        '"b":{"features":["f2","f3"]}}}'
+    )
+    assert load_per_race_candidate_features(manifest) == ["f1", "f2", "f3"]
+
+    matrix = pd.DataFrame({
+        "f1": [10.0, 0.0, 1.0],
+        "f2": [1.0, 2.0, 3.0],
+        "f3": [5.0, 5.0, 5.0],
+    })
+    subsets, priorities = per_race_feature_subsets(
+        matrix.loc[:, ["f1", "f2"]], np.array([1, 0, 0]), 3
+    )
+    assert priorities[0]["feature"] == "f1"
+    assert subsets[0] == ["f1"]
+    assert subsets[-1] == ["f1", "f2"]
+
+
+def test_winner_rank_and_margin():
+    rank, margin = winner_rank_and_margin(
+        np.array([0.5, 0.9, 0.2]), np.array([0, 1, 0])
+    )
+    assert rank == 1
+    assert margin == pytest.approx(0.4)
 
 
 def test_optuna_trial_weights_are_normalized_and_exclude_market_by_default():
@@ -169,6 +202,40 @@ def test_filtering_keeps_whole_races():
 
     assert filtered["race_id"].tolist() == [2, 2]
     assert np.all(filtered["competition_id"] == 20)
+
+
+def test_legacy_all_finished_predictions_without_status_are_supported(tmp_path):
+    path = tmp_path / "oof.csv"
+    pd.DataFrame({
+        "race_id": [1, 1],
+        "runner_number": [1, 2],
+        "is_winner": [1, 0],
+        "fluc2": [2.0, 3.0],
+        "market_score": [1.0, 0.0],
+        "x1_score": [0.8, 0.2],
+    }).to_csv(path, index=False)
+
+    with pytest.warns(RuntimeWarning, match="Legacy all-finished OOF"):
+        loaded = load_predictions(path, ["x1"])
+
+    assert loaded["status"].tolist() == ["finished", "finished"]
+
+
+def test_filtering_by_exact_utc_date_keeps_the_full_day():
+    frame = pd.DataFrame({
+        "race_id": [1, 2, 3],
+        "start_time_iso": [
+            "2026-08-21T23:59:59Z",
+            "2026-08-22T00:00:00Z",
+            "2026-08-22T23:59:59Z",
+        ],
+    })
+
+    filtered = filter_complete_races(
+        frame, None, None, None, exact_date="2026-08-22"
+    )
+
+    assert filtered["race_id"].tolist() == [2, 3]
 
 
 def test_competition_ids_accept_comma_separated_values_without_duplicates():

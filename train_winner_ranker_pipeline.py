@@ -207,6 +207,7 @@ def score_table(
     output = frame[[
         "race_id", "start_time_iso", "competition_id", "competition_name",
         "race_number", "race_name", "runner_number", "runner_name", "fluc2",
+        "status",
     ]].copy()
     output["is_winner"] = targets
     for name, score in scores.items():

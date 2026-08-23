@@ -36,6 +36,7 @@ from src.winner_ranker import (
     market_scores,
     model_feature_matrix,
     rank_percentiles,
+    uses_current_market_features,
 )
 from src.advanced_racing_features import race_relative_runner_mask
 from backtest_all_finished_winner_blends import (
@@ -53,7 +54,7 @@ METADATA = [
     "derived_racing_features_version",
 ]
 
-MIN_EXACT_COHORT_RACES = 5
+MIN_EXACT_COHORT_RACES = 30
 
 
 def select_historical_cohort(
@@ -76,15 +77,17 @@ def select_historical_cohort(
         if exact_races >= minimum_exact_races:
             return exact, "competition_id+race_number", exact_races
 
-    if exact_races == 0:
-        race_number_cohort = filter_complete_races(
-            predictions, None, None, None, race_number
-        )
-        return race_number_cohort, "race_number", exact_races
-
     competition = filter_complete_races(
         predictions, competition_id, None, None, None
     )
+    competition_races = int(competition["race_id"].nunique())
+    if competition_races < minimum_exact_races:
+        raise ValueError(
+            "No complete OOF races match the minimum cohort size for "
+            "competition_id "
+            f"{competition_id}: found {competition_races} races; "
+            f"minimum={minimum_exact_races}"
+        )
     return competition, "competition_id", exact_races
 
 
@@ -100,10 +103,30 @@ def parse_args() -> argparse.Namespace:
         "--ranking",
         default="deployment",
         help=(
-            "Ranking to display: deployment, tuned, market, or any model-group "
-            "name from the bundle (for example form, market_aware, or fun). "
+            "Ranking to display: deployment, tuned, consensus, own, market_free, "
+            "market, or any "
+            "model-group name from the bundle (for example form, market_aware, "
+            "or fun). "
             "Tuned uses the best matching competition/race-number OOF strategy "
             "when all-finished predictions are available."
+        ),
+    )
+    parser.add_argument(
+        "--race-models-manifest",
+        type=Path,
+        help=(
+            "Load the original per-race models and exact input features directly "
+            "from models_test/per_race_models_manifest.json."
+        ),
+    )
+    parser.add_argument(
+        "--model-display-limit",
+        type=int,
+        default=10,
+        help=(
+            "Maximum individual model columns/results to print when using a "
+            "race-model manifest (default: 10). All models still contribute to "
+            "consensus. Use 0 to display every model."
         ),
     )
     parser.add_argument(
@@ -123,6 +146,14 @@ def parse_args() -> argparse.Namespace:
             "all_finished_oof_predictions.csv beside --blend-config."
         ),
     )
+    parser.add_argument(
+        "--market-free-blend-config",
+        type=Path,
+        help=(
+            "Saved current-market-free blend. Defaults to market_free_blend.json "
+            "beside --blend-config."
+        ),
+    )
     parser.add_argument("--output-csv", type=Path)
     return parser.parse_args()
 
@@ -132,6 +163,50 @@ def load_bundle(path: Path) -> dict[str, Any]:
     if payload.get("objective") != "single_winner_ranking":
         raise ValueError(f"Unsupported winner bundle: {path}")
     return payload
+
+
+def load_original_race_models(
+    manifest_path: Path,
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Load original model paths and features without retraining substitutions."""
+    path = manifest_path.resolve()
+    if not path.is_file():
+        raise ValueError(f"Race-model manifest does not exist: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    feature_sets: dict[str, list[str]] = {}
+    model_paths: dict[str, list[str]] = {}
+    for item in payload.get("models", []):
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("name", ""))
+        configured_paths = item.get("models")
+        if not isinstance(configured_paths, list) or not configured_paths:
+            configured_paths = [item.get("model", "")]
+        model_paths_for_entry = [
+            Path(str(configured_path)) for configured_path in configured_paths
+        ]
+        details = item.get("details")
+        features = details.get("input_features") if isinstance(details, dict) else None
+        sidecar_path = Path(str(item.get("features_file", "")))
+        if not features and sidecar_path.is_file():
+            sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            features = sidecar.get("input_features")
+        if (
+            not label
+            or not model_paths_for_entry
+            or not all(path.is_file() for path in model_paths_for_entry)
+            or not features
+        ):
+            continue
+        if label in feature_sets:
+            raise ValueError(f"Race-model manifest has duplicate model name: {label}")
+        feature_sets[label] = list(map(str, features))
+        model_paths[label] = [
+            str(model_path.resolve()) for model_path in model_paths_for_entry
+        ]
+    if not feature_sets:
+        raise ValueError(f"Race-model manifest contains no usable models: {path}")
+    return feature_sets, model_paths
 
 
 def load_active_race(database: Path, race_id: int, features: list[str]) -> pd.DataFrame:
@@ -184,11 +259,15 @@ def ranked_output(
     output = frame[[
         "runner_number", "runner_name", "fluc2",
     ]].copy()
+    score_columns: dict[str, np.ndarray | pd.Series] = {}
     for name, values in scores.items():
-        output[f"{name}_score"] = values
-        output[f"{name}_rank"] = pd.Series(values).rank(
+        score_columns[f"{name}_score"] = np.asarray(values)
+        score_columns[f"{name}_rank"] = pd.Series(values).rank(
             method="first", ascending=False
-        ).astype(int)
+        ).astype(int).to_numpy()
+    output = pd.concat(
+        [output.reset_index(drop=True), pd.DataFrame(score_columns)], axis=1
+    )
     comparison = "form" if "form" in scores else "deployment"
     output["market_to_form_upgrade"] = (
         output["market_rank"] - output[f"{comparison}_rank"]
@@ -321,6 +400,57 @@ def model_rank_total_summary(
     return summary
 
 
+def number_one_rank_summary(rank_totals: pd.DataFrame) -> pd.DataFrame:
+    """Rank runners by first-place votes across all configured models."""
+    columns = [
+        "number_one_rank", "runner_number", "runner_name", "fluc2",
+        "number_ones", "number_one_pct", "models_counted",
+        "average_model_rank", "consensus_rank",
+    ]
+    if rank_totals.empty:
+        return pd.DataFrame(columns=columns)
+    summary = rank_totals.copy()
+    denominator = pd.to_numeric(summary["models_counted"], errors="raise")
+    summary["number_one_pct"] = np.where(
+        denominator > 0,
+        pd.to_numeric(summary["number_ones"], errors="raise")
+        / denominator * 100.0,
+        0.0,
+    )
+    summary = summary.sort_values(
+        ["number_ones", "average_model_rank", "consensus_rank", "runner_number"],
+        ascending=[False, True, True, True],
+        kind="stable",
+        ignore_index=True,
+    )
+    summary.insert(0, "number_one_rank", np.arange(1, len(summary) + 1))
+    return summary.loc[:, columns]
+
+
+def consensus_representative_model_columns(
+    output: pd.DataFrame,
+    model_rank_columns: list[str],
+    limit: int,
+) -> list[str]:
+    """Select model rankings closest to the all-model consensus ranking."""
+    columns = list(dict.fromkeys(
+        column for column in model_rank_columns if column in output.columns
+    ))
+    if limit < 0:
+        raise ValueError("--model-display-limit must be zero or greater")
+    if limit == 0 or len(columns) <= limit:
+        return columns
+    if "consensus_rank" not in output.columns:
+        return columns[:limit]
+    consensus = pd.to_numeric(output["consensus_rank"], errors="raise")
+    distances = []
+    for column in columns:
+        ranks = pd.to_numeric(output[column], errors="raise")
+        distances.append((float((ranks - consensus).abs().mean()), column))
+    distances.sort(key=lambda item: (item[0], item[1]))
+    return [column for _, column in distances[:limit]]
+
+
 def load_finished_actual_winner(
     database: Path, frame: pd.DataFrame
 ) -> pd.Series | None:
@@ -397,6 +527,11 @@ def main() -> None:
         for label, features in configured_model_features.items()
     }
     available_models = bundle.get("models", {})
+    using_original_race_models = args.race_models_manifest is not None
+    if using_original_race_models:
+        model_features, available_models = load_original_race_models(
+            args.race_models_manifest
+        )
     if "form" in available_models:
         model_features.setdefault("form", legacy_form_features)
     if "market_aware" in available_models:
@@ -430,7 +565,7 @@ def main() -> None:
     race_ids = frame["race_id"].to_numpy(dtype=np.int64)
     scores: dict[str, np.ndarray] = {}
     for label, configured_features in model_features.items():
-        paths = list(bundle.get("models", {}).get(label, []))
+        paths = list(available_models.get(label, []))
         if not paths:
             continue
         models = load_models(paths)
@@ -439,18 +574,41 @@ def main() -> None:
         )
     market_score = rank_percentiles(market_scores(frame), race_ids)
     scores["market"] = market_score
-    deployment_model = str(bundle.get("deployment_default", "form"))
+    own_model = f"race_{args.race_id}"
+    deployment_model = (
+        own_model
+        if using_original_race_models and own_model in scores
+        else str(bundle.get("deployment_default", "form"))
+    )
+    if using_original_race_models and deployment_model not in scores:
+        deployment_model = next(iter(model_features))
     if deployment_model not in scores:
         raise ValueError(f"Deployment model is unavailable: {deployment_model}")
     scores["deployment"] = scores[deployment_model]
     scores["selected"] = scores[deployment_model]
+    if using_original_race_models:
+        scores["consensus"] = np.mean(
+            np.column_stack([scores[label] for label in model_features]), axis=1
+        )
+        if own_model in scores:
+            scores["own"] = scores[own_model]
+        elif args.ranking == "own":
+            raise ValueError(
+                f"No original model was trained on race {args.race_id}"
+            )
+        if args.ranking == "tuned":
+            raise ValueError(
+                "--ranking tuned uses retrained bundle/OOF strategies; with "
+                "--race-models-manifest use --ranking own, consensus, or a "
+                "specific race_<id> model"
+            )
     diagnostic_weights: dict[str, float] | None = None
     cohort_strategy: str | None = None
     cohort_strategy_metrics: dict[str, Any] | None = None
     cohort_strategy_fallback: str | None = None
     cohort_scope: str | None = None
     exact_cohort_races: int | None = None
-    if args.ranking in {"tuned", "benchmark"}:
+    if args.ranking in {"tuned", "market_free", "benchmark"}:
         if args.ranking == "tuned":
             config_path = args.blend_config.resolve()
             if not config_path.is_file():
@@ -497,6 +655,42 @@ def main() -> None:
             if not diagnostic_weights:
                 raise ValueError("Blend recommendation contains no usable weights")
             scores["tuned"] = blend_named_scores(scores, diagnostic_weights)
+        elif args.ranking == "market_free":
+            config_path = (
+                args.market_free_blend_config
+                or args.blend_config.parent / "market_free_blend.json"
+            ).resolve()
+            if not config_path.is_file():
+                raise ValueError(
+                    f"Current-market-free blend does not exist: {config_path}; run "
+                    "build_market_free_winner_blend.py first"
+                )
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            if config.get("target_race_market_inputs") is not False:
+                raise ValueError(
+                    "Current-market-free blend is not marked as market-free"
+                )
+            diagnostic_weights = dict(config.get("selected_weights", {}))
+            if not diagnostic_weights:
+                raise ValueError(
+                    "Current-market-free blend contains no usable weights"
+                )
+            market_components = [
+                label
+                for label, weight in diagnostic_weights.items()
+                if float(weight) > 0
+                and (
+                    label == "market"
+                    or label not in model_features
+                    or uses_current_market_features(model_features[label])
+                )
+            ]
+            if market_components:
+                raise ValueError(
+                    "Current-market-free blend uses market components: "
+                    + ", ".join(sorted(market_components))
+                )
+            scores["market_free"] = blend_named_scores(scores, diagnostic_weights)
         elif args.ranking == "benchmark":
             if "form" not in scores or "market_aware" not in scores:
                 raise ValueError(
@@ -511,14 +705,29 @@ def main() -> None:
             )
     output = ranked_output(frame, scores, args.ranking)
 
+    all_model_rank_columns = [
+        f"{label}_rank"
+        for label in model_features
+        if label in scores
+    ]
+    displayed_model_rank_columns = all_model_rank_columns
+    if using_original_race_models:
+        displayed_model_rank_columns = consensus_representative_model_columns(
+            output, all_model_rank_columns, args.model_display_limit
+        )
+    displayed_model_labels = {
+        column.removesuffix("_rank")
+        for column in displayed_model_rank_columns
+    }
+
     race = frame.iloc[0]
     displayed_model = (
         deployment_model
-        if args.ranking in {"deployment", "selected"}
+        if args.ranking in {"deployment", "selected", "own"}
         else args.ranking
     )
     displayed_features = model_features.get(displayed_model, [])
-    if args.ranking == "tuned" and diagnostic_weights is not None:
+    if args.ranking in {"tuned", "market_free"} and diagnostic_weights is not None:
         market_used = (
             float(diagnostic_weights.get("market", 0.0)) > 0
             or any(
@@ -530,6 +739,13 @@ def main() -> None:
                 )
                 for label in model_features
             )
+        )
+    elif args.ranking == "consensus" and using_original_race_models:
+        market_used = any(
+            feature in MARKET_ENGINEERED_FEATURES
+            or is_current_market_feature(feature)
+            for features in model_features.values()
+            for feature in features
         )
     else:
         market_used = args.ranking in {"market", "benchmark"} or any(
@@ -545,11 +761,17 @@ def main() -> None:
         f"current_market_used_in_display_ranking={'yes' if market_used else 'no'}\n"
         f"deployment_model={deployment_model}\n"
     )
-    if diagnostic_weights is not None:
-        weight_label = (
-            "tuned_blend_weights" if args.ranking == "tuned"
-            else "diagnostic_benchmark_weights"
+    if using_original_race_models:
+        heading += (
+            f"models_loaded={len(all_model_rank_columns)} "
+            f"models_displayed={len(displayed_model_rank_columns)} "
+            "display_selection=closest_to_all_model_consensus\n"
         )
+    if diagnostic_weights is not None:
+        weight_label = {
+            "tuned": "tuned_blend_weights",
+            "market_free": "market_free_blend_weights",
+        }.get(args.ranking, "diagnostic_benchmark_weights")
         heading += (
             weight_label + "="
             + json.dumps(diagnostic_weights, sort_keys=True)
@@ -584,15 +806,10 @@ def main() -> None:
         "contrarian_top3: form top three while outside market top three"
     )
     print(heading)
-    dynamic_model_rank_columns = [
-        f"{label}_rank"
-        for label in model_features
-        if label in scores
-    ]
     columns = [
         "display_rank", "runner_number", "runner_name", "fluc2",
         f"{args.ranking}_rank",
-        *dynamic_model_rank_columns, "market_rank",
+        *displayed_model_rank_columns, "market_rank",
         "tuned_rank", "market_aware_rank", "benchmark_rank", "market_to_form_upgrade",
         "contrarian_top3",
     ]
@@ -608,7 +825,7 @@ def main() -> None:
         print(number_ones.to_string(
             index=False, float_format=lambda value: f"{value:.4f}"
         ))
-    rank_totals = model_rank_total_summary(output, dynamic_model_rank_columns)
+    rank_totals = model_rank_total_summary(output, all_model_rank_columns)
     print("\nMODEL RANK TOTALS (lower is better)")
     if rank_totals.empty:
         print("No model rank columns are available")
@@ -616,9 +833,24 @@ def main() -> None:
         print(rank_totals.to_string(
             index=False, float_format=lambda value: f"{value:.4f}"
         ))
+    number_one_ranking = number_one_rank_summary(rank_totals)
+    print("\nALL-MODEL NUMBER-ONE RANKING (higher votes is better)")
+    if number_one_ranking.empty:
+        print("No model first-place votes are available")
+    else:
+        print(number_one_ranking.to_string(
+            index=False, float_format=lambda value: f"{value:.4f}"
+        ))
     actual_winner = load_finished_actual_winner(args.db, frame)
+    result_model_features = model_features
+    if using_original_race_models:
+        result_model_features = {
+            label: features
+            for label, features in model_features.items()
+            if label in displayed_model_labels
+        }
     completed_results = completed_winner_model_results(
-        actual_winner, output, model_features
+        actual_winner, output, result_model_features
     )
     if completed_results is not None:
         actual_winner, model_results = completed_results
@@ -664,6 +896,15 @@ def main() -> None:
             "WARNING this is a finished race and the selected bundle was refit "
             "on all eligible finished races. This ranking may be in-sample and "
             "must not be reported as a held-out backtest result."
+        )
+    if (
+        using_original_race_models
+        and str(race.get("status", "")).strip().casefold() == "finished"
+    ):
+        print(
+            "WARNING original per-race models are deliberately in-sample on "
+            "their own training races; use these results for feature/model-wars "
+            "analysis only."
         )
     if args.output_csv:
         path = args.output_csv.resolve()

@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 import numpy as np
@@ -8,14 +9,34 @@ pytest.importorskip("xgboost")
 
 from rank_winner_models import (
     completed_winner_model_results,
+    consensus_representative_model_columns,
     load_active_race,
+    load_original_race_models,
     model_rank_total_summary,
+    number_one_rank_summary,
     number_one_summary,
     ranked_output,
     select_historical_cohort,
     terminal_display_table,
     terminal_table_text,
 )
+
+
+def test_consensus_display_selects_nearest_models_and_honors_zero_limit():
+    output = pd.DataFrame({
+        "consensus_rank": [1, 2, 3],
+        "race_1_rank": [1, 2, 3],
+        "race_2_rank": [1, 3, 2],
+        "race_3_rank": [3, 2, 1],
+    })
+    columns = ["race_3_rank", "race_2_rank", "race_1_rank"]
+
+    assert consensus_representative_model_columns(output, columns, 2) == [
+        "race_1_rank", "race_2_rank",
+    ]
+    assert consensus_representative_model_columns(output, columns, 0) == columns
+    with pytest.raises(ValueError, match="zero or greater"):
+        consensus_representative_model_columns(output, columns, -1)
 from src.winner_ranker import (
     blend_scores,
     blend_named_scores,
@@ -36,6 +57,29 @@ from src.winner_ranker import (
     winner_race_report,
     xgb_ensemble_feature_importance,
 )
+
+
+def test_original_race_model_manifest_loads_saved_models_and_features(tmp_path):
+    model = tmp_path / "race_10.json"
+    second_model = tmp_path / "race_10_member_2.json"
+    model.write_text("{}")
+    second_model.write_text("{}")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "models": [{
+            "name": "race_10",
+            "model": str(model),
+            "models": [str(model), str(second_model)],
+            "details": {"input_features": ["speed", "weight"]},
+        }],
+    }))
+
+    features, paths = load_original_race_models(manifest)
+
+    assert features == {"race_10": ["speed", "weight"]}
+    assert paths == {"race_10": [
+        str(model.resolve()), str(second_model.resolve()),
+    ]}
 
 
 def test_model_feature_matrix_uses_manifest_order_and_engineered_values():
@@ -111,11 +155,13 @@ def test_margin_aware_target_rejects_missing_current_race_margin():
         ranking_targets(frame, "margin_aware_finish_order")
 
 
-def test_historical_cohort_broadens_when_exact_race_number_has_under_five():
+def test_historical_cohort_broadens_when_exact_race_number_has_under_minimum():
     predictions = pd.DataFrame({
-        "race_id": [1, 2, 3, 4, 5, 6],
-        "competition_id": [256] * 6,
-        "race_number": [7, 7, 7, 1, 2, 3],
+        "race_id": list(range(1, 32)),
+        "competition_id": [256] * 31,
+        "race_number": [7] * 3 + [
+            number for number in range(1, 30) if number != 7
+        ][:28],
     })
 
     cohort, scope, exact_races = select_historical_cohort(
@@ -124,14 +170,14 @@ def test_historical_cohort_broadens_when_exact_race_number_has_under_five():
 
     assert scope == "competition_id"
     assert exact_races == 3
-    assert cohort["race_id"].nunique() == 6
+    assert cohort["race_id"].nunique() == 31
 
 
-def test_historical_cohort_keeps_exact_race_number_at_five():
+def test_historical_cohort_keeps_exact_race_number_at_minimum():
     predictions = pd.DataFrame({
-        "race_id": [1, 2, 3, 4, 5, 6],
-        "competition_id": [279] * 6,
-        "race_number": [9, 9, 9, 9, 9, 1],
+        "race_id": list(range(1, 32)),
+        "competition_id": [279] * 31,
+        "race_number": [9] * 30 + [1],
     })
 
     cohort, scope, exact_races = select_historical_cohort(
@@ -139,24 +185,39 @@ def test_historical_cohort_keeps_exact_race_number_at_five():
     )
 
     assert scope == "competition_id+race_number"
-    assert exact_races == 5
-    assert cohort["race_id"].nunique() == 5
+    assert exact_races == 30
+    assert cohort["race_id"].nunique() == 30
 
 
-def test_historical_cohort_uses_global_race_number_when_exact_is_absent():
+def test_historical_cohort_uses_competition_when_exact_is_absent():
     predictions = pd.DataFrame({
-        "race_id": [1, 2, 3, 4],
-        "competition_id": [4, 4, 9, 10],
-        "race_number": [1, 2, 4, 4],
+        "race_id": list(range(1, 33)),
+        "competition_id": [4] * 30 + [9, 10],
+        "race_number": [
+            number for number in range(1, 32) if number != 4
+        ][:30] + [4, 4],
     })
 
     cohort, scope, exact_races = select_historical_cohort(
         predictions, competition_id=4, race_number=4
     )
 
-    assert scope == "race_number"
+    assert scope == "competition_id"
     assert exact_races == 0
-    assert cohort["race_id"].tolist() == [3, 4]
+    assert cohort["race_id"].tolist() == list(range(1, 31))
+
+
+def test_historical_cohort_rejects_too_small_competition_fallback():
+    predictions = pd.DataFrame({
+        "race_id": [1, 2, 3],
+        "competition_id": [4, 9, 10],
+        "race_number": [1, 8, 8],
+    })
+
+    with pytest.raises(ValueError, match="found 1 races; minimum=30"):
+        select_historical_cohort(
+            predictions, competition_id=4, race_number=8
+        )
 
 
 def test_terminal_display_removes_rank_suffix_without_mutating_output():
@@ -226,6 +287,24 @@ def test_model_rank_totals_sum_only_dynamic_model_columns():
     assert summary["model_rank_total"].tolist() == [2, 5, 5]
     assert summary["models_counted"].tolist() == [2, 2, 2]
     assert summary["number_ones"].tolist() == [2, 0, 0]
+
+
+def test_number_one_ranking_sorts_by_votes_then_average_rank():
+    rank_totals = pd.DataFrame({
+        "consensus_rank": [1, 2, 3],
+        "runner_number": [1, 2, 3],
+        "runner_name": ["A", "B", "C"],
+        "fluc2": [3.0, 5.0, 7.0],
+        "models_counted": [10, 10, 10],
+        "average_model_rank": [1.8, 2.1, 2.0],
+        "number_ones": [3, 4, 4],
+    })
+
+    summary = number_one_rank_summary(rank_totals)
+
+    assert summary["runner_number"].tolist() == [3, 2, 1]
+    assert summary["number_one_rank"].tolist() == [1, 2, 3]
+    assert summary["number_one_pct"].tolist() == [40.0, 40.0, 30.0]
 
 
 def test_completed_race_lists_models_that_ranked_actual_winner_first():

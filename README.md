@@ -295,6 +295,79 @@ used for model fitting or blend selection. Its grouped OOF figures are tuning
 diagnostics, not an untouched chronological performance claim. Use the command
 printed at completion to rank with its separate bundle and blend file.
 
+#### Add one model without retraining the existing groups
+
+Add a uniquely named model group and its ordered feature list to
+[`winner_ranker_features.json`](winner_ranker_features.json). To cross-fit and
+refit only that group while retaining the models already saved in the
+all-finished bundle, run:
+
+```bash
+python train_tune_all_finished_winner_ranker.py \
+  --models NEW_MODEL_NAME \
+  --reuse-unselected-models \
+  --output-dir outputs/winner_ranker_all_finished \
+  --jobs 12 \
+  --ranker-diagnostics
+```
+
+Replace `NEW_MODEL_NAME` with the new JSON key. This requires the existing
+`winner_ranker_bundle.json` and `all_finished_oof_predictions.csv` in the
+output directory. The existing groups must retain their exact feature lists,
+their saved model files must still exist, and their OOF cohort must match the
+current eligible races; otherwise the command fails rather than mixing
+incompatible results. Run the full command above without `--models` and
+`--reuse-unselected-models` when any existing group changed or those artifacts
+are unavailable.
+
+The selective run retunes the blend using the reused and new OOF scores. Rank
+with the updated blend by passing all three all-finished artifacts:
+
+```bash
+python rank_winner_models.py \
+  --race-id RACE_ID \
+  --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+  --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
+  --predictions outputs/winner_ranker_all_finished/all_finished_oof_predictions.csv \
+  --ranking tuned
+```
+
+The new model contributes only when the tuned strategy gives it nonzero weight.
+Use `--ranking NEW_MODEL_NAME` to rank with that model alone; `--ranking
+deployment` remains the bundle's configured single deployment model.
+
+To quantify a blend that excludes every target-race market price, movement,
+rank, gap, consensus, and engineered-market feature, build its separate OOF
+diagnostic:
+
+```bash
+python build_market_free_winner_blend.py \
+  --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+  --predictions outputs/winner_ranker_all_finished/all_finished_oof_predictions.csv
+```
+
+The command only considers model groups whose manifest inputs are
+current-market-free, writes `market_free_blend.json`, and compares its OOF
+metrics and market disagreement against the raw-market benchmark. It does not
+replace deployment or the tuned blend. Rank a race with it using:
+
+```bash
+python rank_winner_models.py \
+  --race-id RACE_ID \
+  --ranking market_free \
+  --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+  --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json
+```
+
+Before adding a group, detect identical or order-only duplicate feature lists:
+
+```bash
+python detect_duplicate_winner_models.py
+```
+
+The command exits nonzero and reports every duplicate group, so it is suitable
+as a pre-training check.
+
 Backtest one or more competitions from the saved all-finished OOF predictions:
 
 ```bash

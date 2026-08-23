@@ -450,3 +450,323 @@ python train_raceformer.py \
     --tree-count-validation-races 1000
 
 
+Train only the new group while retaining existing models and rebuilding the OOF blend:
+
+python train_tune_all_finished_winner_ranker.py \
+  --models NEW_MODEL_NAME \
+  --reuse-unselected-models \
+  --output-dir outputs/winner_ranker_all_finished \
+  --jobs 12 \
+  --ranker-diagnostics
+
+Replace  NEW_MODEL_NAME  with its JSON key (for example,  x25 ). This requires the existing  winner_ranker_bundle.json  and  all_finished_oof_predictions.csv  in that output directory, and all unchanged model groups must retain their exact prior feature lists. The run cross-fits/refits only the new model, reuses the others, then retunes the blend across all groups.
+
+Use the resulting tuned ensemble:
+
+python rank_winner_models.py \
+  --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+  --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
+  --predictions outputs/winner_ranker_all_finished/all_finished_oof_predictions.csv \
+  --ranking tuned \
+  --race-id 10838218
+
+The new model contributes only if the refreshed OOF blend selects a nonzero weight. To view/use it alone, set  --ranking NEW_MODEL_NAME .  --ranking deployment  remains the bundle’s configured single default model, not the tuned blend.
+
+
+python train_tune_all_finished_winner_ranker.py \
+  --models b1 \
+  --reuse-unselected-models \
+  --output-dir outputs/winner_ranker_all_finished \
+  --objective top3 \
+  --ranker-diagnostics   --minimum-feature-coverage 0.10
+
+
+Added --race-models-manifest to train_tune_all_finished_winner_ranker.py.
+
+  Train all 96 feature-defined models:
+
+  python train_tune_all_finished_winner_ranker.py \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --output-dir outputs/winner_ranker_model_wars
+
+  For a faster experimental run:
+
+  python train_tune_all_finished_winner_ranker.py \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --output-dir outputs/winner_ranker_model_wars \
+    --ensemble-size 1 \
+    --no-tune-tree-counts
+
+  Then predict against all trained models:
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_model_wars/winner_ranker_bundle.json \
+    --blend-config outputs/winner_ranker_model_wars/all_finished_blend.json \
+    --predictions outputs/winner_ranker_model_wars/all_finished_oof_predictions.csv \
+    --ranking tuned \
+    --race-id 10842360
+
+  python train_tune_all_finished_winner_ranker.py \
+    --focus-top3-failures-bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --output-dir outputs/winner_ranker_top3_failures \
+    --ensemble-size 1 \
+    --no-tune-tree-counts
+
+
+python rank_winner_models.py \
+    --bundle outputs/winner_ranker_top3_failures/winner_ranker_bundle.json \
+    --blend-config outputs/winner_ranker_top3_failures/all_finished_blend.json \
+    --predictions outputs/winner_ranker_top3_failures/all_finished_oof_predictions.csv \
+    --ranking tuned \
+    --race-id 10842360
+
+
+
+  for race_date in 2026-08-20 2026-08-21 2026-08-22; do
+    python backtest_all_finished_winner_blends.py \
+      --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+      --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
+      --date "$race_date" \
+      --train-per-race
+
+
+
+python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_deduplicated/winner_ranker_bundle.json \
+    --blend-config outputs/winner_ranker_saturdays_deduplicated/all_finished_blend.json \
+    --predictions outputs/winner_ranker_saturdays_deduplicated/all_finished_oof_predictions.csv \
+    --ranking tuned \
+    --race-id 10838218
+
+
+python train_tune_all_finished_winner_ranker.py \
+    --race-models-manifest models_test/per_race_models_manifest.json \               
+    --training-weekday Saturday \                                                        
+    --output-dir outputs/winner_ranker_saturdays_deduplicated \                      
+    --ensemble-size 3 \
+    --no-tune-tree-counts
+
+python train_tune_all_finished_winner_ranker.py \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --training-weekday Saturday \
+    --output-dir outputs/winner_ranker_saturdays_deduplicated \
+    --ensemble-size 3 \
+    --no-tune-tree-counts
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_deduplicated/winner_ranker_bundle.json \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --ranking own \
+    --race-id 10838218
+
+
+Then recreate models_test first, followed by the main training.
+
+  ### 1. Train one model per race and create the manifest
+
+  For one date:
+
+  python backtest_all_finished_winner_blends.py \
+    --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+    --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
+    --date 2026-08-22 \
+    --train-per-race \
+    --models-test-dir models_test
+
+  For multiple dates:
+
+  for race_date in 2026-08-15 2026-08-22; do
+    python backtest_all_finished_winner_blends.py \
+      --bundle outputs/winner_ranker_all_finished/winner_ranker_bundle.json \
+      --blend-config outputs/winner_ranker_all_finished/all_finished_blend.json \
+      --date "$race_date" \
+      --train-per-race \
+      --models-test-dir models_test
+  done
+
+  This recreates and accumulates:
+
+  models_test/race_<race_id>.json
+  models_test/race_<race_id>_features.json
+  models_test/per_race_models_manifest.json
+
+  ### 2. Import the unique feature sets and retrain on all Saturdays
+
+  python train_tune_all_finished_winner_ranker.py \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --training-weekday Saturday \
+    --output-dir outputs/winner_ranker_saturdays_experimental \
+    --ensemble-size 3 \
+    --no-tune-tree-counts
+
+  Duplicate feature definitions are removed automatically.
+
+  ### 3. Predict with the Saturday-retrained models
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_experimental/winner_ranker_bundle.json \
+    --blend-config outputs/winner_ranker_saturdays_experimental/all_finished_blend.json \
+    --predictions outputs/winner_ranker_saturdays_experimental/all_finished_oof_predictions.csv \
+    --ranking tuned \
+    --race-id 10838472
+
+  To instead use the original deliberately overfit per-race models:
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_experimental/winner_ranker_bundle.json \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --ranking own \
+    --race-id RACE_ID
+
+  own uses the original model trained on that exact race; tuned uses the models retrained across all Saturdays.
+
+start_date="2026-02-28"
+end_date="2026-08-22"
+
+race_date="$start_date"
+
+while [[ "$race_date" < "$end_date" || "$race_date" == "$end_date" ]]; do
+    echo "========================================"
+    echo "Running backtest for $race_date"
+    echo "========================================"
+
+    python backtest_all_finished_winner_blends.py \
+      --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+      --blend-config outputs/winner_ranker_saturdays_fresh/all_finished_blend.json \
+      --date "$race_date" \
+      --train-per-race \
+      --models-test-dir models_test
+
+    race_date=$(date -I -d "$race_date + 7 days")
+done
+
+ ### 1. Train one model per race for multiple dates
+
+  Edit the dates in the first line:
+
+  for race_date in 2026-08-15 2026-08-22; do
+    python backtest_all_finished_winner_blends.py \
+      --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+      --blend-config outputs/winner_ranker_saturdays_fresh/all_finished_blend.json \
+      --date "$race_date" \
+      --train-per-race \
+      --models-test-dir models_test
+  done
+
+  The cumulative manifest will be:
+
+  models_test/per_race_models_manifest.json
+
+  ### 2. Backtest every accumulated model
+
+  Against August 22:
+
+  python backtest_model_wars.py \
+    --date 2026-08-22 \
+    --models-dir models_test
+
+  Against multiple dates:
+
+  for test_date in 2026-08-15 2026-08-22; do
+    python backtest_model_wars.py \
+      --date "$test_date" \
+      --models-dir models_test
+  done
+
+  Leaderboards are saved as:
+
+  models_test/model_wars_<date>.csv
+  models_test/model_wars_<date>_race_results.csv
+
+  ### 3. Predict using all original per-race models
+
+  Use their consensus:
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --ranking consensus \
+    --race-id RACE_ID
+
+  Example:
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --ranking consensus \
+    --race-id 10838218
+
+  ### 4. Use the model trained on that exact race
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --ranking own \
+    --race-id 10838218
+
+  own only works when that race was included in the training dates. For a new/unseen race, use consensus.
+ 
+
+
+start_date="2026-02-28"
+end_date="2026-08-22"
+
+race_date="$start_date"
+
+while [[ "$race_date" < "$end_date" || "$race_date" == "$end_date" ]]; do
+    echo "========================================"
+    echo "Running backtest for $race_date"
+    echo "========================================"
+
+    python backtest_all_finished_winner_blends.py \
+      --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+      --blend-config outputs/winner_ranker_saturdays_fresh/all_finished_blend.json \
+      --date "$race_date" \
+      --train-per-race \
+      --models-test-dir models_test
+
+    race_date=$(date -I -d "$race_date + 7 days")
+done
+
+  python backtest_model_wars.py \
+    --date 2026-08-22 \
+    --models-dir models_test
+
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --ranking consensus \
+    --race-id 10842456
+
+
+
+  start_date="2026-02-28"
+  end_date="2026-08-22"
+  race_date="$start_date"
+
+  while [[ "$race_date" < "$end_date" || "$race_date" == "$end_date" ]]; do
+      echo "Running feature search for $race_date"
+
+      python backtest_all_finished_winner_blends.py \
+        --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+        --blend-config outputs/winner_ranker_saturdays_fresh/all_finished_blend.json \
+        --date "$race_date" \
+        --train-per-race \
+        --models-test-dir models_test \
+        --per-race-feature-manifest winner_ranker_features.json \
+        --per-race-feature-trials 12 \
+        --per-race-select-blend \
+        --per-race-blend-members 4
+
+      race_date=$(date -I -d "$race_date + 7 days")
+  done
+
+
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+    --race-models-manifest models_test/per_race_models_manifest.json \
+    --ranking consensus \
+    --race-id RACE_ID
+

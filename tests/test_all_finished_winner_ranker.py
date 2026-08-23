@@ -8,8 +8,10 @@ pytest.importorskip("xgboost")
 from train_tune_all_finished_winner_ranker import (
     aggregate_tree_counts,
     crossfit_fold_ids,
+    filter_races_by_utc_weekday,
     inner_tree_count_split,
     load_model_feature_sets,
+    load_race_model_feature_sets,
     normalize_requested_models,
     select_requested_model_groups,
     merge_reused_oof_scores,
@@ -29,6 +31,21 @@ def test_crossfit_assigns_every_whole_race_once():
     assert sorted(flattened) == race_ids
     assert len(flattened) == len(set(flattened))
     assert max(map(len, folds)) - min(map(len, folds)) <= 1
+
+
+def test_training_weekday_filter_keeps_utc_saturdays():
+    races = pd.DataFrame({
+        "race_id": [1, 2, 3],
+        "start_time": [
+            "2026-08-21T23:59:59Z",
+            "2026-08-22T00:00:00Z",
+            "2026-08-23T00:00:00Z",
+        ],
+    })
+
+    filtered = filter_races_by_utc_weekday(races, "Saturday")
+
+    assert filtered["race_id"].tolist() == [2]
 
 
 def test_crossfit_requires_at_least_two_folds():
@@ -150,6 +167,52 @@ def test_model_feature_manifest_rejects_unavailable_features(tmp_path):
         load_model_feature_sets(manifest, ["speed"])
 
 
+def test_race_model_manifest_imports_every_embedded_feature_set(tmp_path):
+    manifest = tmp_path / "per_race_models_manifest.json"
+    manifest.write_text(json.dumps({
+        "models": [
+            {"name": "race_10", "details": {"input_features": ["speed"]}},
+            {"name": "race_11", "details": {
+                "input_features": ["weight", "current_market_log_price"],
+            }},
+        ],
+    }))
+
+    feature_sets = load_race_model_feature_sets(
+        manifest, ["speed", "weight"]
+    )
+
+    assert feature_sets == {
+        "race_10": ["speed"],
+        "race_11": ["weight", "current_market_log_price"],
+    }
+
+
+def test_race_model_manifest_removes_duplicate_feature_definitions(
+    tmp_path, capsys
+):
+    manifest = tmp_path / "per_race_models_manifest.json"
+    manifest.write_text(json.dumps({
+        "models": [
+            {"name": "race_10", "details": {
+                "input_features": ["speed", "weight"],
+            }},
+            {"name": "race_11", "details": {
+                "input_features": ["speed", "weight"],
+            }},
+        ],
+    }))
+
+    feature_sets = load_race_model_feature_sets(
+        manifest, ["speed", "weight"]
+    )
+
+    assert feature_sets == {"race_10": ["speed", "weight"]}
+    output = capsys.readouterr().out
+    assert "duplicate_race_model_feature_sets_removed=1" in output
+    assert '"race_11": "race_10"' in output
+
+
 def test_dynamic_blend_tunes_every_model_group():
     frame = pd.DataFrame({
         "race_id": [1, 1, 2, 2],
@@ -224,12 +287,26 @@ def test_selective_retraining_merges_reused_model_oof_scores():
     assert merged["fun_rank"].tolist() == [2, 1]
 
 
-def test_selective_retraining_rejects_a_different_oof_cohort():
+def test_selective_retraining_warns_and_keeps_only_complete_matching_races():
+    fresh = pd.DataFrame({"race_id": [1, 1, 2], "runner_number": [1, 2, 1]})
+    existing = pd.DataFrame({
+        "race_id": [1, 1, 2], "runner_number": [1, 2, 2],
+        "fun_score": [0.5, 0.4, 0.3], "fun_rank": [1, 2, 1],
+    })
+
+    with pytest.warns(RuntimeWarning, match="only complete races"):
+        merged = merge_reused_oof_scores(fresh, existing, ["fun"])
+
+    assert merged["race_id"].tolist() == [1, 1]
+    assert merged["runner_number"].tolist() == [1, 2]
+
+
+def test_selective_retraining_rejects_when_no_complete_races_match():
     fresh = pd.DataFrame({"race_id": [1], "runner_number": [1]})
     existing = pd.DataFrame({
         "race_id": [2], "runner_number": [1],
         "fun_score": [0.5], "fun_rank": [1],
     })
 
-    with pytest.raises(ValueError, match="does not match"):
+    with pytest.warns(RuntimeWarning), pytest.raises(ValueError, match="no complete"):
         merge_reused_oof_scores(fresh, existing, ["fun"])
