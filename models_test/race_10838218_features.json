@@ -4,56 +4,56 @@
       "members": [
         1
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
         1,
         2
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
         1,
         3
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
         1,
         4
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
         2,
         3
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
         2,
         4
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
         3,
         4
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
@@ -61,8 +61,8 @@
         2,
         3
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
@@ -70,8 +70,8 @@
         2,
         4
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
@@ -79,8 +79,8 @@
         3,
         4
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
@@ -88,8 +88,8 @@
         3,
         4
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     },
     {
       "members": [
@@ -98,8 +98,8 @@
         3,
         4
       ],
-      "winner_margin": 0.08333333333333337,
-      "winner_rank": 1
+      "winner_margin": 0.5416666666666667,
+      "winner_rank": 1.0
     }
   ],
   "candidate_features": [
@@ -554,7 +554,7 @@
       },
       "trial": 1,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 2,
@@ -579,7 +579,7 @@
       },
       "trial": 2,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 3,
@@ -605,7 +605,7 @@
       },
       "trial": 3,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 5,
@@ -633,7 +633,7 @@
       },
       "trial": 4,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 8,
@@ -664,7 +664,7 @@
       },
       "trial": 5,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 13,
@@ -700,7 +700,7 @@
       },
       "trial": 6,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 22,
@@ -745,7 +745,7 @@
       },
       "trial": 7,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 37,
@@ -805,7 +805,7 @@
       },
       "trial": 8,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 62,
@@ -890,7 +890,7 @@
       },
       "trial": 9,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 103,
@@ -1016,7 +1016,7 @@
       },
       "trial": 10,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 173,
@@ -1212,7 +1212,7 @@
       },
       "trial": 11,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     },
     {
       "feature_count": 289,
@@ -1524,7 +1524,7 @@
       },
       "trial": 12,
       "winner_margin": 13.628945350646973,
-      "winner_rank": 1
+      "winner_rank": 1.0
     }
   ],
   "input_features": [
@@ -1965,56 +1965,56 @@
         "members": [
           1
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
           1,
           2
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
           1,
           3
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
           1,
           4
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
           2,
           3
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
           2,
           4
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
           3,
           4
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
@@ -2022,8 +2022,8 @@
           2,
           3
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
@@ -2031,8 +2031,8 @@
           2,
           4
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
@@ -2040,8 +2040,8 @@
           3,
           4
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
@@ -2049,8 +2049,8 @@
           3,
           4
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       },
       {
         "members": [
@@ -2059,8 +2059,8 @@
           3,
           4
         ],
-        "winner_margin": 0.08333333333333337,
-        "winner_rank": 1
+        "winner_margin": 0.5416666666666667,
+        "winner_rank": 1.0
       }
     ],
     "competition_id": 622,
@@ -3268,7 +3268,7 @@
         },
         "trial": 1,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 2,
@@ -3293,7 +3293,7 @@
         },
         "trial": 2,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 3,
@@ -3319,7 +3319,7 @@
         },
         "trial": 3,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 5,
@@ -3347,7 +3347,7 @@
         },
         "trial": 4,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 8,
@@ -3378,7 +3378,7 @@
         },
         "trial": 5,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 13,
@@ -3414,7 +3414,7 @@
         },
         "trial": 6,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 22,
@@ -3459,7 +3459,7 @@
         },
         "trial": 7,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 37,
@@ -3519,7 +3519,7 @@
         },
         "trial": 8,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 62,
@@ -3604,7 +3604,7 @@
         },
         "trial": 9,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 103,
@@ -3730,7 +3730,7 @@
         },
         "trial": 10,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 173,
@@ -3926,7 +3926,7 @@
         },
         "trial": 11,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       },
       {
         "feature_count": 289,
@@ -4238,7 +4238,7 @@
         },
         "trial": 12,
         "winner_margin": 13.628945350646973,
-        "winner_rank": 1
+        "winner_rank": 1.0
       }
     ],
     "input_features": [
@@ -4251,7 +4251,7 @@
     "selection_criterion": "winner_rank, then fewer features, then larger winner margin",
     "selection_warning": "Features, model and optional blend were selected and validated on this same finished race; results are deliberately in-sample.",
     "self_validation_winner_margin": 13.628945350646973,
-    "self_validation_winner_rank": 1,
+    "self_validation_winner_rank": 1.0,
     "split_feature_gain": {
       "recent_avg_starting_price": 0.22430074214935303
     },
@@ -4282,7 +4282,7 @@
   "race_id": 10838218,
   "race_number": 1,
   "self_validation_winner_margin": 13.628945350646973,
-  "self_validation_winner_rank": 1,
+  "self_validation_winner_rank": 1.0,
   "split_feature_gain": {
     "recent_avg_starting_price": 0.22430074214935303
   },

@@ -395,7 +395,9 @@ def _jsonable(value: Any) -> Any:
 
 
 def load_model_feature_sets(
-    manifest_path: Path, eligible_features: list[str]
+    manifest_path: Path,
+    eligible_features: list[str],
+    requested_models: list[str] | None = None,
 ) -> dict[str, list[str]]:
     """Load and validate the exact ordered input columns for each model."""
     path = manifest_path.resolve()
@@ -426,8 +428,17 @@ def load_model_feature_sets(
             raise ValueError(f"{path} models.{label}.features contains duplicates")
         feature_sets[label] = list(features)
 
+    labels_to_validate = set(requested_models or feature_sets)
+    unknown = sorted(labels_to_validate - set(feature_sets))
+    if unknown:
+        raise ValueError(
+            "Requested models are absent from the feature manifest: "
+            + ", ".join(unknown)
+        )
     eligible = set(eligible_features) | set(MARKET_ENGINEERED_FEATURES)
     for label, features in feature_sets.items():
+        if label not in labels_to_validate:
+            continue
         unavailable = [feature for feature in features if feature not in eligible]
         if unavailable:
             raise ValueError(
@@ -1158,7 +1169,11 @@ def main() -> None:
             flush=True,
         )
     else:
-        feature_sets = load_model_feature_sets(feature_manifest, eligible_features)
+        feature_sets = load_model_feature_sets(
+            feature_manifest,
+            eligible_features,
+            None if args.reuse_unselected_models else args.models,
+        )
     feature_sets, training_labels, reused_labels = select_requested_model_groups(
         feature_sets, args.models, args.reuse_unselected_models
     )

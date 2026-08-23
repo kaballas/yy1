@@ -1,0 +1,179 @@
+{
+  "all_finished_crossfit": {
+    "blend": "all_finished_crossfit_dynamic_model_groups",
+    "crossfit_folds": 5,
+    "deployment_tree_count_selection": "full_history_chronological_tail_early_stopping",
+    "eligible_finished_races": 2871,
+    "eligible_finished_rows": 28840,
+    "model_labels": [
+      "top3"
+    ],
+    "model_oof_metrics": {
+      "top3": {
+        "mean_winner_rank": 3.628004179728318,
+        "mrr": 0.4589039080205126,
+        "race_logloss": 2.110748017441124,
+        "races": 2871.0,
+        "top1_hit_rate": 0.22640195053988157,
+        "top3_hit_rate": 0.5799373040752351
+      }
+    },
+    "objective": "top1",
+    "oof_market_deviation": {
+      "market_losses_corrected": 237.0,
+      "market_wins_damaged": 554.0,
+      "net_winners_gained": -317.0,
+      "races": 2871.0,
+      "top_pick_change_rate": 0.5687913618948102,
+      "top_pick_changes": 1633.0
+    },
+    "oof_median_tree_counts": {
+      "top3": [
+        18,
+        8,
+        9
+      ]
+    },
+    "oof_metrics": {
+      "equal_dynamic_blend": {
+        "mean_winner_rank": 3.628004179728318,
+        "mrr": 0.4589039080205126,
+        "race_logloss": 2.110748017441124,
+        "races": 2871.0,
+        "top1_hit_rate": 0.22640195053988157,
+        "top3_hit_rate": 0.5799373040752351
+      },
+      "raw_market_benchmark": {
+        "mean_winner_rank": 2.8854057819575063,
+        "mrr": 0.5590792144383083,
+        "race_logloss": 2.0319293302360135,
+        "races": 2871.0,
+        "top1_hit_rate": 0.3396029258098224,
+        "top3_hit_rate": 0.7028909787530477
+      },
+      "top3_only": {
+        "mean_winner_rank": 3.628004179728318,
+        "mrr": 0.4589039080205126,
+        "race_logloss": 2.110748017441124,
+        "races": 2871.0,
+        "top1_hit_rate": 0.22640195053988157,
+        "top3_hit_rate": 0.5799373040752351
+      },
+      "tuned_dynamic_blend": {
+        "mean_winner_rank": 3.628004179728318,
+        "mrr": 0.4589039080205126,
+        "race_logloss": 2.110748017441124,
+        "races": 2871.0,
+        "top1_hit_rate": 0.22640195053988157,
+        "top3_hit_rate": 0.5799373040752351
+      }
+    },
+    "raw_market_weight_fixed": 0.0,
+    "schema_version": 2,
+    "sealed_test_available": false,
+    "selected_weights": {
+      "market": 0.0,
+      "top3": 1.0
+    },
+    "selection_cohort": "all_eligible_finished_races_grouped_oof",
+    "top3_failure_focus": null,
+    "training_weekday_utc": "Saturday",
+    "tree_count_early_stopping_rounds": 60,
+    "tree_count_max_estimators": 700,
+    "tree_count_maximum_inner_validation_races": 1000,
+    "tree_count_selection": "nested_early_stopping",
+    "tree_count_selection_metric": "ndcg@1",
+    "tuned_model_tree_counts": {
+      "top3": [
+        3,
+        33,
+        80
+      ]
+    }
+  },
+  "all_finished_tuned_blend_weights": {
+    "market": 0.0,
+    "top3": 1.0
+  },
+  "best_tree_counts": {
+    "top3": [
+      3,
+      33,
+      80
+    ]
+  },
+  "competition_id_feature_used": false,
+  "competition_scope": "all_eligible_races",
+  "database": "/home/theo/yy1/db/race_runners.sqlite",
+  "deployment_blend_weights": {
+    "market": 0.0,
+    "top3": 1.0
+  },
+  "deployment_default": "top3",
+  "deployment_uses_current_market": true,
+  "derived_feature_versions": [
+    "2026-08-20-v6"
+  ],
+  "feature_duplicates_removed": {
+    "current_weight_minus_last": "weight_change_from_last_run",
+    "form_average_finish_percentile_6": "recent_finish_percentile_avg_6",
+    "form_ceiling_finish_percentile_6": "recent_finish_percentile_best_6",
+    "margin_quality_average_6": "recent_margin_quality_avg_6",
+    "recent_class_weighted_6": "form_class_level_weighted_6",
+    "recent_form_vs_career_form": "recent3_vs_career_place_rate",
+    "recent_last600_best_6": "sectional_last600_best_6",
+    "recent_last600_std_6": "sectional_last600_std_6",
+    "recent_last600_weighted_3": "sectional_last600_seconds_weighted_3",
+    "recent_last600_weighted_6": "sectional_last600_seconds_weighted_6",
+    "wet_rating": "dry_rating",
+    "wet_rating_rank": "dry_rating_rank"
+  },
+  "feature_manifest": "/home/theo/yy1/winner_ranker_features.json",
+  "form_features": [],
+  "market_engineered_features": [
+    "current_market_log_price",
+    "current_market_rank_pct"
+  ],
+  "model_features": {
+    "top3": [
+      "jockey_trainer_history_smoothed_win_rate",
+      "career_place_rate_rank",
+      "recent_2_place",
+      "recent_margin_quality_avg_3",
+      "same_track_finish_percentile",
+      "distance_speed_rank_minus_market_rank",
+      "recent_margin_avg_6",
+      "second_best_run_recency_index",
+      "same_track_top3_rate",
+      "last3_win_percentage",
+      "similar_distance_top3_rate",
+      "preparation_run_number",
+      "recent_finish_percentile_slope_6",
+      "recent_5_total_runners",
+      "jockey_trainer_history_top3",
+      "best_margin_quality_at_equal_or_higher_weight",
+      "horse_jockey_wins",
+      "jockey_trainer_history_runs",
+      "jockey_trainer_history_starts",
+      "condition_win_rate_smoothed"
+    ]
+  },
+  "models": {
+    "top3": [
+      "/home/theo/yy1/outputs/winner_ranker_top3_saturdays/top3_all_finished_seed_42.json",
+      "/home/theo/yy1/outputs/winner_ranker_top3_saturdays/top3_all_finished_seed_1051.json",
+      "/home/theo/yy1/outputs/winner_ranker_top3_saturdays/top3_all_finished_seed_2060.json"
+    ]
+  },
+  "objective": "single_winner_ranking",
+  "schema_version": 3,
+  "seed": 42,
+  "selected_blend_weights": {
+    "market": 0.0,
+    "top3": 1.0
+  },
+  "top3_failure_focus": null,
+  "training_scope": "eligible_finished_races_utc_weekday",
+  "training_weekday_utc": "Saturday",
+  "tree_count_selection": "nested_early_stopping"
+}

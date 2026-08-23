@@ -13,6 +13,7 @@ from rank_winner_models import (
     load_active_race,
     load_original_race_models,
     model_rank_total_summary,
+    model_prediction_tie_diagnostics,
     number_one_rank_summary,
     number_one_summary,
     ranked_output,
@@ -270,6 +271,29 @@ def test_number_one_summary_counts_visible_rankings_but_not_display_order():
     assert summary["picked_first_by"].tolist() == ["tuned,market", "form"]
 
 
+def test_ranked_output_does_not_award_number_one_for_constant_model_scores():
+    frame = pd.DataFrame({
+        "runner_number": [1, 2, 3],
+        "runner_name": ["A", "B", "C"],
+        "fluc2": [3.0, 4.0, 5.0],
+    })
+    output = ranked_output(
+        frame,
+        {
+            "consensus": np.array([0.5, 0.5, 0.5]),
+            "deployment": np.array([0.5, 0.5, 0.5]),
+            "market": np.array([3, 2, 1]),
+        },
+        "consensus",
+    )
+
+    assert output["consensus_rank"].tolist() == [2.0, 2.0, 2.0]
+    summary = number_one_summary(
+        output, ["consensus_rank", "market_rank"]
+    )
+    assert summary["picked_first_by"].tolist() == ["market"]
+
+
 def test_model_rank_totals_sum_only_dynamic_model_columns():
     output = pd.DataFrame({
         "runner_number": [1, 2, 3],
@@ -305,6 +329,26 @@ def test_number_one_ranking_sorts_by_votes_then_average_rank():
     assert summary["runner_number"].tolist() == [3, 2, 1]
     assert summary["number_one_rank"].tolist() == [1, 2, 3]
     assert summary["number_one_pct"].tolist() == [40.0, 40.0, 30.0]
+    assert summary["models_with_unique_top"].tolist() == [11, 11, 11]
+    assert summary["number_one_vote_share_pct"].tolist() == pytest.approx([
+        100 * 4 / 11, 100 * 4 / 11, 100 * 3 / 11,
+    ])
+
+
+def test_model_prediction_tie_diagnostics_counts_abstaining_models():
+    diagnostics = model_prediction_tie_diagnostics(
+        {
+            "constant": np.array([0.5, 0.5, 0.5]),
+            "tied": np.array([0.8, 0.8, 0.2]),
+            "unique": np.array([0.9, 0.5, 0.1]),
+        },
+        ["constant", "tied", "unique"],
+    )
+    assert diagnostics == {
+        "models_constant": 1,
+        "models_unique_top": 1,
+        "models_tied_top": 2,
+    }
 
 
 def test_completed_race_lists_models_that_ranked_actual_winner_first():
@@ -490,6 +534,19 @@ def test_rank_percentile_and_winner_metrics_have_intuitive_direction():
     assert percentile.tolist() == pytest.approx([1.0, 0.5, 0.0, 0.0, 1.0])
     assert metrics["top1_hit_rate"] == 1.0
     assert metrics["mrr"] == 1.0
+
+
+def test_rank_percentiles_and_metrics_do_not_favor_first_row_on_ties():
+    scores = np.asarray([0.5, 0.5, 0.5])
+    ids = np.asarray([1, 1, 1])
+    target = np.asarray([1, 0, 0])
+
+    percentile = rank_percentiles(scores, ids)
+    metrics = winner_metrics(target, percentile, ids)
+
+    assert percentile.tolist() == pytest.approx([0.5, 0.5, 0.5])
+    assert metrics["top1_hit_rate"] == 0.0
+    assert metrics["mean_winner_rank"] == pytest.approx(2.0)
 
 
 def test_validation_blend_selection_can_choose_non_market_model():

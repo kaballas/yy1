@@ -770,3 +770,9 @@ done
     --ranking consensus \
     --race-id RACE_ID
 
+  python rank_winner_models.py \
+    --bundle outputs/winner_ranker_saturdays_fresh/winner_ranker_bundle.json \
+    --race-models-manifest models_test_top3/per_race_models_manifest.json \
+    --ranking consensus \
+    --race-id 10842528
+

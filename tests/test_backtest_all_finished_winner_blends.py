@@ -16,6 +16,7 @@ from backtest_all_finished_winner_blends import (
     parse_competition_ids,
     parse_model_labels,
     parse_race_numbers,
+    normalize_per_race_feature_models,
     per_race_feature_subsets,
     winner_rank_and_margin,
 )
@@ -36,6 +37,12 @@ def test_per_race_manifest_union_and_feature_subset_search(tmp_path):
         '"b":{"features":["f2","f3"]}}}'
     )
     assert load_per_race_candidate_features(manifest) == ["f1", "f2", "f3"]
+    assert load_per_race_candidate_features(manifest, ["b"]) == ["f2", "f3"]
+    with pytest.raises(ValueError, match="absent from the manifest"):
+        load_per_race_candidate_features(manifest, ["missing"])
+    assert normalize_per_race_feature_models(["a,b", "b", "c"]) == [
+        "a", "b", "c",
+    ]
 
     matrix = pd.DataFrame({
         "f1": [10.0, 0.0, 1.0],

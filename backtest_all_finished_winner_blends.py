@@ -153,6 +153,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--per-race-feature-models",
+        nargs="+",
+        metavar="MODEL",
+        help=(
+            "Use only these model groups from --per-race-feature-manifest "
+            "(for example: --per-race-feature-models top3). Comma-separated "
+            "names are also accepted."
+        ),
+    )
+    parser.add_argument(
         "--per-race-feature-trials",
         type=int,
         default=12,
@@ -259,7 +269,7 @@ def winner_metrics(
         targets.shape == scores.shape == race_ids.shape
     ) or not len(targets) or not np.isfinite(scores).all():
         raise ValueError("Winner metric inputs must be finite, non-empty, and equal")
-    ranks: list[int] = []
+    ranks: list[float] = []
     losses: list[float] = []
     for race_id in pd.unique(race_ids):
         positions = np.flatnonzero(race_ids == race_id)
@@ -267,9 +277,10 @@ def winner_metrics(
         if int(race_targets.sum()) != 1:
             raise ValueError(f"race_id {race_id} does not have exactly one winner")
         race_scores = scores[positions]
-        order = np.argsort(-race_scores, kind="stable")
         winner = int(np.flatnonzero(race_targets == 1)[0])
-        ranks.append(int(np.flatnonzero(order == winner)[0]) + 1)
+        ranks.append(float(pd.Series(race_scores).rank(
+            method="average", ascending=False
+        ).iloc[winner]))
         shifted = race_scores - race_scores.max()
         losses.append(
             float(-(shifted[winner] - np.log(np.exp(shifted).sum())))
@@ -478,6 +489,7 @@ def score_finished_date_from_bundle(
 
 def load_per_race_candidate_features(
     manifest_path: Path,
+    requested_models: list[str] | None = None,
 ) -> list[str]:
     """Load the ordered union of feature groups from a winner feature manifest."""
     resolved = manifest_path.resolve()
@@ -489,8 +501,16 @@ def load_per_race_candidate_features(
         raise ValueError(
             f"Per-race feature manifest has no model feature groups: {resolved}"
         )
+    requested = list(dict.fromkeys(requested_models or groups.keys()))
+    unknown = sorted(set(requested) - set(groups))
+    if unknown:
+        raise ValueError(
+            "Requested per-race feature models are absent from the manifest: "
+            + ", ".join(unknown)
+        )
     candidates: list[str] = []
-    for label, configured in groups.items():
+    for label in requested:
+        configured = groups[label]
         if not isinstance(configured, dict):
             raise ValueError(f"Feature group {label!r} must be a JSON object")
         features = configured.get("features")
@@ -500,6 +520,21 @@ def load_per_race_candidate_features(
             raise ValueError(f"Feature group {label!r} has invalid feature names")
         candidates.extend(features)
     return list(dict.fromkeys(candidates))
+
+
+def normalize_per_race_feature_models(
+    requested: list[str] | None,
+) -> list[str] | None:
+    """Accept space-separated and comma-separated manifest group names."""
+    if requested is None:
+        return None
+    labels: list[str] = []
+    for value in requested:
+        parts = [part.strip() for part in value.split(",")]
+        if any(not part for part in parts):
+            raise ValueError("--per-race-feature-models contains an empty name")
+        labels.extend(parts)
+    return list(dict.fromkeys(labels))
 
 
 def per_race_feature_subsets(
@@ -549,13 +584,14 @@ def per_race_feature_subsets(
 
 def winner_rank_and_margin(
     scores: np.ndarray, targets: np.ndarray
-) -> tuple[int, float]:
-    """Return the known winner's stable rank and lead over the best rival."""
+) -> tuple[float, float]:
+    """Return the winner's tie-aware rank and lead over the best rival."""
     values = np.asarray(scores, dtype=np.float64)
     labels = np.asarray(targets, dtype=np.int64)
     winner_index = int(np.flatnonzero(labels == 1)[0])
-    order = np.argsort(-values, kind="stable")
-    winner_rank = int(np.flatnonzero(order == winner_index)[0]) + 1
+    winner_rank = float(pd.Series(values).rank(
+        method="average", ascending=False
+    ).iloc[winner_index])
     rivals = values[labels != 1]
     margin = float(values[winner_index] - rivals.max())
     return winner_rank, margin
@@ -567,6 +603,7 @@ def train_per_race_analysis_models(
     output_dir: Path,
     estimators: int,
     feature_manifest: Path,
+    feature_models: list[str] | None,
     feature_trials: int,
     select_blend: bool,
     blend_members: int,
@@ -588,7 +625,9 @@ def train_per_race_analysis_models(
         rank_percentiles,
     )
 
-    manifest_candidates = load_per_race_candidate_features(feature_manifest)
+    manifest_candidates = load_per_race_candidate_features(
+        feature_manifest, feature_models
+    )
     forbidden = OUTCOME_OR_CONTROL_COLUMNS | IDENTIFIER_COLUMNS
     candidate_features = [
         feature for feature in manifest_candidates
@@ -612,6 +651,7 @@ def train_per_race_analysis_models(
     print(
         "PER-RACE FEATURE SEARCH START\n"
         f"feature_manifest={feature_manifest.resolve()} "
+        f"feature_models={json.dumps(feature_models or ['all'])} "
         f"manifest_candidates={len(manifest_candidates):,} "
         f"available_safe_candidates={len(candidate_features):,} "
         f"unavailable={len(unavailable_features):,} "
@@ -686,7 +726,7 @@ def train_per_race_analysis_models(
                 f"varying_candidates={len(usable):,} subsets={len(subsets):,}",
                 flush=True,
             )
-            best_key: tuple[int, int, float] | None = None
+            best_key: tuple[float, int, float] | None = None
             best_model: Any | None = None
             best_scores: np.ndarray | None = None
             base_parameters = {
@@ -853,6 +893,7 @@ def train_per_race_analysis_models(
                 "self_validation_winner_rank": self_validation_rank,
                 "self_validation_winner_margin": self_validation_margin,
                 "feature_manifest": str(feature_manifest.resolve()),
+                "feature_models": feature_models,
                 "manifest_candidate_count": len(manifest_candidates),
                 "available_candidate_count": len(candidate_features),
                 "varying_candidate_count": len(usable),
@@ -902,6 +943,7 @@ def train_per_race_analysis_models(
             "model": selected_model_paths[0] if selected_model_paths else str(model_path),
             "models": selected_model_paths,
             "feature_manifest": str(feature_manifest.resolve()),
+            "feature_models": feature_models,
             "manifest_candidate_features": manifest_candidates,
             "unavailable_features": unavailable_features,
             "excluded_outcome_or_identifier_features": excluded_features,
@@ -965,6 +1007,7 @@ def train_per_race_analysis_models(
     manifest = {
         "schema_version": 5,
         "feature_manifest": str(feature_manifest.resolve()),
+        "feature_models": feature_models,
         "feature_search_trials": feature_trials,
         "blend_search_enabled": select_blend,
         "blend_members_considered": blend_members,
@@ -1337,6 +1380,7 @@ def print_per_race_training_report(
         f"self_validation_winner_top3={top3:,}/{len(analysis):,} "
         f"models_test_dir={args.models_test_dir.resolve()}\n"
         f"per_race_feature_manifest={args.per_race_feature_manifest.resolve()} "
+        f"feature_models={json.dumps(normalize_per_race_feature_models(args.per_race_feature_models) or ['all'])} "
         f"feature_trials={args.per_race_feature_trials} "
         f"blend_search={'yes' if args.per_race_select_blend else 'no'}\n"
         f"manifest_total_models="
@@ -1352,6 +1396,9 @@ def print_per_race_training_report(
 
 def main() -> None:
     args = parse_args()
+    per_race_feature_models = normalize_per_race_feature_models(
+        args.per_race_feature_models
+    )
     if args.top_strategies < 1:
         raise ValueError("--top-strategies must be positive")
     if args.train_per_race and args.date is None:
@@ -1379,6 +1426,7 @@ def main() -> None:
             args.models_test_dir,
             args.per_race_estimators,
             args.per_race_feature_manifest,
+            per_race_feature_models,
             args.per_race_feature_trials,
             args.per_race_select_blend,
             args.per_race_blend_members,

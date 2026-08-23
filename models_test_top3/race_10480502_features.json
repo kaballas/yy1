@@ -1,0 +1,367 @@
+{
+  "blend_search_trials": [],
+  "candidate_features": [
+    "jockey_trainer_history_smoothed_win_rate",
+    "career_place_rate_rank",
+    "recent_2_place",
+    "recent_margin_quality_avg_3",
+    "same_track_finish_percentile",
+    "distance_speed_rank_minus_market_rank",
+    "recent_margin_avg_6",
+    "second_best_run_recency_index",
+    "same_track_top3_rate",
+    "last3_win_percentage",
+    "similar_distance_top3_rate",
+    "preparation_run_number",
+    "recent_finish_percentile_slope_6",
+    "recent_5_total_runners",
+    "jockey_trainer_history_top3",
+    "best_margin_quality_at_equal_or_higher_weight",
+    "horse_jockey_wins",
+    "jockey_trainer_history_runs",
+    "jockey_trainer_history_starts",
+    "condition_win_rate_smoothed"
+  ],
+  "competition_id": 7,
+  "excluded_outcome_or_identifier_features": [],
+  "feature_manifest": "/home/theo/yy1/winner_ranker_features.json",
+  "feature_models": [
+    "top3"
+  ],
+  "feature_search_trials": [
+    {
+      "feature_count": 20,
+      "features": [
+        "similar_distance_top3_rate",
+        "second_best_run_recency_index",
+        "recent_finish_percentile_slope_6",
+        "condition_win_rate_smoothed",
+        "recent_margin_quality_avg_3",
+        "last3_win_percentage",
+        "recent_2_place",
+        "jockey_trainer_history_runs",
+        "jockey_trainer_history_starts",
+        "recent_margin_avg_6",
+        "preparation_run_number",
+        "career_place_rate_rank",
+        "jockey_trainer_history_top3",
+        "recent_5_total_runners",
+        "best_margin_quality_at_equal_or_higher_weight",
+        "distance_speed_rank_minus_market_rank",
+        "jockey_trainer_history_smoothed_win_rate",
+        "horse_jockey_wins",
+        "same_track_finish_percentile",
+        "same_track_top3_rate"
+      ],
+      "parameters": {
+        "colsample_bytree": 1.0,
+        "eval_metric": "ndcg@1",
+        "learning_rate": 0.1,
+        "max_depth": 4,
+        "min_child_weight": 0.0,
+        "n_estimators": 300,
+        "n_jobs": 1,
+        "objective": "rank:ndcg",
+        "random_state": 10480545,
+        "reg_alpha": 0.0,
+        "reg_lambda": 0.0,
+        "subsample": 1.0,
+        "tree_method": "hist"
+      },
+      "trial": 1,
+      "winner_margin": 13.328944206237793,
+      "winner_rank": 1.0
+    }
+  ],
+  "input_features": [
+    "similar_distance_top3_rate",
+    "second_best_run_recency_index",
+    "recent_finish_percentile_slope_6",
+    "condition_win_rate_smoothed",
+    "recent_margin_quality_avg_3",
+    "last3_win_percentage",
+    "recent_2_place",
+    "jockey_trainer_history_runs",
+    "jockey_trainer_history_starts",
+    "recent_margin_avg_6",
+    "preparation_run_number",
+    "career_place_rate_rank",
+    "jockey_trainer_history_top3",
+    "recent_5_total_runners",
+    "best_margin_quality_at_equal_or_higher_weight",
+    "distance_speed_rank_minus_market_rank",
+    "jockey_trainer_history_smoothed_win_rate",
+    "horse_jockey_wins",
+    "same_track_finish_percentile",
+    "same_track_top3_rate"
+  ],
+  "manifest_candidate_features": [
+    "jockey_trainer_history_smoothed_win_rate",
+    "career_place_rate_rank",
+    "recent_2_place",
+    "recent_margin_quality_avg_3",
+    "same_track_finish_percentile",
+    "distance_speed_rank_minus_market_rank",
+    "recent_margin_avg_6",
+    "second_best_run_recency_index",
+    "same_track_top3_rate",
+    "last3_win_percentage",
+    "similar_distance_top3_rate",
+    "preparation_run_number",
+    "recent_finish_percentile_slope_6",
+    "recent_5_total_runners",
+    "jockey_trainer_history_top3",
+    "best_margin_quality_at_equal_or_higher_weight",
+    "horse_jockey_wins",
+    "jockey_trainer_history_runs",
+    "jockey_trainer_history_starts",
+    "condition_win_rate_smoothed"
+  ],
+  "model": "/home/theo/yy1/models_test_top3/race_10480502.json",
+  "model_details": {
+    "analysis_type": "single_race_in_sample_feature_search_ranker",
+    "available_candidate_count": 20,
+    "blend_enabled": false,
+    "blend_search_trials": [],
+    "competition_id": 7,
+    "competition_name": "Belmont",
+    "ensemble_members": 1,
+    "ensemble_training_parameters": [
+      {
+        "colsample_bytree": 1.0,
+        "eval_metric": "ndcg@1",
+        "learning_rate": 0.1,
+        "max_depth": 4,
+        "min_child_weight": 0.0,
+        "n_estimators": 300,
+        "n_jobs": 1,
+        "objective": "rank:ndcg",
+        "random_state": 10480545,
+        "reg_alpha": 0.0,
+        "reg_lambda": 0.0,
+        "subsample": 1.0,
+        "tree_method": "hist"
+      }
+    ],
+    "ensemble_weights": [
+      1.0
+    ],
+    "feature_manifest": "/home/theo/yy1/winner_ranker_features.json",
+    "feature_models": [
+      "top3"
+    ],
+    "feature_priority": [
+      {
+        "feature": "similar_distance_top3_rate",
+        "winner_separation": 3.193963687382963
+      },
+      {
+        "feature": "second_best_run_recency_index",
+        "winner_separation": 2.25
+      },
+      {
+        "feature": "recent_finish_percentile_slope_6",
+        "winner_separation": 1.6066463633399575
+      },
+      {
+        "feature": "condition_win_rate_smoothed",
+        "winner_separation": 1.4496405217224713
+      },
+      {
+        "feature": "recent_margin_quality_avg_3",
+        "winner_separation": 1.4390309247965103
+      },
+      {
+        "feature": "last3_win_percentage",
+        "winner_separation": 1.2026755886059097
+      },
+      {
+        "feature": "recent_2_place",
+        "winner_separation": 1.1717001988274147
+      },
+      {
+        "feature": "jockey_trainer_history_runs",
+        "winner_separation": 1.1612166759709495
+      },
+      {
+        "feature": "jockey_trainer_history_starts",
+        "winner_separation": 1.1612166759709495
+      },
+      {
+        "feature": "recent_margin_avg_6",
+        "winner_separation": 1.118583768704164
+      },
+      {
+        "feature": "preparation_run_number",
+        "winner_separation": 1.0462287486943735
+      },
+      {
+        "feature": "career_place_rate_rank",
+        "winner_separation": 1.0354027349439503
+      },
+      {
+        "feature": "jockey_trainer_history_top3",
+        "winner_separation": 0.6131713563691152
+      },
+      {
+        "feature": "recent_5_total_runners",
+        "winner_separation": 0.5128225940683707
+      },
+      {
+        "feature": "best_margin_quality_at_equal_or_higher_weight",
+        "winner_separation": 0.4839000743144347
+      },
+      {
+        "feature": "distance_speed_rank_minus_market_rank",
+        "winner_separation": 0.24752939586124145
+      },
+      {
+        "feature": "jockey_trainer_history_smoothed_win_rate",
+        "winner_separation": 0.2445308432421793
+      },
+      {
+        "feature": "horse_jockey_wins",
+        "winner_separation": 0.0
+      },
+      {
+        "feature": "same_track_finish_percentile",
+        "winner_separation": -1.0
+      },
+      {
+        "feature": "same_track_top3_rate",
+        "winner_separation": -1.0
+      }
+    ],
+    "feature_search_trials": [
+      {
+        "feature_count": 20,
+        "features": [
+          "similar_distance_top3_rate",
+          "second_best_run_recency_index",
+          "recent_finish_percentile_slope_6",
+          "condition_win_rate_smoothed",
+          "recent_margin_quality_avg_3",
+          "last3_win_percentage",
+          "recent_2_place",
+          "jockey_trainer_history_runs",
+          "jockey_trainer_history_starts",
+          "recent_margin_avg_6",
+          "preparation_run_number",
+          "career_place_rate_rank",
+          "jockey_trainer_history_top3",
+          "recent_5_total_runners",
+          "best_margin_quality_at_equal_or_higher_weight",
+          "distance_speed_rank_minus_market_rank",
+          "jockey_trainer_history_smoothed_win_rate",
+          "horse_jockey_wins",
+          "same_track_finish_percentile",
+          "same_track_top3_rate"
+        ],
+        "parameters": {
+          "colsample_bytree": 1.0,
+          "eval_metric": "ndcg@1",
+          "learning_rate": 0.1,
+          "max_depth": 4,
+          "min_child_weight": 0.0,
+          "n_estimators": 300,
+          "n_jobs": 1,
+          "objective": "rank:ndcg",
+          "random_state": 10480545,
+          "reg_alpha": 0.0,
+          "reg_lambda": 0.0,
+          "subsample": 1.0,
+          "tree_method": "hist"
+        },
+        "trial": 1,
+        "winner_margin": 13.328944206237793,
+        "winner_rank": 1.0
+      }
+    ],
+    "input_features": [
+      "similar_distance_top3_rate",
+      "second_best_run_recency_index",
+      "recent_finish_percentile_slope_6",
+      "condition_win_rate_smoothed",
+      "recent_margin_quality_avg_3",
+      "last3_win_percentage",
+      "recent_2_place",
+      "jockey_trainer_history_runs",
+      "jockey_trainer_history_starts",
+      "recent_margin_avg_6",
+      "preparation_run_number",
+      "career_place_rate_rank",
+      "jockey_trainer_history_top3",
+      "recent_5_total_runners",
+      "best_margin_quality_at_equal_or_higher_weight",
+      "distance_speed_rank_minus_market_rank",
+      "jockey_trainer_history_smoothed_win_rate",
+      "horse_jockey_wins",
+      "same_track_finish_percentile",
+      "same_track_top3_rate"
+    ],
+    "manifest_candidate_count": 20,
+    "race_id": 10480502,
+    "race_name": "R7 Swan Draught (Bm78+)",
+    "race_number": 7,
+    "selection_criterion": "winner_rank, then fewer features, then larger winner margin",
+    "selection_warning": "Features, model and optional blend were selected and validated on this same finished race; results are deliberately in-sample.",
+    "self_validation_winner_margin": 13.328944206237793,
+    "self_validation_winner_rank": 1.0,
+    "split_feature_gain": {
+      "similar_distance_top3_rate": 0.1949416846036911
+    },
+    "start_time_iso": "2026-05-16T07:45:00+00:00",
+    "training_parameters": {
+      "colsample_bytree": 1.0,
+      "eval_metric": "ndcg@1",
+      "learning_rate": 0.1,
+      "max_depth": 4,
+      "min_child_weight": 0.0,
+      "n_estimators": 300,
+      "n_jobs": 1,
+      "objective": "rank:ndcg",
+      "random_state": 10480545,
+      "reg_alpha": 0.0,
+      "reg_lambda": 0.0,
+      "subsample": 1.0,
+      "tree_method": "hist"
+    },
+    "training_rows": 10,
+    "varying_candidate_count": 20,
+    "winner_runner_name": "Sir Dreamalot",
+    "winner_runner_number": 11
+  },
+  "models": [
+    "/home/theo/yy1/models_test_top3/race_10480502.json"
+  ],
+  "race_id": 10480502,
+  "race_number": 7,
+  "self_validation_winner_margin": 13.328944206237793,
+  "self_validation_winner_rank": 1.0,
+  "split_feature_gain": {
+    "similar_distance_top3_rate": 0.1949416846036911
+  },
+  "unavailable_features": [],
+  "varying_features": [
+    "jockey_trainer_history_smoothed_win_rate",
+    "career_place_rate_rank",
+    "recent_2_place",
+    "recent_margin_quality_avg_3",
+    "same_track_finish_percentile",
+    "distance_speed_rank_minus_market_rank",
+    "recent_margin_avg_6",
+    "second_best_run_recency_index",
+    "same_track_top3_rate",
+    "last3_win_percentage",
+    "similar_distance_top3_rate",
+    "preparation_run_number",
+    "recent_finish_percentile_slope_6",
+    "recent_5_total_runners",
+    "jockey_trainer_history_top3",
+    "best_margin_quality_at_equal_or_higher_weight",
+    "horse_jockey_wins",
+    "jockey_trainer_history_runs",
+    "jockey_trainer_history_starts",
+    "condition_win_rate_smoothed"
+  ]
+}

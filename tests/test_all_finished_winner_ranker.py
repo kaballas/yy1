@@ -167,6 +167,28 @@ def test_model_feature_manifest_rejects_unavailable_features(tmp_path):
         load_model_feature_sets(manifest, ["speed"])
 
 
+def test_requested_model_does_not_validate_unselected_unavailable_group(tmp_path):
+    manifest = tmp_path / "features.json"
+    manifest.write_text(json.dumps({
+        "schema_version": 1,
+        "models": {
+            "a1": {"features": ["unavailable"]},
+            "top3": {"features": ["speed", "weight"]},
+        },
+    }))
+
+    feature_sets = load_model_feature_sets(
+        manifest, ["speed", "weight"], ["top3"]
+    )
+    selected, training, reused = select_requested_model_groups(
+        feature_sets, ["top3"], False
+    )
+
+    assert selected == {"top3": ["speed", "weight"]}
+    assert training == ["top3"]
+    assert reused == []
+
+
 def test_race_model_manifest_imports_every_embedded_feature_set(tmp_path):
     manifest = tmp_path / "per_race_models_manifest.json"
     manifest.write_text(json.dumps({

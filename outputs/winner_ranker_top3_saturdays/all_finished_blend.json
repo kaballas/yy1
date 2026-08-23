@@ -1,0 +1,92 @@
+{
+  "blend": "all_finished_crossfit_dynamic_model_groups",
+  "crossfit_folds": 5,
+  "deployment_tree_count_selection": "full_history_chronological_tail_early_stopping",
+  "eligible_finished_races": 2871,
+  "eligible_finished_rows": 28840,
+  "model_labels": [
+    "top3"
+  ],
+  "model_oof_metrics": {
+    "top3": {
+      "mean_winner_rank": 3.628004179728318,
+      "mrr": 0.4589039080205126,
+      "race_logloss": 2.110748017441124,
+      "races": 2871.0,
+      "top1_hit_rate": 0.22640195053988157,
+      "top3_hit_rate": 0.5799373040752351
+    }
+  },
+  "objective": "top1",
+  "oof_market_deviation": {
+    "market_losses_corrected": 237.0,
+    "market_wins_damaged": 554.0,
+    "net_winners_gained": -317.0,
+    "races": 2871.0,
+    "top_pick_change_rate": 0.5687913618948102,
+    "top_pick_changes": 1633.0
+  },
+  "oof_median_tree_counts": {
+    "top3": [
+      18,
+      8,
+      9
+    ]
+  },
+  "oof_metrics": {
+    "equal_dynamic_blend": {
+      "mean_winner_rank": 3.628004179728318,
+      "mrr": 0.4589039080205126,
+      "race_logloss": 2.110748017441124,
+      "races": 2871.0,
+      "top1_hit_rate": 0.22640195053988157,
+      "top3_hit_rate": 0.5799373040752351
+    },
+    "raw_market_benchmark": {
+      "mean_winner_rank": 2.8854057819575063,
+      "mrr": 0.5590792144383083,
+      "race_logloss": 2.0319293302360135,
+      "races": 2871.0,
+      "top1_hit_rate": 0.3396029258098224,
+      "top3_hit_rate": 0.7028909787530477
+    },
+    "top3_only": {
+      "mean_winner_rank": 3.628004179728318,
+      "mrr": 0.4589039080205126,
+      "race_logloss": 2.110748017441124,
+      "races": 2871.0,
+      "top1_hit_rate": 0.22640195053988157,
+      "top3_hit_rate": 0.5799373040752351
+    },
+    "tuned_dynamic_blend": {
+      "mean_winner_rank": 3.628004179728318,
+      "mrr": 0.4589039080205126,
+      "race_logloss": 2.110748017441124,
+      "races": 2871.0,
+      "top1_hit_rate": 0.22640195053988157,
+      "top3_hit_rate": 0.5799373040752351
+    }
+  },
+  "raw_market_weight_fixed": 0.0,
+  "schema_version": 2,
+  "sealed_test_available": false,
+  "selected_weights": {
+    "market": 0.0,
+    "top3": 1.0
+  },
+  "selection_cohort": "all_eligible_finished_races_grouped_oof",
+  "top3_failure_focus": null,
+  "training_weekday_utc": "Saturday",
+  "tree_count_early_stopping_rounds": 60,
+  "tree_count_max_estimators": 700,
+  "tree_count_maximum_inner_validation_races": 1000,
+  "tree_count_selection": "nested_early_stopping",
+  "tree_count_selection_metric": "ndcg@1",
+  "tuned_model_tree_counts": {
+    "top3": [
+      3,
+      33,
+      80
+    ]
+  }
+}

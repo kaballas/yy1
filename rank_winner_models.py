@@ -263,8 +263,8 @@ def ranked_output(
     for name, values in scores.items():
         score_columns[f"{name}_score"] = np.asarray(values)
         score_columns[f"{name}_rank"] = pd.Series(values).rank(
-            method="first", ascending=False
-        ).astype(int).to_numpy()
+            method="average", ascending=False
+        ).to_numpy(dtype=np.float64)
     output = pd.concat(
         [output.reset_index(drop=True), pd.DataFrame(score_columns)], axis=1
     )
@@ -318,7 +318,11 @@ def terminal_table_text(
         column: (
             lambda value: sentinel
             if pd.notna(value) and float(value) == 1.0
-            else str(int(value))
+            else (
+                str(int(value))
+                if pd.notna(value) and float(value).is_integer()
+                else f"{float(value):.1f}"
+            )
         )
         for column in rank_columns
         if column in table
@@ -382,10 +386,10 @@ def model_rank_total_summary(
     ranks = output.loc[:, rank_columns].apply(pd.to_numeric, errors="raise")
     summary = output[["runner_number", "runner_name", "fluc2"]].copy()
     summary["models_counted"] = len(rank_columns)
-    summary["model_rank_total"] = ranks.sum(axis=1).astype(int)
+    summary["model_rank_total"] = ranks.sum(axis=1)
     summary["average_model_rank"] = ranks.mean(axis=1)
-    summary["best_model_rank"] = ranks.min(axis=1).astype(int)
-    summary["worst_model_rank"] = ranks.max(axis=1).astype(int)
+    summary["best_model_rank"] = ranks.min(axis=1)
+    summary["worst_model_rank"] = ranks.max(axis=1)
     summary["number_ones"] = ranks.eq(1).sum(axis=1).astype(int)
     summary = summary.sort_values(
         [
@@ -404,7 +408,8 @@ def number_one_rank_summary(rank_totals: pd.DataFrame) -> pd.DataFrame:
     """Rank runners by first-place votes across all configured models."""
     columns = [
         "number_one_rank", "runner_number", "runner_name", "fluc2",
-        "number_ones", "number_one_pct", "models_counted",
+        "number_ones", "number_one_pct", "number_one_vote_share_pct",
+        "models_with_unique_top", "models_counted",
         "average_model_rank", "consensus_rank",
     ]
     if rank_totals.empty:
@@ -417,6 +422,13 @@ def number_one_rank_summary(rank_totals: pd.DataFrame) -> pd.DataFrame:
         / denominator * 100.0,
         0.0,
     )
+    unique_top_votes = int(summary["number_ones"].sum())
+    summary["models_with_unique_top"] = unique_top_votes
+    summary["number_one_vote_share_pct"] = (
+        pd.to_numeric(summary["number_ones"], errors="raise")
+        / unique_top_votes * 100.0
+        if unique_top_votes else 0.0
+    )
     summary = summary.sort_values(
         ["number_ones", "average_model_rank", "consensus_rank", "runner_number"],
         ascending=[False, True, True, True],
@@ -425,6 +437,33 @@ def number_one_rank_summary(rank_totals: pd.DataFrame) -> pd.DataFrame:
     )
     summary.insert(0, "number_one_rank", np.arange(1, len(summary) + 1))
     return summary.loc[:, columns]
+
+
+def model_prediction_tie_diagnostics(
+    scores: dict[str, np.ndarray], model_labels: list[str]
+) -> dict[str, int]:
+    """Count constant, uniquely led, and top-tied model predictions."""
+    constant = 0
+    unique_top = 0
+    top_tied = 0
+    for label in model_labels:
+        if label not in scores:
+            continue
+        values = np.asarray(scores[label], dtype=np.float64)
+        if np.isclose(values.max(), values.min(), rtol=0.0, atol=1e-12):
+            constant += 1
+        top_count = int(np.isclose(
+            values, values.max(), rtol=0.0, atol=1e-12
+        ).sum())
+        if top_count == 1:
+            unique_top += 1
+        else:
+            top_tied += 1
+    return {
+        "models_constant": constant,
+        "models_unique_top": unique_top,
+        "models_tied_top": top_tied,
+    }
 
 
 def consensus_representative_model_columns(
@@ -503,7 +542,7 @@ def completed_winner_model_results(
         rank_column = f"{label}_rank"
         if rank_column not in output:
             continue
-        winner_rank = int(ranked[rank_column])
+        winner_rank = float(ranked[rank_column])
         rows.append({
             "model": label,
             "winner_rank": winner_rank,
@@ -719,6 +758,10 @@ def main() -> None:
         column.removesuffix("_rank")
         for column in displayed_model_rank_columns
     }
+    tie_diagnostics = model_prediction_tie_diagnostics(
+        scores,
+        [column.removesuffix("_rank") for column in all_model_rank_columns],
+    )
 
     race = frame.iloc[0]
     displayed_model = (
@@ -766,6 +809,9 @@ def main() -> None:
             f"models_loaded={len(all_model_rank_columns)} "
             f"models_displayed={len(displayed_model_rank_columns)} "
             "display_selection=closest_to_all_model_consensus\n"
+            f"models_unique_top={tie_diagnostics['models_unique_top']} "
+            f"models_tied_top={tie_diagnostics['models_tied_top']} "
+            f"models_constant={tie_diagnostics['models_constant']}\n"
         )
     if diagnostic_weights is not None:
         weight_label = {
@@ -881,7 +927,9 @@ def main() -> None:
         ].iloc[0]
         print("\nACTUAL WINNER STRATEGY RANKS")
         for column in dict.fromkeys(strategy_columns):
-            print(f"{column.removesuffix('_rank')}={int(ranked_winner[column])}")
+            value = float(ranked_winner[column])
+            rendered = str(int(value)) if value.is_integer() else f"{value:.1f}"
+            print(f"{column.removesuffix('_rank')}={rendered}")
     if int(race["competition_id"]) == 999:
         print(
             "WARNING competition_id=999 is a post-result market-miss label, not a "

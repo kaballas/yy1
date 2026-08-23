@@ -441,9 +441,10 @@ def winner_race_report(
         indices = positions.to_numpy(dtype=np.int64)
         race_y = y[indices]
         race_scores = prediction[indices]
-        order = np.argsort(-race_scores, kind="stable")
         winner = int(np.flatnonzero(race_y == 1)[0])
-        winner_rank = int(np.flatnonzero(order == winner)[0]) + 1
+        winner_rank = float(pd.Series(race_scores).rank(
+            method="average", ascending=False
+        ).iloc[winner])
         size = len(indices)
         row: dict[str, Any] = {
             "race_id": race_id,
@@ -510,13 +511,13 @@ def xgb_ensemble_feature_importance(
 
 
 def rank_percentiles(scores: np.ndarray, race_ids: np.ndarray) -> np.ndarray:
-    """Normalize arbitrary scores within each race: one=best, zero=worst."""
+    """Normalize scores within each race, assigning equal values to ties."""
     work = pd.DataFrame({
         "race_id": np.asarray(race_ids),
         "score": np.asarray(scores, dtype=np.float64),
     })
     rank = work.groupby("race_id", sort=False)["score"].rank(
-        method="first", ascending=False
+        method="average", ascending=False
     )
     count = work.groupby("race_id", sort=False)["race_id"].transform("size")
     return ((count - rank) / (count - 1).clip(lower=1)).to_numpy(dtype=np.float64)
@@ -542,7 +543,7 @@ def winner_metrics(
         raise ValueError("targets, scores, and race_ids must be non-empty/equal")
     if not np.isfinite(score).all():
         raise ValueError("winner scores must be finite")
-    ranks: list[int] = []
+    ranks: list[float] = []
     losses: list[float] = []
     for race_id in pd.unique(ids):
         positions = np.flatnonzero(ids == race_id)
@@ -550,9 +551,10 @@ def winner_metrics(
         if int(race_y.sum()) != 1:
             raise ValueError(f"race_id {race_id} does not have exactly one winner")
         race_scores = score[positions]
-        order = np.argsort(-race_scores, kind="stable")
         winner = int(np.flatnonzero(race_y == 1)[0])
-        ranks.append(int(np.flatnonzero(order == winner)[0]) + 1)
+        ranks.append(float(pd.Series(race_scores).rank(
+            method="average", ascending=False
+        ).iloc[winner]))
         shifted = race_scores - race_scores.max()
         losses.append(float(-(shifted[winner] - np.log(np.exp(shifted).sum()))))
     rank_array = np.asarray(ranks, dtype=np.float64)

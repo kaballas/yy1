@@ -15,14 +15,7 @@ BASE_FEATURES = [
 "distance_m",
   "draw_number",
   "field_size",
-  "class_adjusted_finish_percentile_weighted_6",
-  "second_up_flag",
-  "historical_step_up_observations",
-  "market_fluc1_to_fluc2_move_pct",
-  "margin_rank_minus_market_rank",
-  "recent_weighted_avg_margin_rank",
-  "performance_at_current_or_stronger_class",
-  "recent_3_starting_price"
+"jockey_trainer_history_smoothed_win_rate"
 
   
 ]
