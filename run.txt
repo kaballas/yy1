@@ -776,3 +776,29 @@ done
     --ranking consensus \
     --race-id 10842528
 
+
+------
+
+python train_market_mover_tests.py \
+    --features-json test.json \
+    --competition-id 6 \
+    --validation-races 200 \
+    --test-races 200 \
+    --max-estimators 700 \
+    --early-stopping-rounds 20 \
+    --selection-objective winner \
+    --minimum-uplift 0.01 \
+    --forward-select
+
+
+python train_tune_all_finished_winner_ranker.py \
+  --folds 5 \
+  --ensemble-size 3 \
+  --objective top1 \
+  --weight-step 0.001 \
+  --max-estimators 700 \
+  --early-stopping-rounds 60 \
+  --tree-count-validation-races 1000 \
+  --ranker-diagnostics --minimum-feature-coverage 0.09
+
+

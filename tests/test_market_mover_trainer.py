@@ -15,6 +15,7 @@ from train_market_mover_tests import (
     parse_competition_ids,
     recommended_validation_races,
     top3_capture,
+    validate_production_selection_scope,
 )
 
 
@@ -27,6 +28,17 @@ def test_forward_selection_uses_full_feature_and_row_sampling():
     assert parameters["subsample"] == 1.0
     assert parameters["random_state"] == 42
     assert parameters["n_estimators"] == 100
+
+
+def test_winner_selection_early_stops_on_smoother_map_metric():
+    parameters = forward_selection_model_parameters(
+        SimpleNamespace(jobs=1),
+        seed=42,
+        max_estimators=100,
+        selection_objective="winner",
+    )
+
+    assert parameters["eval_metric"][-1] == "map"
 
 
 def test_top3_capture_is_aggregated_race_locally():
@@ -108,6 +120,32 @@ def test_selects_best_strict_forward_improvement():
     assert best_improving_result(results, 0.54) is None
 
 
+def test_forward_selection_requires_configured_material_uplift():
+    results = [
+        {"top3_capture_rate": 0.505, "winner_hit_rate": 0.30, "candidate_order": 0},
+        {"top3_capture_rate": 0.511, "winner_hit_rate": 0.29, "candidate_order": 1},
+    ]
+
+    assert best_improving_result(
+        results, 0.50, minimum_uplift=0.01
+    ) is results[1]
+
+
+def test_reverse_selection_chooses_lowest_material_result():
+    results = [
+        {"top3_capture_rate": 0.48, "winner_hit_rate": 0.30, "candidate_order": 0},
+        {"top3_capture_rate": 0.43, "winner_hit_rate": 0.25, "candidate_order": 1},
+        {"top3_capture_rate": 0.44, "winner_hit_rate": 0.20, "candidate_order": 2},
+    ]
+
+    assert best_improving_result(
+        results, 0.50, minimum_uplift=0.01, reverse=True
+    ) is results[1]
+    assert best_improving_result(
+        results, 0.43, minimum_uplift=0.01, reverse=True
+    ) is None
+
+
 def test_forward_pool_accepts_new_base_missing_from_old_models(tmp_path):
     manifest = tmp_path / "features.json"
     manifest.write_text(json.dumps({
@@ -127,3 +165,28 @@ def test_forward_pool_accepts_new_base_missing_from_old_models(tmp_path):
     assert base == ["market", "new_base"]
     assert list(additions.values()) == ["speed", "weight"]
     assert all(features[:2] == base for features in candidates.values())
+
+
+def test_forward_pool_excludes_current_market_by_default(tmp_path):
+    manifest = tmp_path / "features.json"
+    manifest.write_text(json.dumps({
+        "schema_version": 1,
+        "base_features": ["form"],
+        "models": {
+            "t1": {"features": ["form", "fluc2"]},
+            "t2": {"features": ["form", "speed_rating"]},
+        },
+    }))
+    sets = load_feature_sets(manifest, allow_forward_pool=True)
+
+    _, _, additions = forward_feature_pool(manifest, sets)
+
+    assert list(additions.values()) == ["speed_rating"]
+
+
+def test_rejects_outcome_conditioned_competition_999():
+    with pytest.raises(ValueError, match="assigned after results"):
+        validate_production_selection_scope([999])
+
+    validate_production_selection_scope([6])
+    validate_production_selection_scope(None)

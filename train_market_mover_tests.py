@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sequentially train market-mover feature tests and rank Top-3 capture."""
+"""Run leakage-aware chronological winner or Top-3 feature selection."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from src.winner_ranker import (
     database_numeric_columns,
     eligible_races,
     group_sizes,
+    is_current_market_feature,
     load_training_rows,
     model_feature_matrix,
     rows_for_races,
@@ -63,6 +64,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--validation-races", type=int, default=1000)
     parser.add_argument(
+        "--test-races",
+        type=int,
+        default=200,
+        help=(
+            "Latest chronological races reserved for one sealed evaluation "
+            "after forward selection (default: 200)."
+        ),
+    )
+    parser.add_argument(
         "--competition-id", "--competition-ids",
         dest="competition_ids",
         type=parse_competition_ids,
@@ -85,6 +95,32 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--selection-objective",
+        choices=("winner", "top3"),
+        default="winner",
+        help=(
+            "Primary training/selection target: winner uses is_winner and "
+            "winner top-1; top3 uses top3_mask and top-3 capture."
+        ),
+    )
+    parser.add_argument(
+        "--minimum-uplift",
+        type=float,
+        default=0.01,
+        help=(
+            "Minimum absolute primary-metric change in the selected direction "
+            "required to add a feature (default: 0.01, or one percentage point)."
+        ),
+    )
+    parser.add_argument(
+        "--include-current-market",
+        action="store_true",
+        help=(
+            "Allow current-race prices and market-derived features. By default "
+            "they are excluded so the selected model remains market-free."
+        ),
+    )
     parser.add_argument("--top", type=int, default=20)
     parser.add_argument(
         "--forward-select",
@@ -92,6 +128,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Greedily add the best improving feature, then retest all remaining "
             "features against the expanded baseline until none improves it."
+        ),
+    )
+    parser.add_argument(
+        "--reverse-select",
+        action="store_true",
+        help=(
+            "With --forward-select, greedily add the candidate with the lowest "
+            "primary score each round instead of the highest. This deliberately "
+            "constructs a degrading/adversarial feature set."
         ),
     )
     parser.add_argument(
@@ -156,7 +201,9 @@ def load_feature_sets(
 
 
 def forward_feature_pool(
-    path: Path, feature_sets: dict[str, list[str]]
+    path: Path,
+    feature_sets: dict[str, list[str]],
+    include_current_market: bool = False,
 ) -> tuple[list[str], dict[str, list[str]], dict[str, str]]:
     """Resolve a declared base and unique candidate pool from any model shapes."""
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -169,6 +216,14 @@ def forward_feature_pool(
         or len(declared_base) != len(set(declared_base))
     ):
         raise ValueError("Manifest base_features must be a non-empty unique list")
+    market_base = [
+        feature for feature in declared_base if is_current_market_feature(feature)
+    ]
+    if market_base and not include_current_market:
+        raise ValueError(
+            "Manifest base_features contain current-market inputs; either remove "
+            "them or pass --include-current-market: " + ", ".join(market_base)
+        )
     excluded = payload.get("excluded_features", [])
     if not isinstance(excluded, list):
         raise ValueError("Manifest excluded_features must be a list")
@@ -177,7 +232,11 @@ def forward_feature_pool(
     candidates: list[str] = []
     for features in feature_sets.values():
         for feature in features:
-            if feature not in forbidden and feature not in candidates:
+            if (
+                feature not in forbidden
+                and (include_current_market or not is_current_market_feature(feature))
+                and feature not in candidates
+            ):
                 candidates.append(feature)
     if not candidates:
         raise ValueError("No non-base, non-excluded forward-selection candidates found")
@@ -271,20 +330,45 @@ def top3_capture(frame: pd.DataFrame, scores: np.ndarray) -> dict[str, Any]:
 
 
 def best_improving_result(
-    results: list[dict[str, Any]], baseline_rate: float
+    results: list[dict[str, Any]],
+    baseline_rate: float,
+    metric: str = "top3_capture_rate",
+    minimum_uplift: float = 0.0,
+    reverse: bool = False,
 ) -> dict[str, Any] | None:
-    """Return the deterministic best strict improvement, or no selection."""
-    improving = [
+    """Return the best material directional change, or no selection."""
+    directional = [
         result for result in results
-        if float(result["top3_capture_rate"]) > float(baseline_rate)
+        if (
+            float(baseline_rate) - float(result[metric])
+            if reverse
+            else float(result[metric]) - float(baseline_rate)
+        ) + 1e-12 >= minimum_uplift
+        and (
+            float(result[metric]) < float(baseline_rate)
+            if reverse
+            else float(result[metric]) > float(baseline_rate)
+        )
     ]
-    if not improving:
+    if not directional:
         return None
+    secondary = (
+        "top3_capture_rate" if metric == "winner_hit_rate" else "winner_hit_rate"
+    )
+    if reverse:
+        return min(
+            directional,
+            key=lambda result: (
+                float(result[metric]),
+                float(result[secondary]),
+                int(result["candidate_order"]),
+            ),
+        )
     return max(
-        improving,
+        directional,
         key=lambda result: (
-            float(result["top3_capture_rate"]),
-            float(result["winner_hit_rate"]),
+            float(result[metric]),
+            float(result[secondary]),
             -int(result["candidate_order"]),
         ),
     )
@@ -294,6 +378,7 @@ def forward_selection_model_parameters(
     parameter_args: SimpleNamespace,
     seed: int,
     max_estimators: int,
+    selection_objective: str = "top3",
 ) -> dict[str, Any]:
     """Return stable parameters for nested forward-feature comparisons."""
     parameters = model_parameters(parameter_args, seed, max_estimators)
@@ -302,7 +387,11 @@ def forward_selection_model_parameters(
     # ignore an unhelpful candidate and makes forward comparisons interpretable.
     parameters["colsample_bytree"] = 1.0
     parameters["subsample"] = 1.0
-    parameters["eval_metric"] = ["ndcg@1", "map", "ndcg@3"]
+    parameters["eval_metric"] = (
+        ["ndcg@1", "ndcg@3", "map"]
+        if selection_objective == "winner"
+        else ["ndcg@1", "map", "ndcg@3"]
+    )
     return parameters
 
 
@@ -316,9 +405,10 @@ def fit_feature_set(
     train_groups: np.ndarray,
     validation_groups: np.ndarray,
     features: list[str],
+    selection_objective: str = "top3",
 ) -> dict[str, Any]:
     parameters = forward_selection_model_parameters(
-        parameter_args, args.seed, args.max_estimators
+        parameter_args, args.seed, args.max_estimators, selection_objective
     )
     model = XGBRanker(
         **parameters,
@@ -344,6 +434,49 @@ def fit_feature_set(
     return result
 
 
+def refit_and_evaluate_feature_set(
+    args: argparse.Namespace,
+    parameter_args: SimpleNamespace,
+    training: pd.DataFrame,
+    test: pd.DataFrame,
+    train_y: np.ndarray,
+    train_groups: np.ndarray,
+    features: list[str],
+    estimators: int,
+    selection_objective: str,
+) -> dict[str, Any]:
+    """Refit a selected design with fixed trees and score the sealed test once."""
+    parameters = forward_selection_model_parameters(
+        parameter_args, args.seed, estimators, selection_objective
+    )
+    model = XGBRanker(**parameters)
+    train_matrix = model_feature_matrix(training, features)
+    test_matrix = model_feature_matrix(test, features)
+    model.fit(train_matrix, train_y, group=train_groups, verbose=False)
+    metrics = top3_capture(test, model.predict(test_matrix))
+    metrics["test_races"] = metrics.pop("validation_races")
+    del model
+    return {
+        "features": list(features),
+        "estimators": int(estimators),
+        **metrics,
+    }
+
+
+def validate_production_selection_scope(
+    competition_ids: list[int] | None,
+) -> None:
+    """Reject the known post-result market-miss label as a selection cohort."""
+    if competition_ids and 999 in competition_ids:
+        raise ValueError(
+            "competition_id=999 is assigned after results to races where the "
+            "market top three completely missed the actual top three. It may be "
+            "used for diagnostics, but not production feature selection. Select "
+            "a genuine competition (for example --competition-id 6) or omit the "
+            "competition filter."
+        )
+
+
 def save_forward_results(
     path: Path,
     database: Path,
@@ -355,21 +488,40 @@ def save_forward_results(
     selected_features: list[str],
     rounds: list[dict[str, Any]],
     completed: bool,
+    *,
+    selection_objective: str,
+    selection_direction: str,
+    minimum_uplift: float,
+    test_races: int,
+    sealed_test: dict[str, Any] | None = None,
 ) -> None:
+    target = "is_winner" if selection_objective == "winner" else "top3_mask"
+    primary_metric = (
+        "winner_hit_rate"
+        if selection_objective == "winner"
+        else "top3_capture_rate"
+    )
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "mode": "greedy_forward_selection",
-        "target": "top3_mask",
-        "metric": "race-local top-3 capture",
+        "target": target,
+        "primary_metric": primary_metric,
+        "selection_direction": selection_direction,
+        "early_stopping_metric": (
+            "map" if selection_objective == "winner" else "ndcg@3"
+        ),
+        "minimum_uplift": minimum_uplift,
         "database": str(database),
         "feature_manifest": str(manifest),
         "train_races": train_races,
         "validation_races": validation_races,
+        "test_races": test_races,
         "competition_ids": competition_ids,
         "initial_base_features": initial_base_features,
         "selected_features": selected_features,
         "final_features": [*initial_base_features, *selected_features],
         "rounds": rounds,
+        "sealed_test": sealed_test,
         "completed": completed,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -386,6 +538,7 @@ def run_forward_selection(
     results_path: Path,
     training: pd.DataFrame,
     validation: pd.DataFrame,
+    test: pd.DataFrame,
     train_y: np.ndarray,
     validation_y: np.ndarray,
     train_groups: np.ndarray,
@@ -396,6 +549,13 @@ def run_forward_selection(
     feature_sets: dict[str, list[str]],
     added_features: dict[str, str],
 ) -> None:
+    primary_metric = (
+        "winner_hit_rate"
+        if args.selection_objective == "winner"
+        else "top3_capture_rate"
+    )
+    primary_label = "winner#1" if args.selection_objective == "winner" else "top3"
+    selection_direction = "minimize" if args.reverse_select else "maximize"
     current_features = list(base_features)
     remaining = [
         (label, added_features[label]) for label in feature_sets
@@ -405,7 +565,9 @@ def run_forward_selection(
     baseline = fit_feature_set(
         args, parameter_args, training, validation, train_y, validation_y,
         train_groups, validation_groups, current_features,
+        args.selection_objective,
     )
+    initial_baseline = dict(baseline)
     print(
         "\nFORWARD BASELINE "
         f"top3={baseline['top3_capture_rate']:.2%} "
@@ -415,6 +577,28 @@ def run_forward_selection(
         flush=True,
     )
     print("forward_sampling=full colsample_bytree=1.0 subsample=1.0", flush=True)
+    print(
+        f"selection_objective={args.selection_objective} "
+        f"primary_metric={primary_metric} "
+        f"selection_direction={selection_direction} "
+        f"minimum_uplift={args.minimum_uplift:.2%} "
+        f"sealed_test_races={test['race_id'].nunique():,}",
+        flush=True,
+    )
+
+    def save_progress(
+        completed: bool, sealed_test: dict[str, Any] | None = None
+    ) -> None:
+        save_forward_results(
+            results_path, database, manifest_path, train_race_count,
+            validation_race_count, args.competition_ids, base_features,
+            selected_features, rounds, completed=completed,
+            selection_objective=args.selection_objective,
+            selection_direction=selection_direction,
+            minimum_uplift=args.minimum_uplift,
+            test_races=int(test["race_id"].nunique()),
+            sealed_test=sealed_test,
+        )
 
     round_number = 1
     while remaining:
@@ -423,17 +607,18 @@ def run_forward_selection(
             and len(selected_features) >= args.max_forward_rounds
         ):
             break
-        baseline_rate = float(baseline["top3_capture_rate"])
+        baseline_rate = float(baseline[primary_metric])
         round_record: dict[str, Any] = {
             "round": round_number,
             "baseline": baseline,
             "candidate_results": [],
             "selected_feature": None,
+            "selection_direction": selection_direction,
         }
         rounds.append(round_record)
         print(
             f"\nFORWARD ROUND {round_number} "
-            f"baseline_top3={baseline_rate:.2%} "
+            f"baseline_{primary_label}={baseline_rate:.2%} "
             f"remaining={len(remaining):,}",
             flush=True,
         )
@@ -443,53 +628,70 @@ def run_forward_selection(
             result = fit_feature_set(
                 args, parameter_args, training, validation, train_y,
                 validation_y, train_groups, validation_groups, tested_features,
+                args.selection_objective,
             )
             result.update({
                 "model": label,
                 "added_feature": feature,
                 "candidate_order": candidate_order,
                 "top3_uplift_vs_round_baseline": (
-                    float(result["top3_capture_rate"]) - baseline_rate
+                    float(result["top3_capture_rate"])
+                    - float(baseline["top3_capture_rate"])
                 ),
                 "winner_uplift_vs_round_baseline": (
                     float(result["winner_hit_rate"])
                     - float(baseline["winner_hit_rate"])
                 ),
             })
-            result["status"] = (
-                "improves" if result["top3_uplift_vs_round_baseline"] > 0
-                else "skipped"
+            primary_delta = float(result[primary_metric]) - baseline_rate
+            directional_change = (
+                -primary_delta if args.reverse_select else primary_delta
             )
+            result["status"] = (
+                "lowers" if args.reverse_select else "improves"
+            ) if directional_change + 1e-12 >= args.minimum_uplift else "skipped"
             candidate_results.append(result)
             print(
                 f"  [{candidate_order + 1:>3}/{len(remaining)}] "
                 f"feature={feature:<50} "
                 f"top3={result['top3_capture_rate']:.2%} "
-                f"uplift={result['top3_uplift_vs_round_baseline']:+.2%} "
+                f"winner#1={result['winner_hit_rate']:.2%} "
+                f"primary_delta={primary_delta:+.2%} "
                 f"status={result['status'].upper()}",
                 flush=True,
             )
-            save_forward_results(
-                results_path, database, manifest_path, train_race_count,
-                validation_race_count, args.competition_ids, base_features,
-                selected_features, rounds, completed=False,
-            )
+            save_progress(completed=False)
 
-        best = best_improving_result(candidate_results, baseline_rate)
+        best = best_improving_result(
+            candidate_results,
+            baseline_rate,
+            metric=primary_metric,
+            minimum_uplift=args.minimum_uplift,
+            reverse=args.reverse_select,
+        )
         if best is None:
-            round_record["stop_reason"] = "no_remaining_feature_improved_top3"
-            save_forward_results(
-                results_path, database, manifest_path, train_race_count,
-                validation_race_count, args.competition_ids, base_features,
-                selected_features, rounds, completed=True,
+            round_record["stop_reason"] = (
+                "no_remaining_feature_met_minimum_primary_decrease"
+                if args.reverse_select
+                else "no_remaining_feature_met_minimum_primary_uplift"
             )
-            print("No remaining feature improved the baseline; stopping.")
+            if args.reverse_select:
+                print(
+                    "No remaining feature met the minimum primary-metric "
+                    "decrease; stopping."
+                )
+            else:
+                print(
+                    "No remaining feature met the minimum primary-metric "
+                    "uplift; stopping."
+                )
             break
 
         chosen = str(best["added_feature"])
         best["status"] = "selected"
         round_record["selected_feature"] = chosen
-        round_record["selected_top3_capture_rate"] = best["top3_capture_rate"]
+        round_record["selected_primary_metric"] = primary_metric
+        round_record["selected_primary_rate"] = best[primary_metric]
         selected_features.append(chosen)
         current_features.append(chosen)
         remaining = [(label, feature) for label, feature in remaining if feature != chosen]
@@ -503,32 +705,69 @@ def run_forward_selection(
         }
         print(
             f"SELECTED round={round_number} feature={chosen} "
-            f"new_top3={baseline['top3_capture_rate']:.2%} "
+            f"new_{primary_label}={baseline[primary_metric]:.2%} "
             f"total_features={len(current_features)}",
             flush=True,
         )
         round_number += 1
-    else:
-        save_forward_results(
-            results_path, database, manifest_path, train_race_count,
-            validation_race_count, args.competition_ids, base_features,
-            selected_features, rounds, completed=True,
-        )
-
     if args.max_forward_rounds is not None and len(selected_features) >= args.max_forward_rounds:
-        save_forward_results(
-            results_path, database, manifest_path, train_race_count,
-            validation_race_count, args.competition_ids, base_features,
-            selected_features, rounds, completed=True,
-        )
         print(f"Stopped at --max-forward-rounds={args.max_forward_rounds}.")
+
+    refit_training = pd.concat([training, validation], ignore_index=True)
+    refit_y = refit_training[
+        "is_winner" if args.selection_objective == "winner" else "top3_mask"
+    ].to_numpy(dtype=np.int64)
+    sealed_selected = refit_and_evaluate_feature_set(
+        args,
+        parameter_args,
+        refit_training,
+        test,
+        refit_y,
+        group_sizes(refit_training),
+        current_features,
+        int(baseline["best_iteration"]),
+        args.selection_objective,
+    )
+    sealed_baseline = refit_and_evaluate_feature_set(
+        args,
+        parameter_args,
+        refit_training,
+        test,
+        refit_y,
+        group_sizes(refit_training),
+        base_features,
+        int(initial_baseline["best_iteration"]),
+        args.selection_objective,
+    )
+    sealed_test = {
+        "baseline": sealed_baseline,
+        "selected": sealed_selected,
+        "winner_uplift": (
+            float(sealed_selected["winner_hit_rate"])
+            - float(sealed_baseline["winner_hit_rate"])
+        ),
+        "top3_uplift": (
+            float(sealed_selected["top3_capture_rate"])
+            - float(sealed_baseline["top3_capture_rate"])
+        ),
+    }
+    save_progress(completed=True, sealed_test=sealed_test)
 
     print("\n" + "=" * 88)
     print("FINAL FORWARD-SELECTED FEATURE LIST")
     print("=" * 88)
     print(json.dumps(current_features, indent=2))
     print(f"\nadded_features={json.dumps(selected_features)}")
-    print(f"final_top3={baseline['top3_capture_rate']:.2%}")
+    print(
+        f"selection_{primary_label}={baseline[primary_metric]:.2%}\n"
+        f"sealed_baseline_top3={sealed_baseline['top3_capture_rate']:.2%}\n"
+        f"sealed_selected_top3={sealed_selected['top3_capture_rate']:.2%} "
+        f"uplift={sealed_test['top3_uplift']:+.2%}\n"
+        f"sealed_baseline_winner#1={sealed_baseline['winner_hit_rate']:.2%}\n"
+        f"sealed_selected_winner#1={sealed_selected['winner_hit_rate']:.2%} "
+        f"uplift={sealed_test['winner_uplift']:+.2%}\n"
+        "NOTE sealed-test metrics were evaluated once after feature selection."
+    )
     print(f"results={results_path}")
 
 
@@ -543,19 +782,34 @@ def save_results(
     base_result: dict[str, Any],
     results: list[dict[str, Any]],
     completed: bool,
+    *,
+    selection_objective: str,
+    minimum_uplift: float,
+    test_races: int,
+    sealed_test: dict[str, Any] | None = None,
 ) -> None:
+    primary_metric = (
+        "winner_hit_rate"
+        if selection_objective == "winner"
+        else "top3_capture_rate"
+    )
     ranked = sorted(
         results,
-        key=lambda row: (-float(row["top3_capture_rate"]), str(row["model"])),
+        key=lambda row: (-float(row[primary_metric]), str(row["model"])),
     )
     payload = {
-        "schema_version": 1,
-        "target": "top3_mask",
-        "metric": "race-local top-3 capture",
+        "schema_version": 2,
+        "target": "is_winner" if selection_objective == "winner" else "top3_mask",
+        "primary_metric": primary_metric,
+        "early_stopping_metric": (
+            "map" if selection_objective == "winner" else "ndcg@3"
+        ),
+        "minimum_uplift": minimum_uplift,
         "database": str(database),
         "feature_manifest": str(manifest),
         "train_races": train_races,
         "validation_races": validation_races,
+        "test_races": test_races,
         "base_features": base_features,
         "competition_ids": competition_ids,
         "base_result": base_result,
@@ -564,6 +818,7 @@ def save_results(
         "selected_models": sum(row.get("status") == "selected" for row in results),
         "skipped_models": sum(row.get("status") == "skipped" for row in results),
         "results": ranked,
+        "sealed_test": sealed_test,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -579,14 +834,21 @@ def main() -> None:
         f"cpu_target={'80%' if args.jobs == DEFAULT_JOBS else 'manual'}",
         flush=True,
     )
-    if args.validation_races < 1 or args.max_estimators < 1:
-        raise ValueError("validation-races and max-estimators must be positive")
+    if args.validation_races < 1 or args.test_races < 1 or args.max_estimators < 1:
+        raise ValueError(
+            "validation-races, test-races and max-estimators must be positive"
+        )
     if args.early_stopping_rounds < 1 or args.jobs < 1 or args.top < 1:
         raise ValueError("early-stopping-rounds, jobs and top must be positive")
     if args.max_forward_rounds is not None and args.max_forward_rounds < 1:
         raise ValueError("max-forward-rounds must be positive")
     if args.max_forward_rounds is not None and not args.forward_select:
         raise ValueError("--max-forward-rounds requires --forward-select")
+    if args.reverse_select and not args.forward_select:
+        raise ValueError("--reverse-select requires --forward-select")
+    if not 0.0 < args.minimum_uplift < 1.0:
+        raise ValueError("--minimum-uplift must be between zero and one")
+    validate_production_selection_scope(args.competition_ids)
 
     database = args.db.resolve()
     manifest_path = args.features_json.resolve()
@@ -596,7 +858,9 @@ def main() -> None:
     )
     if args.forward_select:
         base_features, feature_sets, added_features = forward_feature_pool(
-            manifest_path, feature_sets
+            manifest_path,
+            feature_sets,
+            include_current_market=args.include_current_market,
         )
     else:
         base_features, added_features = infer_ablation_features(feature_sets)
@@ -624,30 +888,39 @@ def main() -> None:
     frame = frame.loc[valid_top3.isin([0, 1])].copy()
     frame["top3_mask"] = valid_top3.loc[frame.index].astype(np.int8)
     races = eligible_races(frame, args.minimum_runners)
-    if len(races) <= args.validation_races:
+    held_out_races = args.validation_races + args.test_races
+    if len(races) <= held_out_races:
         suggested = recommended_validation_races(len(races))
         raise ValueError(
-            f"--validation-races={args.validation_races:,} leaves no training "
-            f"cohort; found {len(races):,} eligible races. Suggested: "
-            f"--validation-races {suggested:,} "
-            f"({len(races) - suggested:,} training and {suggested:,} validation races)."
+            f"--validation-races={args.validation_races:,} plus "
+            f"--test-races={args.test_races:,} leaves no training cohort; "
+            f"found {len(races):,} eligible races. Reduce the two holdouts; a "
+            f"rough validation suggestion is {suggested:,} races."
         )
     ordered_ids = races["race_id"].astype(int).tolist()
-    train_ids = ordered_ids[:-args.validation_races]
-    validation_ids = ordered_ids[-args.validation_races:]
+    train_ids = ordered_ids[:-held_out_races]
+    validation_ids = ordered_ids[-held_out_races:-args.test_races]
+    test_ids = ordered_ids[-args.test_races:]
     training = rows_for_races(frame, train_ids)
     validation = rows_for_races(frame, validation_ids)
-    train_y = training["top3_mask"].to_numpy(dtype=np.int64)
-    validation_y = validation["top3_mask"].to_numpy(dtype=np.int64)
+    test = rows_for_races(frame, test_ids)
+    target_column = (
+        "is_winner" if args.selection_objective == "winner" else "top3_mask"
+    )
+    train_y = training[target_column].to_numpy(dtype=np.int64)
+    validation_y = validation[target_column].to_numpy(dtype=np.int64)
     train_groups = group_sizes(training)
     validation_groups = group_sizes(validation)
 
     print(
         f"database={database}\nmanifest={manifest_path}\n"
         f"models={len(feature_sets):,} train_races={len(train_ids):,} "
-        f"validation_races={len(validation_ids):,}\n"
+        f"validation_races={len(validation_ids):,} "
+        f"sealed_test_races={len(test_ids):,}\n"
         f"competition_ids={args.competition_ids or 'all'}\n"
-        "target=top3_mask metric=race_local_top3_capture\n"
+        f"target={target_column} selection_objective={args.selection_objective} "
+        f"minimum_uplift={args.minimum_uplift:.2%}\n"
+        f"current_market_features={'included' if args.include_current_market else 'excluded'}\n"
         f"base_features={json.dumps(base_features)}",
         flush=True,
     )
@@ -656,7 +929,7 @@ def main() -> None:
     if args.forward_select:
         run_forward_selection(
             args, parameter_args, database, manifest_path, results_path,
-            training, validation, train_y, validation_y, train_groups,
+            training, validation, test, train_y, validation_y, train_groups,
             validation_groups, len(train_ids), len(validation_ids),
             base_features, feature_sets, added_features,
         )
@@ -667,7 +940,11 @@ def main() -> None:
     base_parameters = model_parameters(
         parameter_args, args.seed, args.max_estimators
     )
-    base_parameters["eval_metric"] = ["ndcg@1", "map", "ndcg@3"]
+    base_parameters["eval_metric"] = (
+        ["ndcg@1", "ndcg@3", "map"]
+        if args.selection_objective == "winner"
+        else ["ndcg@1", "map", "ndcg@3"]
+    )
     base_model = XGBRanker(
         **base_parameters,
         early_stopping_rounds=args.early_stopping_rounds,
@@ -707,6 +984,9 @@ def main() -> None:
         results_path, database, manifest_path, len(train_ids),
         len(validation_ids), base_features, args.competition_ids,
         base_result, results, completed=False,
+        selection_objective=args.selection_objective,
+        minimum_uplift=args.minimum_uplift,
+        test_races=len(test_ids),
     )
 
     for index, (label, features) in enumerate(feature_sets.items(), start=1):
@@ -716,7 +996,7 @@ def main() -> None:
         parameters = model_parameters(
             parameter_args, args.seed, args.max_estimators
         )
-        parameters["eval_metric"] = ["ndcg@1", "map", "ndcg@3"]
+        parameters["eval_metric"] = base_parameters["eval_metric"]
         model = XGBRanker(
             **parameters,
             early_stopping_rounds=args.early_stopping_rounds,
@@ -749,7 +1029,11 @@ def main() -> None:
         }
         result["status"] = (
             "selected"
-            if float(result["top3_uplift_vs_base"]) > 0.0
+            if float(result[
+                "winner_uplift_vs_base"
+                if args.selection_objective == "winner"
+                else "top3_uplift_vs_base"
+            ]) + 1e-12 >= args.minimum_uplift
             else "skipped"
         )
         results.append(result)
@@ -757,13 +1041,21 @@ def main() -> None:
             results_path, database, manifest_path, len(train_ids),
             len(validation_ids), base_features, args.competition_ids,
             base_result, results, completed=index == total,
+            selection_objective=args.selection_objective,
+            minimum_uplift=args.minimum_uplift,
+            test_races=len(test_ids),
         )
+        primary_uplift = float(result[
+            "winner_uplift_vs_base"
+            if args.selection_objective == "winner"
+            else "top3_uplift_vs_base"
+        ])
         print(
             f"[{index:>3}/{total}] {label:<6} "
             f"feature={str(extra_feature):<50} "
             f"top3={metrics['top3_capture_rate']:.2%} "
-            f"uplift={result['top3_uplift_vs_base']:+.2%} "
             f"winner#1={metrics['winner_hit_rate']:.2%} "
+            f"primary_uplift={primary_uplift:+.2%} "
             f"hits={metrics['top3_hits']:g}/{metrics['possible_top3_hits']} "
             f"trees={result['best_iteration']} "
             f"status={result['status'].upper()}",
@@ -772,29 +1064,69 @@ def main() -> None:
         del model
 
     selected_results = [row for row in results if row["status"] == "selected"]
+    primary_metric = (
+        "winner_hit_rate"
+        if args.selection_objective == "winner"
+        else "top3_capture_rate"
+    )
     ranked = sorted(
         selected_results,
-        key=lambda row: (-float(row["top3_capture_rate"]), str(row["model"])),
+        key=lambda row: (-float(row[primary_metric]), str(row["model"])),
+    )
+
+    chosen_result = ranked[0] if ranked else base_result
+    refit_training = pd.concat([training, validation], ignore_index=True)
+    refit_y = refit_training[target_column].to_numpy(dtype=np.int64)
+    sealed_test = refit_and_evaluate_feature_set(
+        args,
+        parameter_args,
+        refit_training,
+        test,
+        refit_y,
+        group_sizes(refit_training),
+        list(chosen_result["features"]),
+        int(chosen_result["best_iteration"]),
+        args.selection_objective,
+    )
+    sealed_test["selected_model"] = str(chosen_result["model"])
+    save_results(
+        results_path, database, manifest_path, len(train_ids),
+        len(validation_ids), base_features, args.competition_ids,
+        base_result, results, completed=True,
+        selection_objective=args.selection_objective,
+        minimum_uplift=args.minimum_uplift,
+        test_races=len(test_ids),
+        sealed_test=sealed_test,
     )
     print("\n" + "=" * 88)
     print(f"TOP {min(args.top, len(ranked))} MARKET-MOVER FEATURE MODELS")
     print("=" * 88)
     print(
         f"{'Rank':<5} {'Model':<8} {'Added feature':<42} "
-        f"{'Top3':>8} {'Uplift':>9} {'Winner #1':>10}"
+        f"{'Top3':>8} {'Primary +':>10} {'Winner #1':>10}"
+    )
+    uplift_field = (
+        "winner_uplift_vs_base"
+        if args.selection_objective == "winner"
+        else "top3_uplift_vs_base"
     )
     for rank, row in enumerate(ranked[:args.top], start=1):
         print(
             f"{rank:<5} {row['model']:<8} {str(row['added_feature']):<42} "
             f"{float(row['top3_capture_rate']):>7.2%} "
-            f"{float(row['top3_uplift_vs_base']):>+8.2%} "
+            f"{float(row[uplift_field]):>+9.2%} "
             f"{float(row['winner_hit_rate']):>9.2%}"
         )
     if not ranked:
-        print("No added feature beat the base Top-3 capture rate.")
+        print("No added feature met the minimum primary-metric uplift.")
     print(
         f"\nselected={len(selected_results):,} "
         f"skipped={len(results) - len(selected_results):,}"
+    )
+    print(
+        f"sealed_test_model={sealed_test['selected_model']} "
+        f"top3={sealed_test['top3_capture_rate']:.2%} "
+        f"winner#1={sealed_test['winner_hit_rate']:.2%}"
     )
     print(f"\nresults={results_path}")
 

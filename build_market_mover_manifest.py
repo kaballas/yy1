@@ -11,14 +11,26 @@ from pathlib import Path
 from feature_hinter import candidate_features, database_schema
 from src.config import DEFAULT_DB
 
-BASE_FEATURES = [
-"distance_m",
+BASE_FEATURES = [  "active_field_size",
+  "age",
+  "condition_runs",
+  "distance_m",
   "draw_number",
-  "field_size",
-"jockey_trainer_history_smoothed_win_rate"
+  "historical_step_down_observations",
+  "historical_step_up_observations",
+  "large_weight_drop_flag",
+  "market_fluc1_to_fluc2_move_pct",
+  "recent_places",
+  "recent_same_distance_runs",
+  "recent_same_track_runs",
+  "recent_wins",
+  "weight_kg",
+  "recent_finish_percentile_weighted_6",
+  "horse_jockey_starts",
+  "recent_6_barrier",
+  "same_track_runs"
 
-  
-]
+                  ]
 
 # Optional permanent exclusions. Add race_runners feature names here when they
 # should be neither a base feature nor an independently tested tN feature.
@@ -35,7 +47,8 @@ EXCLUDED_FEATURES: list[str] = [
     "market_implied_prob_change_open_to_fluc2",
     "market_total_abs_movement",
     "market_implied_prob_change_fluc1_to_fluc2",
-    "market_open_to_fluc1_move",
+    "recent_finish_percentile_weighted_6_minus_race_mean",
+    "historical_market_overperformance_avg_6",
 ]
 
 

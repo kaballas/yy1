@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Backtest artifact-defined winner blends on saved out-of-fold predictions.
+"""Evaluate artifact-defined winner blends on OOF or database predictions.
 
-The base-model scores are out of fold, but blend weights may have been selected
-on this same OOF cohort. Results are therefore blend-selection diagnostics, not
-a sealed future test. The fitted bundle models are deliberately not replayed on
-finished races because they were refit on all eligible finished races.
+By default, base-model scores come from saved out-of-fold predictions, but blend
+weights may have been selected on that same cohort. ``--predict-db`` instead
+runs the fitted bundle over eligible finished database races; those predictions
+are in-sample when the bundle was trained on the same races. Neither mode is a
+sealed future test.
 """
 
 from __future__ import annotations
@@ -102,7 +103,16 @@ def parse_args() -> argparse.Namespace:
         "--db",
         type=Path,
         default=DEFAULT_DB,
-        help="Race database used for --date bundle inference.",
+        help="Race database used for --predict-db and --date bundle inference.",
+    )
+    parser.add_argument(
+        "--predict-db",
+        action="store_true",
+        help=(
+            "Run the fitted bundle models over eligible finished database races "
+            "instead of reading saved OOF predictions. Competition/date/race "
+            "filters are applied before inference. Results may be in-sample."
+        ),
     )
     parser.add_argument(
         "--competition-id",
@@ -440,13 +450,31 @@ def load_finished_date_rows(database: Path, exact_date: str) -> pd.DataFrame:
     return rows_for_races(dated, races["race_id"].astype(int).tolist())
 
 
-def score_finished_date_from_bundle(
-    database: Path,
+def load_finished_database_rows(database: Path) -> pd.DataFrame:
+    """Load every eligible finished race currently present in the database."""
+    from src.winner_ranker import (
+        database_numeric_columns,
+        eligible_races,
+        load_training_rows,
+        rows_for_races,
+    )
+    resolved_database = database.resolve()
+    if not resolved_database.is_file():
+        raise ValueError(f"Database does not exist: {resolved_database}")
+    numeric_columns = database_numeric_columns(resolved_database)
+    all_finished = load_training_rows(resolved_database, numeric_columns)
+    races = eligible_races(all_finished)
+    if races.empty:
+        raise ValueError("Database contains no eligible finished races")
+    return rows_for_races(all_finished, races["race_id"].astype(int).tolist())
+
+
+def score_finished_rows_from_bundle(
+    frame: pd.DataFrame,
     bundle: dict[str, Any],
     model_labels: list[str],
-    exact_date: str,
 ) -> pd.DataFrame:
-    """Score all eligible finished races on one UTC date with fitted models."""
+    """Score supplied eligible finished race rows with fitted bundle models."""
     try:
         from xgboost import XGBRanker
     except ImportError as exc:  # pragma: no cover - CLI environment failure
@@ -457,7 +485,6 @@ def score_finished_date_from_bundle(
         model_feature_matrix,
         rank_percentiles,
     )
-    frame = load_finished_date_rows(database, exact_date)
     output = frame.copy()
     race_ids = frame["race_id"].to_numpy(dtype=np.int64)
     configured_features = dict(bundle.get("model_features", {}))
@@ -485,6 +512,18 @@ def score_finished_date_from_bundle(
         output["race_id"], sort=False
     ).rank(method="first", ascending=False).astype(int)
     return output
+
+
+def score_finished_date_from_bundle(
+    database: Path,
+    bundle: dict[str, Any],
+    model_labels: list[str],
+    exact_date: str,
+) -> pd.DataFrame:
+    """Score all eligible finished races on one UTC date with fitted models."""
+    return score_finished_rows_from_bundle(
+        load_finished_date_rows(database, exact_date), bundle, model_labels
+    )
 
 
 def load_per_race_candidate_features(
@@ -1403,6 +1442,10 @@ def main() -> None:
         raise ValueError("--top-strategies must be positive")
     if args.train_per_race and args.date is None:
         raise ValueError("--train-per-race requires --date")
+    if args.train_per_race and args.predict_db:
+        raise ValueError("--train-per-race cannot be combined with --predict-db")
+    if args.predict_db and args.predictions is not None:
+        raise ValueError("--predict-db cannot be combined with --predictions")
     if args.per_race_feature_trials < 1:
         raise ValueError("--per-race-feature-trials must be positive")
     if not 1 <= args.per_race_blend_members <= 6:
@@ -1437,20 +1480,26 @@ def main() -> None:
     predictions_path = args.predictions or (
         args.blend_config.parent / "all_finished_oof_predictions.csv"
     )
+    database_inference = args.predict_db or args.date is not None
     evaluation_mode = "saved_out_of_fold_predictions"
-    if args.date is not None:
-        frame = score_finished_date_from_bundle(
-            args.db, bundle, model_labels, args.date
+    if database_inference:
+        database_rows = (
+            load_finished_date_rows(args.db, args.date)
+            if args.date is not None and not args.predict_db
+            else load_finished_database_rows(args.db)
         )
-        frame = filter_complete_races(
-            frame,
+        database_rows = filter_complete_races(
+            database_rows,
             args.competition_id,
-            None,
-            None,
+            args.from_date,
+            args.to_date,
             args.race_number,
             args.date,
         )
-        evaluation_mode = "fitted_bundle_finished_race_inference"
+        frame = score_finished_rows_from_bundle(
+            database_rows, bundle, model_labels
+        )
+        evaluation_mode = "fitted_bundle_database_inference"
     else:
         frame = filter_complete_races(
             load_predictions(predictions_path, model_labels),
@@ -1532,8 +1581,8 @@ def main() -> None:
     folds = fold_summary(frame, model_labels, strategies)
 
     report_label = (
-        "ALL-FINISHED WINNER BUNDLE DATE EVALUATION"
-        if args.date is not None
+        "ALL-FINISHED WINNER BUNDLE DATABASE EVALUATION"
+        if database_inference
         else "ALL-FINISHED WINNER BLEND OOF BACKTEST"
     )
     print(report_label)
@@ -1542,15 +1591,17 @@ def main() -> None:
         f"blend_config={args.blend_config.resolve()}\n"
         f"evaluation_mode={evaluation_mode}\n"
         + (
-            f"database={args.db.resolve()} date_utc={args.date}\n"
-            if args.date is not None
+            f"database={args.db.resolve()}"
+            + (f" date_utc={args.date}" if args.date is not None else "")
+            + "\n"
+            if database_inference
             else f"predictions={predictions_path.resolve()}\n"
         )
         +
         f"rows={len(frame):,} races={frame['race_id'].nunique():,} "
         f"models={','.join(model_labels)}"
     )
-    if args.date is not None:
+    if database_inference:
         print(
             "WARNING scores come from fitted bundle models, not OOF models. If "
             "the bundle trained on these races, this evaluation is in-sample and "
@@ -1594,6 +1645,7 @@ def main() -> None:
     core_names = {
         "config_selected", "bundle_selected", "bundle_all_finished_tuned",
         "bundle_deployment", "raw_market_benchmark", "optuna_best",
+        *(f"{label}_only" for label in model_labels),
     }
     leading_names = summary.head(args.top_strategies)["strategy"].tolist()
     shown_names = set(leading_names) | core_names
@@ -1610,7 +1662,8 @@ def main() -> None:
     ))
     best = summary.iloc[0]
     print(
-        f"recommendation=best_oof_strategy strategy={best['strategy']} "
+        f"recommendation={'best_database_strategy' if database_inference else 'best_oof_strategy'} "
+        f"strategy={best['strategy']} "
         f"top1={best['top1_hit_rate']:.2%} top3={best['top3_hit_rate']:.2%} "
         f"roi={best['flat_win_roi']:.2%}"
     )
@@ -1636,6 +1689,7 @@ def main() -> None:
         fold_names = {
             str(best["strategy"]), "config_selected", "bundle_deployment",
             "raw_market_benchmark", "optuna_best",
+            *(f"{label}_only" for label in model_labels),
         }
         focus = folds.loc[
             folds["strategy"].isin(fold_names),

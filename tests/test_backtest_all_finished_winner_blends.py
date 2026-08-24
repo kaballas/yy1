@@ -132,6 +132,16 @@ def test_artifact_strategies_keep_different_config_and_bundle_blends():
         "aware": 0.5,
         "market": 0.0,
     }
+    assert strategies["form_only"] == {
+        "form": 1.0,
+        "aware": 0.0,
+        "market": 0.0,
+    }
+    assert strategies["aware_only"] == {
+        "form": 0.0,
+        "aware": 1.0,
+        "market": 0.0,
+    }
 
 
 def test_backtest_reports_ranking_and_flat_win_profit():

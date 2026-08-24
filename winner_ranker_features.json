@@ -2,7 +2,7 @@
   "schema_version": 1,
   "description": "Exact ordered feature inputs for each all-finished winner-ranker model.",
   "models": {
-    "a1": {
+    "a0": {
       "features": [
         "distance_m",
         "active_field_size",
@@ -49,7 +49,6 @@
         "trainer_recent_top3_excess",
         "trackExpert",
         "age",
-        "competition_id",
         "race_number",
         "field_size",
         "speed_rating",
@@ -286,8 +285,6 @@
         "best_run_is_last_start",
         "best_run_within_last_2",
         "best_run_within_last_3",
-        "recent3_vs_career_finish_percentile",
-        "recent6_vs_career_finish_percentile",
         "recent3_vs_career_place_rate",
         "recent6_vs_career_place_rate",
         "recent_form_vs_career_form",
@@ -429,35 +426,84 @@
         "third_up_flag"
       ]
     },
-    "top3": {
+    "a1": {
       "features": [
+        "distance_m",
+        "draw_number",
+        "field_size",
         "jockey_trainer_history_smoothed_win_rate",
+        "historical_market_overperformance_weighted_3_rank_in_race",
+        "last3_place_percentage_rank",
         "career_place_rate_rank",
-        "recent_2_place",
-        "recent_margin_quality_avg_3",
+        "place_percentage_rank",
+        "current_form_strength",
+        "recent_margin_quality_avg_6",
+        "current_form_strength_rank_in_race",
+        "distance_step_down_pct"
+      ]
+    },
+    "c1": {
+      "features": [
+        "distance_m",
+        "field_size",
+        "current_barrier_percentile",
+        "weight_vs_field_mean",
+        "recent_finish_percentile_weighted_3",
+        "recent_finish_percentile_std_6",
+        "recent_margin_quality_weighted_3",
+        "form_ceiling_finish_percentile_6",
+        "best_run_recency_index",
+        "similar_distance_finish_percentile_weighted",
         "same_track_finish_percentile",
-        "distance_speed_rank_minus_market_rank",
-        "recent_margin_avg_6",
-        "second_best_run_recency_index",
-        "same_track_top3_rate",
-        "last3_win_percentage",
-        "similar_distance_top3_rate",
-        "preparation_run_number",
-        "recent_finish_percentile_slope_6",
-        "recent_5_total_runners",
-        "jockey_trainer_history_top3",
-        "best_margin_quality_at_equal_or_higher_weight",
-        "horse_jockey_wins",
-        "jockey_trainer_history_runs",
-        "jockey_trainer_history_starts",
-        "condition_win_rate_smoothed"
-      ],
-      "selection": {
-        "method": "model_wars_weighted_top3_pct",
-        "evaluation_date_utc": "2026-08-22",
-        "feature_count": 20,
-        "feature_leaderboard": "/home/theo/yy1/models_test/model_wars_2026-08-22_features.csv"
-      }
+        "condition_finish_percentile",
+        "class_adjusted_finish_percentile_weighted_3",
+        "class_change_last_run",
+        "recent_last600_avg_3",
+        "sectional_closing_speed_ratio_weighted_3"
+      ]
+    },
+    "c2": {
+      "features": [
+        "distance_m",
+        "field_size",
+        "current_barrier_percentile",
+        "dry_rating",
+        "jockey_history_top3_excess",
+        "recent_finish_percentile_weighted_6_rank_in_race",
+        "distance_step_down_pct"
+      ]
+    },
+    "c3": {
+      "features": [
+        "distance_m",
+        "field_size",
+        "recent_last600_avg_3",
+        "dry_rating",
+        "recent_finish_percentile_weighted_6_minus_race_mean",
+        "historical_market_overperformance_avg_6"
+      ]
+    },
+    "b1": {
+      "features": [
+        "active_field_size",
+        "age",
+        "condition_runs",
+        "distance_m",
+        "draw_number",
+        "historical_step_down_observations",
+        "historical_step_up_observations",
+        "large_weight_drop_flag",
+        "market_fluc1_to_fluc2_move_pct",
+        "recent_places",
+        "recent_same_distance_runs",
+        "recent_same_track_runs",
+        "recent_wins",
+        "weight_kg",
+        "recent_finish_percentile_weighted_6",
+        "horse_jockey_starts",
+        "recent_6_barrier",
+        "same_track_runs"
+      ]
     }
   }
 }
