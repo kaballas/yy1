@@ -1,0 +1,101 @@
+{
+  "baseline_manifest": "/home/theo/yy1/winner_ranker_features.json",
+  "baseline_model": "c2",
+  "graph_table": "graph_features",
+  "models": {
+    "graph_a": {
+      "features": [
+        "distance_m",
+        "field_size",
+        "current_barrier_percentile",
+        "dry_rating",
+        "jockey_history_top3_excess",
+        "recent_finish_percentile_weighted_6_rank_in_race",
+        "distance_step_down_pct"
+      ]
+    },
+    "graph_b": {
+      "features": [
+        "distance_m",
+        "field_size",
+        "current_barrier_percentile",
+        "dry_rating",
+        "jockey_history_top3_excess",
+        "recent_finish_percentile_weighted_6_rank_in_race",
+        "distance_step_down_pct",
+        "graph_horse_jockey_similarity",
+        "graph_horse_trainer_similarity",
+        "graph_horse_sire_similarity",
+        "graph_horse_dam_similarity",
+        "graph_horse_venue_similarity",
+        "graph_jockey_trainer_similarity"
+      ]
+    },
+    "graph_c": {
+      "features": [
+        "distance_m",
+        "field_size",
+        "current_barrier_percentile",
+        "dry_rating",
+        "jockey_history_top3_excess",
+        "recent_finish_percentile_weighted_6_rank_in_race",
+        "distance_step_down_pct",
+        "graph_horse_jockey_similarity",
+        "graph_horse_trainer_similarity",
+        "graph_horse_sire_similarity",
+        "graph_horse_dam_similarity",
+        "graph_horse_venue_similarity",
+        "graph_jockey_trainer_similarity",
+        "graph_horse_trainer_similarity_rank_in_race",
+        "graph_horse_trainer_similarity_minus_race_mean",
+        "graph_horse_jockey_similarity_rank_in_race",
+        "graph_horse_jockey_similarity_minus_race_mean",
+        "graph_jockey_trainer_similarity_rank_in_race",
+        "graph_jockey_trainer_similarity_minus_race_mean",
+        "graph_horse_sire_similarity_rank_in_race",
+        "graph_horse_sire_similarity_minus_race_mean",
+        "graph_horse_venue_similarity_rank_in_race",
+        "graph_horse_venue_similarity_minus_race_mean"
+      ]
+    },
+    "graph_d": {
+      "features": [
+        "distance_m",
+        "field_size",
+        "current_barrier_percentile",
+        "dry_rating",
+        "jockey_history_top3_excess",
+        "recent_finish_percentile_weighted_6_rank_in_race",
+        "distance_step_down_pct",
+        "graph_horse_jockey_similarity",
+        "graph_horse_trainer_similarity",
+        "graph_horse_sire_similarity",
+        "graph_horse_dam_similarity",
+        "graph_horse_venue_similarity",
+        "graph_jockey_trainer_similarity",
+        "graph_horse_trainer_similarity_rank_in_race",
+        "graph_horse_trainer_similarity_minus_race_mean",
+        "graph_horse_jockey_similarity_rank_in_race",
+        "graph_horse_jockey_similarity_minus_race_mean",
+        "graph_jockey_trainer_similarity_rank_in_race",
+        "graph_jockey_trainer_similarity_minus_race_mean",
+        "graph_horse_sire_similarity_rank_in_race",
+        "graph_horse_sire_similarity_minus_race_mean",
+        "graph_horse_venue_similarity_rank_in_race",
+        "graph_horse_venue_similarity_minus_race_mean",
+        "graph_sire_trainer_similarity",
+        "graph_sire_jockey_similarity",
+        "graph_dam_trainer_similarity",
+        "graph_trainer_venue_similarity",
+        "graph_jockey_venue_similarity",
+        "graph_horse_embedding_available",
+        "graph_jockey_embedding_available",
+        "graph_trainer_embedding_available",
+        "graph_sire_embedding_available",
+        "graph_dam_embedding_available",
+        "graph_venue_embedding_available"
+      ]
+    }
+  },
+  "schema_version": 1
+}

@@ -107,6 +107,27 @@ def test_graph_uses_only_finished_active_rows_strictly_before_snapshot():
     assert ("sire:s one", "trainer:t one") not in edges
 
 
+def test_pedigree_edges_are_static_while_interactions_accumulate_and_decay():
+    raw = pd.concat([_raw_rows().iloc[[0]], _raw_rows().iloc[[0]]], ignore_index=True)
+    raw["source_rowid"] = [1, 2]
+    frame = add_node_identities(raw)
+    frame["_start_time"] = pd.to_datetime(
+        ["2026-01-01", "2026-01-16"], utc=True
+    )
+    snapshot = pd.Timestamp("2026-02-01", tz="UTC")
+
+    edges = graph_edges(frame, snapshot, half_life_days=30.0)
+
+    horse = "horse:au:horse one"
+    trainer = "trainer:t one"
+    sire = "sire:s one"
+    dam = "dam:d one"
+    expected_repeated = 2 ** (-31 / 30) + 2 ** (-16 / 30)
+    assert math.isclose(edges[tuple(sorted((horse, trainer)))], expected_repeated)
+    assert edges[tuple(sorted((horse, sire)))] == 1.0
+    assert edges[tuple(sorted((horse, dam)))] == 1.0
+
+
 def test_biased_walk_is_reproducible_and_follows_edges():
     adjacency = adjacency_from_edges({("a", "b"): 1.0, ("b", "c"): 1.0})
     first = biased_walk(adjacency, "a", 8, 1.0, 1.0, np.random.default_rng(7))

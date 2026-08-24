@@ -1,0 +1,468 @@
+{
+  "baseline_model": "c2",
+  "chronological_test_metrics": {
+    "graph_a": {
+      "mean_winner_rank": 3.617,
+      "mrr": 0.46901476456120417,
+      "races": 1000.0,
+      "top1_hit_rate": 0.254,
+      "top2_hit_rate": 0.441,
+      "top3_hit_rate": 0.562
+    },
+    "graph_b": {
+      "mean_winner_rank": 3.6105,
+      "mrr": 0.46949827543158745,
+      "races": 1000.0,
+      "top1_hit_rate": 0.256,
+      "top2_hit_rate": 0.438,
+      "top3_hit_rate": 0.558
+    },
+    "graph_c": {
+      "mean_winner_rank": 3.6075,
+      "mrr": 0.46532014097014096,
+      "races": 1000.0,
+      "top1_hit_rate": 0.247,
+      "top2_hit_rate": 0.433,
+      "top3_hit_rate": 0.568
+    },
+    "graph_d": {
+      "mean_winner_rank": 3.592,
+      "mrr": 0.4658130497216249,
+      "races": 1000.0,
+      "top1_hit_rate": 0.248,
+      "top2_hit_rate": 0.43,
+      "top3_hit_rate": 0.568
+    }
+  },
+  "chronological_test_winner_start_bands": {
+    "graph_a": {
+      "0": {
+        "mean_winner_rank": 4.025,
+        "mrr": 0.3479473304473304,
+        "races": 40.0,
+        "top1_hit_rate": 0.1,
+        "top2_hit_rate": 0.275,
+        "top3_hit_rate": 0.375
+      },
+      "1-2": {
+        "mean_winner_rank": 3.240740740740741,
+        "mrr": 0.5550385586333298,
+        "races": 81.0,
+        "top1_hit_rate": 0.38271604938271603,
+        "top2_hit_rate": 0.5185185185185185,
+        "top3_hit_rate": 0.6172839506172839
+      },
+      "3-5": {
+        "mean_winner_rank": 2.964968152866242,
+        "mrr": 0.5438981754268378,
+        "races": 157.0,
+        "top1_hit_rate": 0.3184713375796178,
+        "top2_hit_rate": 0.5668789808917197,
+        "top3_hit_rate": 0.7006369426751592
+      },
+      "6+": {
+        "mean_winner_rank": 3.778393351800554,
+        "mrr": 0.44978772098614644,
+        "races": 722.0,
+        "top1_hit_rate": 0.23407202216066483,
+        "top2_hit_rate": 0.41412742382271467,
+        "top3_hit_rate": 0.53601108033241
+      }
+    },
+    "graph_b": {
+      "0": {
+        "mean_winner_rank": 4.125,
+        "mrr": 0.3593064574314574,
+        "races": 40.0,
+        "top1_hit_rate": 0.125,
+        "top2_hit_rate": 0.275,
+        "top3_hit_rate": 0.4
+      },
+      "1-2": {
+        "mean_winner_rank": 3.259259259259259,
+        "mrr": 0.5547239797239797,
+        "races": 81.0,
+        "top1_hit_rate": 0.38271604938271603,
+        "top2_hit_rate": 0.5185185185185185,
+        "top3_hit_rate": 0.6296296296296297
+      },
+      "3-5": {
+        "mean_winner_rank": 2.9585987261146496,
+        "mrr": 0.5477698220766787,
+        "races": 157.0,
+        "top1_hit_rate": 0.33121019108280253,
+        "top2_hit_rate": 0.5668789808917197,
+        "top3_hit_rate": 0.6624203821656051
+      },
+      "6+": {
+        "mean_winner_rank": 3.763157894736842,
+        "mrr": 0.4490214857488203,
+        "races": 722.0,
+        "top1_hit_rate": 0.23268698060941828,
+        "top2_hit_rate": 0.4099722991689751,
+        "top3_hit_rate": 0.53601108033241
+      }
+    },
+    "graph_c": {
+      "0": {
+        "mean_winner_rank": 4.1125,
+        "mrr": 0.342877886002886,
+        "races": 40.0,
+        "top1_hit_rate": 0.075,
+        "top2_hit_rate": 0.325,
+        "top3_hit_rate": 0.4
+      },
+      "1-2": {
+        "mean_winner_rank": 3.2839506172839505,
+        "mrr": 0.5415490887713109,
+        "races": 81.0,
+        "top1_hit_rate": 0.35802469135802467,
+        "top2_hit_rate": 0.5061728395061729,
+        "top3_hit_rate": 0.6296296296296297
+      },
+      "3-5": {
+        "mean_winner_rank": 2.9394904458598727,
+        "mrr": 0.5584243251440704,
+        "races": 157.0,
+        "top1_hit_rate": 0.3503184713375796,
+        "top2_hit_rate": 0.5605095541401274,
+        "top3_hit_rate": 0.6751592356687898
+      },
+      "6+": {
+        "mean_winner_rank": 3.761080332409972,
+        "mrr": 0.44330599763425244,
+        "races": 722.0,
+        "top1_hit_rate": 0.22160664819944598,
+        "top2_hit_rate": 0.40304709141274236,
+        "top3_hit_rate": 0.5470914127423823
+      }
+    },
+    "graph_d": {
+      "0": {
+        "mean_winner_rank": 4.0625,
+        "mrr": 0.37052038239538243,
+        "races": 40.0,
+        "top1_hit_rate": 0.15,
+        "top2_hit_rate": 0.275,
+        "top3_hit_rate": 0.4
+      },
+      "1-2": {
+        "mean_winner_rank": 3.388888888888889,
+        "mrr": 0.5301915163026274,
+        "races": 81.0,
+        "top1_hit_rate": 0.345679012345679,
+        "top2_hit_rate": 0.49382716049382713,
+        "top3_hit_rate": 0.6296296296296297
+      },
+      "3-5": {
+        "mean_winner_rank": 2.93312101910828,
+        "mrr": 0.5420909291366391,
+        "races": 157.0,
+        "top1_hit_rate": 0.3184713375796178,
+        "top2_hit_rate": 0.554140127388535,
+        "top3_hit_rate": 0.6815286624203821
+      },
+      "6+": {
+        "mean_winner_rank": 3.731994459833795,
+        "mrr": 0.4472831658321946,
+        "races": 722.0,
+        "top1_hit_rate": 0.22714681440443213,
+        "top2_hit_rate": 0.40443213296398894,
+        "top3_hit_rate": 0.5457063711911357
+      }
+    }
+  },
+  "cohorts": {
+    "chronological_test_races": 1000,
+    "test_end": "2026-08-22T11:15:00+00:00",
+    "train_end": "2026-07-11T05:00:00+00:00",
+    "train_races": 6424,
+    "validation_end": "2026-08-01T06:59:00+00:00",
+    "validation_races": 1000
+  },
+  "database": "/home/theo/yy1/db/race_runners.sqlite",
+  "feature_sets": {
+    "graph_a": [
+      "distance_m",
+      "field_size",
+      "current_barrier_percentile",
+      "dry_rating",
+      "jockey_history_top3_excess",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "distance_step_down_pct"
+    ],
+    "graph_b": [
+      "distance_m",
+      "field_size",
+      "current_barrier_percentile",
+      "dry_rating",
+      "jockey_history_top3_excess",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "distance_step_down_pct",
+      "graph_horse_jockey_similarity",
+      "graph_horse_trainer_similarity",
+      "graph_horse_sire_similarity",
+      "graph_horse_dam_similarity",
+      "graph_horse_venue_similarity",
+      "graph_jockey_trainer_similarity"
+    ],
+    "graph_c": [
+      "distance_m",
+      "field_size",
+      "current_barrier_percentile",
+      "dry_rating",
+      "jockey_history_top3_excess",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "distance_step_down_pct",
+      "graph_horse_jockey_similarity",
+      "graph_horse_trainer_similarity",
+      "graph_horse_sire_similarity",
+      "graph_horse_dam_similarity",
+      "graph_horse_venue_similarity",
+      "graph_jockey_trainer_similarity",
+      "graph_horse_trainer_similarity_rank_in_race",
+      "graph_horse_trainer_similarity_minus_race_mean",
+      "graph_horse_jockey_similarity_rank_in_race",
+      "graph_horse_jockey_similarity_minus_race_mean",
+      "graph_jockey_trainer_similarity_rank_in_race",
+      "graph_jockey_trainer_similarity_minus_race_mean",
+      "graph_horse_sire_similarity_rank_in_race",
+      "graph_horse_sire_similarity_minus_race_mean",
+      "graph_horse_venue_similarity_rank_in_race",
+      "graph_horse_venue_similarity_minus_race_mean"
+    ],
+    "graph_d": [
+      "distance_m",
+      "field_size",
+      "current_barrier_percentile",
+      "dry_rating",
+      "jockey_history_top3_excess",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "distance_step_down_pct",
+      "graph_horse_jockey_similarity",
+      "graph_horse_trainer_similarity",
+      "graph_horse_sire_similarity",
+      "graph_horse_dam_similarity",
+      "graph_horse_venue_similarity",
+      "graph_jockey_trainer_similarity",
+      "graph_horse_trainer_similarity_rank_in_race",
+      "graph_horse_trainer_similarity_minus_race_mean",
+      "graph_horse_jockey_similarity_rank_in_race",
+      "graph_horse_jockey_similarity_minus_race_mean",
+      "graph_jockey_trainer_similarity_rank_in_race",
+      "graph_jockey_trainer_similarity_minus_race_mean",
+      "graph_horse_sire_similarity_rank_in_race",
+      "graph_horse_sire_similarity_minus_race_mean",
+      "graph_horse_venue_similarity_rank_in_race",
+      "graph_horse_venue_similarity_minus_race_mean",
+      "graph_sire_trainer_similarity",
+      "graph_sire_jockey_similarity",
+      "graph_dam_trainer_similarity",
+      "graph_trainer_venue_similarity",
+      "graph_jockey_venue_similarity",
+      "graph_horse_embedding_available",
+      "graph_jockey_embedding_available",
+      "graph_trainer_embedding_available",
+      "graph_sire_embedding_available",
+      "graph_dam_embedding_available",
+      "graph_venue_embedding_available"
+    ]
+  },
+  "graph_table": "graph_features",
+  "schema_version": 1,
+  "selected_trees": {
+    "graph_a": [
+      24,
+      6,
+      62
+    ],
+    "graph_b": [
+      88,
+      88,
+      8
+    ],
+    "graph_c": [
+      56,
+      153,
+      67
+    ],
+    "graph_d": [
+      19,
+      13,
+      12
+    ]
+  },
+  "test_cohort_status": "chronological_holdout_for_this_run; prior exposure through other experiments is not ruled out",
+  "validation_metrics": {
+    "graph_a": {
+      "mean_winner_rank": 3.3615,
+      "mrr": 0.4963043797396274,
+      "races": 1000.0,
+      "top1_hit_rate": 0.283,
+      "top2_hit_rate": 0.468,
+      "top3_hit_rate": 0.605
+    },
+    "graph_b": {
+      "mean_winner_rank": 3.3495,
+      "mrr": 0.4985622614455734,
+      "races": 1000.0,
+      "top1_hit_rate": 0.287,
+      "top2_hit_rate": 0.462,
+      "top3_hit_rate": 0.614
+    },
+    "graph_c": {
+      "mean_winner_rank": 3.365,
+      "mrr": 0.5007439023536849,
+      "races": 1000.0,
+      "top1_hit_rate": 0.293,
+      "top2_hit_rate": 0.47,
+      "top3_hit_rate": 0.604
+    },
+    "graph_d": {
+      "mean_winner_rank": 3.3725,
+      "mrr": 0.4964175533471031,
+      "races": 1000.0,
+      "top1_hit_rate": 0.283,
+      "top2_hit_rate": 0.462,
+      "top3_hit_rate": 0.612
+    }
+  },
+  "validation_winner_start_bands": {
+    "graph_a": {
+      "0": {
+        "mean_winner_rank": 3.903225806451613,
+        "mrr": 0.38056835637480796,
+        "races": 31.0,
+        "top1_hit_rate": 0.12903225806451613,
+        "top2_hit_rate": 0.3548387096774194,
+        "top3_hit_rate": 0.4838709677419355
+      },
+      "1-2": {
+        "mean_winner_rank": 2.5232558139534884,
+        "mrr": 0.5724944629014397,
+        "races": 86.0,
+        "top1_hit_rate": 0.3372093023255814,
+        "top2_hit_rate": 0.5930232558139535,
+        "top3_hit_rate": 0.7790697674418605
+      },
+      "3-5": {
+        "mean_winner_rank": 2.5,
+        "mrr": 0.6094959802102661,
+        "races": 140.0,
+        "top1_hit_rate": 0.40714285714285714,
+        "top2_hit_rate": 0.6142857142857143,
+        "top3_hit_rate": 0.7571428571428571
+      },
+      "6+": {
+        "mean_winner_rank": 3.5982503364737553,
+        "mrr": 0.47098627140383226,
+        "races": 743.0,
+        "top1_hit_rate": 0.2597577388963661,
+        "top2_hit_rate": 0.4306864064602961,
+        "top3_hit_rate": 0.5612382234185733
+      }
+    },
+    "graph_b": {
+      "0": {
+        "mean_winner_rank": 4.161290322580645,
+        "mrr": 0.3627112135176651,
+        "races": 31.0,
+        "top1_hit_rate": 0.12903225806451613,
+        "top2_hit_rate": 0.2903225806451613,
+        "top3_hit_rate": 0.45161290322580644
+      },
+      "1-2": {
+        "mean_winner_rank": 2.5348837209302326,
+        "mrr": 0.5712347729789592,
+        "races": 86.0,
+        "top1_hit_rate": 0.3372093023255814,
+        "top2_hit_rate": 0.5930232558139535,
+        "top3_hit_rate": 0.7674418604651163
+      },
+      "3-5": {
+        "mean_winner_rank": 2.492857142857143,
+        "mrr": 0.618625283446712,
+        "races": 140.0,
+        "top1_hit_rate": 0.42857142857142855,
+        "top2_hit_rate": 0.5928571428571429,
+        "top3_hit_rate": 0.7642857142857142
+      },
+      "6+": {
+        "mean_winner_rank": 3.5713324360699867,
+        "mrr": 0.47319580574400494,
+        "races": 743.0,
+        "top1_hit_rate": 0.2611036339165545,
+        "top2_hit_rate": 0.42934051144010765,
+        "top3_hit_rate": 0.5746971736204576
+      }
+    },
+    "graph_c": {
+      "0": {
+        "mean_winner_rank": 4.145161290322581,
+        "mrr": 0.371710189452125,
+        "races": 31.0,
+        "top1_hit_rate": 0.12903225806451613,
+        "top2_hit_rate": 0.3225806451612903,
+        "top3_hit_rate": 0.4838709677419355
+      },
+      "1-2": {
+        "mean_winner_rank": 2.5,
+        "mrr": 0.5837933384445013,
+        "races": 86.0,
+        "top1_hit_rate": 0.36046511627906974,
+        "top2_hit_rate": 0.6046511627906976,
+        "top3_hit_rate": 0.7441860465116279
+      },
+      "3-5": {
+        "mean_winner_rank": 2.5428571428571427,
+        "mrr": 0.6175255102040816,
+        "races": 140.0,
+        "top1_hit_rate": 0.4357142857142857,
+        "top2_hit_rate": 0.6,
+        "top3_hit_rate": 0.7428571428571429
+      },
+      "6+": {
+        "mean_winner_rank": 3.5874831763122477,
+        "mrr": 0.47451021257856063,
+        "races": 743.0,
+        "top1_hit_rate": 0.2651413189771198,
+        "top2_hit_rate": 0.4360699865410498,
+        "top3_hit_rate": 0.566621803499327
+      }
+    },
+    "graph_d": {
+      "0": {
+        "mean_winner_rank": 4.016129032258065,
+        "mrr": 0.3687808870446442,
+        "races": 31.0,
+        "top1_hit_rate": 0.0967741935483871,
+        "top2_hit_rate": 0.3870967741935484,
+        "top3_hit_rate": 0.5161290322580645
+      },
+      "1-2": {
+        "mean_winner_rank": 2.4825581395348837,
+        "mrr": 0.5796788482834996,
+        "races": 86.0,
+        "top1_hit_rate": 0.3488372093023256,
+        "top2_hit_rate": 0.6046511627906976,
+        "top3_hit_rate": 0.7558139534883721
+      },
+      "3-5": {
+        "mean_winner_rank": 2.4642857142857144,
+        "mrr": 0.6197534013605442,
+        "races": 140.0,
+        "top1_hit_rate": 0.42857142857142855,
+        "top2_hit_rate": 0.6071428571428571,
+        "top3_hit_rate": 0.7714285714285715
+      },
+      "6+": {
+        "mean_winner_rank": 3.61978465679677,
+        "mrr": 0.4688660682447672,
+        "races": 743.0,
+        "top1_hit_rate": 0.2557200538358008,
+        "top2_hit_rate": 0.42126514131897713,
+        "top3_hit_rate": 0.5693135935397039
+      }
+    }
+  }
+}

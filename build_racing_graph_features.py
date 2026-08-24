@@ -82,13 +82,18 @@ SIMILARITY_PAIRS = {
 # Experiment 1 deliberately gives node2vec only the primitive relationships.
 # The additional sire/trainer/jockey/venue cosine features must reflect learned
 # multi-hop neighborhoods rather than direct edges inserted for the target pair.
-GRAPH_EDGE_PAIRS = (
+REPEATED_GRAPH_EDGE_PAIRS = (
     ("graph_horse_node", "graph_jockey_node"),
     ("graph_horse_node", "graph_trainer_node"),
-    ("graph_horse_node", "graph_sire_node"),
-    ("graph_horse_node", "graph_dam_node"),
     ("graph_horse_node", "graph_venue_node"),
     ("graph_jockey_node", "graph_trainer_node"),
+)
+
+# Pedigree is an invariant relationship, not a count of historical runs. These
+# edges occur once and deliberately do not receive temporal decay.
+STATIC_GRAPH_EDGE_PAIRS = (
+    ("graph_horse_node", "graph_sire_node"),
+    ("graph_horse_node", "graph_dam_node"),
 )
 
 AVAILABILITY_FEATURES = {
@@ -333,6 +338,7 @@ def graph_edges(
 ) -> dict[tuple[str, str], float]:
     """Aggregate typed undirected relationship edges from historical rows."""
     edges: dict[tuple[str, str], float] = defaultdict(float)
+    static_edges: set[tuple[str, str]] = set()
     selected = history.loc[:, [*NODE_COLUMNS, "_start_time"]]
     for row in selected.itertuples(index=False, name=None):
         values = dict(zip(NODE_COLUMNS, row[:-1]))
@@ -341,13 +347,24 @@ def graph_edges(
         if half_life_days is not None:
             age_days = max(0.0, (snapshot - start_time).total_seconds() / 86400.0)
             weight = math.exp(-math.log(2.0) * age_days / half_life_days)
-        for left_column, right_column in GRAPH_EDGE_PAIRS:
+        for left_column, right_column in REPEATED_GRAPH_EDGE_PAIRS:
             left, right = values[left_column], values[right_column]
             if left is None or right is None or pd.isna(left) or pd.isna(right):
                 continue
             key = (left, right) if left < right else (right, left)
             if key[0] != key[1]:
                 edges[key] += weight
+
+        for left_column, right_column in STATIC_GRAPH_EDGE_PAIRS:
+            left, right = values[left_column], values[right_column]
+            if left is None or right is None or pd.isna(left) or pd.isna(right):
+                continue
+            key = (left, right) if left < right else (right, left)
+            if key[0] != key[1]:
+                static_edges.add(key)
+
+    for key in static_edges:
+        edges[key] = max(edges[key], 1.0)
     return dict(edges)
 
 

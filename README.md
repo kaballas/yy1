@@ -40,9 +40,7 @@ The codebase is organized around a few major areas:
   `inspect_winner_ranker.py`, `backtest_winner_blend.py`,
   `backtest_all_finished_winner_blends.py`
 - Feature and diagnostic scripts: `feature_hinter.py`,
-  `analyze_winner_features.py`, `feature_population_report.py`,
-  `build_racing_graph_features.py`,
-  `audit_production_features.py`,
+  `analyze_winner_features.py`, `audit_production_features.py`,
   `audit_market_residual_features.py`, `validate_chronological_winner_blend.py`,
   `expand_validation_cohort.py`
 - Inference and prediction: `predict_race.py`, `predict_raceformer.py`,
@@ -73,9 +71,7 @@ project root; the most important ones are grouped below:
   `validate_chronological_winner_blend.py`, `evaluate_model_stages.py`,
   `compare_label_context_reports.py`
 - Feature/market analysis: `feature_hinter.py`, `analyze_winner_features.py`,
-  `feature_population_report.py`, `build_racing_graph_features.py`,
-  `analyze_sealed_market_disagreements.py`,
-  `audit_production_features.py`,
+  `analyze_sealed_market_disagreements.py`, `audit_production_features.py`,
   `audit_market_residual_features.py`, `audit_standardized_features.py`,
   `build_market_mover_manifest.py`, `update_derived_racing_features.py`,
   `expand_validation_cohort.py`
@@ -185,7 +181,7 @@ Discover how every individual numeric database feature ranks actual Top-3
 runners, without fitting a model or combining features:
 
 ```bash
-python feature_hinter.py --race-id 10812199 --detail dry_rating
+python feature_hinter.py --race-id 10842365 --detail dry_rating
 python feature_hinter.py --race-ids 10812199,10812200,10812201
 python feature_hinter.py --all-races --output-csv outputs/feature_hints.csv
 python feature_hinter.py --all-races --competition-id 580,570 --minimum-races 10
@@ -209,32 +205,18 @@ python train_market_mover_tests.py \
   --features-json test.json \
   --competition-id 6 \
   --validation-races 200 \
-  --test-races 200 \
   --max-estimators 700 \
   --early-stopping-rounds 20 \
-  --selection-objective winner \
-  --minimum-uplift 0.01 \
   --forward-select
 ```
 
 Forward selection forces `colsample_bytree=1.0` and `subsample=1.0`. Full
 sampling keeps each candidate fit nested with the baseline instead of changing
 which baseline columns or rows each tree happens to see. Ordinary training
-retains the regularized sampling parameters. Current-race market inputs are
-excluded unless `--include-current-market` is explicitly supplied. Candidate
-decisions use the middle chronological validation cohort; the latest
-`--test-races` are evaluated once after selection. Competition 999 is rejected
-because membership was assigned after results. The run prints
-`forward_sampling=full` as confirmation. Repeat the process across seeds or
-rolling historical cutoffs before treating selected features as stable
-production evidence.
-
-To deliberately build the lowest-scoring feature sequence, add
-`--reverse-select` alongside `--forward-select`. Each round selects the
-candidate with the lowest primary metric, provided it decreases that metric by
-at least `--minimum-uplift`. This is useful for adversarial or inverse-signal
-experiments; it intentionally degrades the model and is not normal production
-feature selection.
+retains the regularized sampling parameters. The run prints
+`forward_sampling=full` as confirmation. Candidate decisions still use the
+specified validation cohort and seed; use multiple seeds and an untouched test
+cohort before treating small uplifts as production evidence.
 
 Tune a two-model blend without giving raw market rank any weight:
 
@@ -250,8 +232,7 @@ competition is present in both chronological cohorts:
 ```bash
 python backtest_winner_blend.py \
   --competition-id 580,570 \
-  --output-json outputs/winner_ranker/competitions_580_570_blend.json \
-  --sweep-csv outputs/winner_ranker/competitions_580_570_weight_sweep.csv
+  --bundle /home/theo/yy1/outputs/winner_ranker_top3_saturdays/winner_ranker_bundle.json --blend-config /home/theo/yy1/outputs/winner_ranker_top3_saturdays/all_finished_blend.json
 ```
 
 The command fails rather than producing an empty or one-sided comparison when
@@ -447,90 +428,6 @@ features and treats 999 only as a diagnostic hard-race label. Do not train or
 select production models only on that cohort.
 
 ## Feature manifest
-
-### Feature population report
-
-Rank every numeric model-feature candidate by the percentage of usable values
-across all `race_runners` records:
-
-```bash
-python feature_population_report.py \
-  --db db/race_runners.sqlite \
-  --output-csv outputs/feature_population_report.csv
-```
-
-The terminal shows the 50 most complete features and the CSV contains the full
-ranking. Numeric `NULL`, NaN, and infinite values count as missing. Zero is a
-valid populated value. Use `--features-json winner_ranker_features.json` to
-limit the report to the union of all model inputs in a manifest. Filters can be
-combined when a specific training population is wanted:
-
-```bash
-python feature_population_report.py \
-  --competition-id 6 \
-  --status finished \
-  --active-only \
-  --top 0
-```
-
-Without those filters the denominator is every database row. Add
-`--all-columns` to include text, identifiers, controls, and outcome columns.
-
-### Chronological node2vec graph features
-
-`build_racing_graph_features.py` builds typed horse, jockey, trainer, sire, dam,
-and venue nodes. Each snapshot is trained only from finished active runners in
-races strictly earlier than the snapshot. A target row receives the latest
-snapshot strictly earlier than its own start time. This prevents future graph
-relationships from entering historical features.
-
-Install the embedding dependency and build the default monthly experiment:
-
-```bash
-python -m pip install 'gensim>=4.4,<5'
-python build_racing_graph_features.py \
-  --db db/race_runners.sqlite \
-  --snapshot-frequency monthly \
-  --dimensions 16 \
-  --walk-length 20 \
-  --walks-per-node 5 \
-  --window 5 \
-  --epochs 3 \
-  --p 1.0 \
-  --q 1.0 \
-  --workers 1
-```
-
-`workers=1` is recommended for reproducible chronological experiments. The
-builder writes a separate `graph_features` table keyed by the source SQLite
-`rowid`; it does not alter `race_runners`. Pass `--replace` only when replacing
-an existing graph table deliberately. Inspect graph sizes without training or
-writing with:
-
-```bash
-python build_racing_graph_features.py --dry-run
-```
-
-The table contains 39 model candidates: eleven cosine similarities, a
-within-race rank and race-mean delta for every similarity, and six embedding
-availability flags. Primitive graph edges are limited to horse-jockey,
-horse-trainer, horse-sire, horse-dam, horse-venue, and jockey-trainer. Additional
-sire/trainer/jockey/venue similarities therefore measure learned multi-hop
-neighborhoods rather than direct edges.
-
-Use `source_rowid` for an exact join:
-
-```sql
-SELECT runners.*, graph.*
-FROM race_runners AS runners
-LEFT JOIN graph_features AS graph
-  ON graph.source_rowid = runners.rowid;
-```
-
-The earliest monthly snapshot can legitimately contain no historical graph.
-Those rows receive zero availability flags and NULL similarities. Missing horse
-embeddings do not prevent debutant-oriented jockey/trainer/sire/dam/venue
-similarities when those other nodes were observed before the snapshot.
 
 [`tabfm_features.json`](tabfm_features.json) is the source of truth for scratch
 training:
