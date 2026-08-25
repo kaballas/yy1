@@ -15,6 +15,7 @@ from build_racing_graph_features import (
     historical_rows,
     normalize_identity,
     output_columns,
+    repeated_edge_weight_statistics,
     snapshot_boundaries,
     write_graph_feature_table,
 )
@@ -126,6 +127,30 @@ def test_pedigree_edges_are_static_while_interactions_accumulate_and_decay():
     assert math.isclose(edges[tuple(sorted((horse, trainer)))], expected_repeated)
     assert edges[tuple(sorted((horse, sire)))] == 1.0
     assert edges[tuple(sorted((horse, dam)))] == 1.0
+
+
+def test_repeated_edge_weight_modes_do_not_transform_pedigree():
+    raw = pd.concat([_raw_rows().iloc[[0]], _raw_rows().iloc[[0]]], ignore_index=True)
+    raw["source_rowid"] = [1, 2]
+    frame = add_node_identities(raw)
+    frame["_start_time"] = pd.to_datetime(["2026-01-01", "2026-01-02"], utc=True)
+    snapshot = pd.Timestamp("2026-02-01", tz="UTC")
+    horse_trainer = tuple(sorted(("horse:au:horse one", "trainer:t one")))
+    horse_sire = tuple(sorted(("horse:au:horse one", "sire:s one")))
+
+    raw_edges = graph_edges(frame, snapshot, None, "raw")
+    log_edges = graph_edges(frame, snapshot, None, "log")
+    binary_edges = graph_edges(frame, snapshot, None, "binary")
+
+    assert raw_edges[horse_trainer] == 2.0
+    assert math.isclose(log_edges[horse_trainer], math.log1p(2.0))
+    assert binary_edges[horse_trainer] == 1.0
+    assert raw_edges[horse_sire] == log_edges[horse_sire] == 1.0
+    assert binary_edges[horse_sire] == 1.0
+
+    statistics = repeated_edge_weight_statistics(raw_edges)
+    assert statistics["count"] == 4
+    assert statistics["min"] == statistics["max"] == 2.0
 
 
 def test_biased_walk_is_reproducible_and_follows_edges():

@@ -336,9 +336,12 @@ def graph_edges(
     history: pd.DataFrame,
     snapshot: pd.Timestamp,
     half_life_days: float | None,
+    edge_weight_mode: str = "raw",
 ) -> dict[tuple[str, str], float]:
     """Aggregate typed undirected relationship edges from historical rows."""
-    edges: dict[tuple[str, str], float] = defaultdict(float)
+    if edge_weight_mode not in {"raw", "log", "binary"}:
+        raise ValueError(f"Unknown edge weight mode: {edge_weight_mode}")
+    repeated_edges: dict[tuple[str, str], float] = defaultdict(float)
     static_edges: set[tuple[str, str]] = set()
     selected = history.loc[:, [*NODE_COLUMNS, "_start_time"]]
     for row in selected.itertuples(index=False, name=None):
@@ -354,7 +357,7 @@ def graph_edges(
                 continue
             key = (left, right) if left < right else (right, left)
             if key[0] != key[1]:
-                edges[key] += weight
+                repeated_edges[key] += weight
 
         for left_column, right_column in STATIC_GRAPH_EDGE_PAIRS:
             left, right = values[left_column], values[right_column]
@@ -364,9 +367,44 @@ def graph_edges(
             if key[0] != key[1]:
                 static_edges.add(key)
 
-    for key in static_edges:
-        edges[key] = max(edges[key], 1.0)
-    return dict(edges)
+    if edge_weight_mode == "log":
+        edges = {key: math.log1p(weight) for key, weight in repeated_edges.items()}
+    elif edge_weight_mode == "binary":
+        edges = {key: 1.0 for key in repeated_edges}
+    else:
+        edges = dict(repeated_edges)
+    # Pedigree remains exactly one regardless of repeated-edge mode or decay.
+    edges.update({key: 1.0 for key in static_edges})
+    return edges
+
+
+def repeated_edge_weight_statistics(
+    edges: Mapping[tuple[str, str], float],
+) -> dict[str, float | int]:
+    weights = np.asarray(
+        [
+            weight
+            for (left, right), weight in edges.items()
+            if not (
+                (left.startswith("horse:") and right.startswith(("sire:", "dam:")))
+                or (right.startswith("horse:") and left.startswith(("sire:", "dam:")))
+            )
+        ],
+        dtype=np.float64,
+    )
+    if not len(weights):
+        return {
+            "count": 0, "min": math.nan, "median": math.nan,
+            "mean": math.nan, "p95": math.nan, "max": math.nan,
+        }
+    return {
+        "count": int(len(weights)),
+        "min": float(weights.min()),
+        "median": float(np.median(weights)),
+        "mean": float(weights.mean()),
+        "p95": float(np.quantile(weights, 0.95)),
+        "max": float(weights.max()),
+    }
 
 
 def adjacency_from_edges(
@@ -792,6 +830,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--edge-weight-mode",
+        choices=("raw", "log", "binary"),
+        default="raw",
+        help=(
+            "Transform accumulated repeated relationship weights: raw keeps "
+            "counts, log uses log1p(weight), binary uses 1. Pedigree stays 1."
+        ),
+    )
+    parser.add_argument(
         "--progress-every-nodes",
         type=int,
         default=5000,
@@ -857,14 +904,25 @@ def main() -> int:
         snapshot = assignment.timestamp
         batch = target.iloc[assignment.target_indices].copy().reset_index(drop=True)
         history = historical_rows(all_rows, snapshot)
-        edges = graph_edges(history, snapshot, args.half_life_days)
+        edges = graph_edges(
+            history, snapshot, args.half_life_days, args.edge_weight_mode
+        )
         adjacency = adjacency_from_edges(edges)
+        repeated_stats = repeated_edge_weight_statistics(edges)
         summary = GraphSummary(len(adjacency), len(edges), len(history))
         print(
             f"snapshot[{number}/{len(assignments)}]={snapshot.isoformat()} "
             f"history_rows={summary.history_rows:,} nodes={summary.nodes:,} "
             f"edges={summary.edges:,} target_rows={len(batch):,} "
             f"target_races={batch['race_id'].nunique():,}",
+            flush=True,
+        )
+        print(
+            f"snapshot_repeated_edge_weights mode={args.edge_weight_mode} "
+            f"count={repeated_stats['count']:,} min={repeated_stats['min']:.4f} "
+            f"median={repeated_stats['median']:.4f} "
+            f"mean={repeated_stats['mean']:.4f} p95={repeated_stats['p95']:.4f} "
+            f"max={repeated_stats['max']:.4f}",
             flush=True,
         )
         if args.dry_run:

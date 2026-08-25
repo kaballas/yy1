@@ -16,9 +16,11 @@ from xgboost import XGBRanker
 
 from evaluate_graph_winner_features import (
     DEFAULT_MANIFEST,
+    evaluate_models,
     graph_experiment_feature_sets,
     load_baseline_features,
     load_joined_rows,
+    metrics_table,
     quote_identifier,
     selection_eval_metrics,
     train_experiment_ensemble,
@@ -129,30 +131,54 @@ def load_target_race(
     return target
 
 
-def refit_ensembles(
+MODEL_SIMPLICITY_ORDER = {
+    "graph_a": 0,
+    "graph_b": 1,
+    "graph_c": 2,
+    "graph_d": 3,
+}
+
+
+def select_validation_model(
+    validation_metrics: dict[str, dict[str, float]],
+) -> str:
+    if not validation_metrics:
+        raise ValueError("No validation model metrics are available")
+    unknown = sorted(set(validation_metrics) - set(MODEL_SIMPLICITY_ORDER))
+    if unknown:
+        raise ValueError("Unknown graph validation models: " + ", ".join(unknown))
+    return min(
+        validation_metrics,
+        key=lambda label: (
+            -validation_metrics[label]["top1_hit_rate"],
+            -validation_metrics[label]["mrr"],
+            MODEL_SIMPLICITY_ORDER[label],
+        ),
+    )
+
+
+def refit_selected_ensemble(
     args: argparse.Namespace,
-    feature_sets: dict[str, list[str]],
+    label: str,
+    features: list[str],
     training: pd.DataFrame,
-    selected_trees: dict[str, list[int]],
+    selected_trees: list[int],
     output_dir: Path,
-) -> dict[str, list[XGBRanker]]:
+) -> list[XGBRanker]:
     targets = training["is_winner"].to_numpy(dtype=np.int64)
     groups = group_sizes(training)
     validate_ranker_groups(training, targets, groups)
-    result: dict[str, list[XGBRanker]] = {}
-    for label, features in feature_sets.items():
-        matrix = model_feature_matrix(training, features)
-        members: list[XGBRanker] = []
-        for member, trees in enumerate(selected_trees[label]):
-            seed = args.seed + member * 1009
-            model = XGBRanker(**model_parameters(args, seed, trees))
-            model.fit(matrix, targets, group=groups, verbose=False)
-            path = output_dir / f"{label}_one_month_seed_{seed}.json"
-            model.save_model(path)
-            members.append(model)
-            print(f"refit={label} member={member + 1} trees={trees} path={path}")
-        result[label] = members
-    return result
+    matrix = model_feature_matrix(training, features)
+    members: list[XGBRanker] = []
+    for member, trees in enumerate(selected_trees):
+        seed = args.seed + member * 1009
+        model = XGBRanker(**model_parameters(args, seed, trees))
+        model.fit(matrix, targets, group=groups, verbose=False)
+        path = output_dir / f"{label}_selected_one_month_seed_{seed}.json"
+        model.save_model(path)
+        members.append(model)
+        print(f"refit_selected={label} member={member + 1} trees={trees} path={path}")
+    return members
 
 
 def parse_args() -> argparse.Namespace:
@@ -195,6 +221,14 @@ def parse_args() -> argparse.Namespace:
         if getattr(args, name) < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
     args.models = list(dict.fromkeys(args.models))
+    required_models = list(MODEL_SIMPLICITY_ORDER)
+    missing_models = [label for label in required_models if label not in args.models]
+    if missing_models:
+        parser.error(
+            "validation selection requires all graph models; missing from --models: "
+            + ", ".join(missing_models)
+        )
+    args.models = required_models
     return args
 
 
@@ -251,14 +285,34 @@ def main() -> int:
         f"target_start={target_start} active_runners={len(target):,}"
     )
 
+    evaluation_models: dict[str, list[XGBRanker]] = {}
     selected_trees: dict[str, list[int]] = {}
     for label, features in feature_sets.items():
-        _, trees = train_experiment_ensemble(
+        members, trees = train_experiment_ensemble(
             args, label, features, tuning, validation, output_dir
         )
+        evaluation_models[label] = members
         selected_trees[label] = trees
-    models = refit_ensembles(
-        args, feature_sets, full_training, selected_trees, output_dir
+    _, validation_metrics, _, _ = evaluate_models(
+        evaluation_models, feature_sets, validation
+    )
+    selected_model = select_validation_model(validation_metrics)
+    validation_table = metrics_table(validation_metrics)
+    print("\nVALIDATION MODEL SELECTION")
+    print(validation_table.to_string(float_format=lambda value: f"{value:.5f}"))
+    print(
+        f"selected_model={selected_model} "
+        f"validation_top1={validation_metrics[selected_model]['top1_hit_rate']:.2%} "
+        f"validation_mrr={validation_metrics[selected_model]['mrr']:.5f}",
+        flush=True,
+    )
+    selected_ensemble = refit_selected_ensemble(
+        args,
+        selected_model,
+        feature_sets[selected_model],
+        full_training,
+        selected_trees[selected_model],
+        output_dir,
     )
 
     target_race_ids = target["race_id"].to_numpy(dtype=np.int64)
@@ -271,8 +325,7 @@ def main() -> int:
         output["actual_winner"] = pd.to_numeric(
             target["is_winner"], errors="coerce"
         ).eq(1)
-    rank_columns: list[str] = []
-    for label, members in models.items():
+    for label, members in evaluation_models.items():
         scores = ensemble_rank_scores(
             members, model_feature_matrix(target, feature_sets[label]), target_race_ids
         )
@@ -281,10 +334,17 @@ def main() -> int:
         output[rank_column] = pd.Series(scores).rank(
             method="average", ascending=False
         ).to_numpy()
-        rank_columns.append(rank_column)
-    output["average_graph_rank"] = output[rank_columns].mean(axis=1)
+    selected_scores = ensemble_rank_scores(
+        selected_ensemble,
+        model_feature_matrix(target, feature_sets[selected_model]),
+        target_race_ids,
+    )
+    output["selected_score"] = selected_scores
+    output["selected_rank"] = pd.Series(selected_scores).rank(
+        method="average", ascending=False
+    ).to_numpy()
     output = output.sort_values(
-        ["average_graph_rank", rank_columns[0], "runner_number"], kind="stable"
+        ["selected_rank", "runner_number"], kind="stable"
     ).reset_index(drop=True)
     output.insert(0, "display", np.arange(1, len(output) + 1))
     prediction_path = output_dir / f"race_{args.race_id}_prediction.csv"
@@ -300,6 +360,12 @@ def main() -> int:
         "target_start": str(target_start),
         "feature_sets": feature_sets,
         "selected_trees": selected_trees,
+        "selected_model": selected_model,
+        "validation_metrics": validation_metrics,
+        "diagnostic_model_scope": (
+            "tuning-window models before the selected model is refit on the "
+            "complete training window"
+        ),
         "selection_metric": selection_eval_metrics(args.selection_objective)[-1],
         "prediction_csv": str(prediction_path),
     }
@@ -316,6 +382,7 @@ def main() -> int:
         winner_ranks = {
             label: float(winner[f"{label}_rank"]) for label in feature_sets
         }
+        winner_ranks["selected"] = float(winner["selected_rank"])
         print(
             f"actual_winner={int(winner['runner_number'])} {winner['runner_name']} "
             f"model_ranks={json.dumps(winner_ranks, sort_keys=True)}"
