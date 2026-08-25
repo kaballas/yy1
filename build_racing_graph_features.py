@@ -14,6 +14,7 @@ import math
 import os
 import re
 import sqlite3
+import time
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
@@ -435,6 +436,8 @@ class WalkCorpus:
         p: float,
         q: float,
         seed: int,
+        progress_label: str = "node2vec",
+        progress_every_nodes: int = 5000,
     ) -> None:
         self.adjacency = adjacency
         self.nodes = np.array(sorted(adjacency), dtype=object)
@@ -443,16 +446,28 @@ class WalkCorpus:
         self.p = p
         self.q = q
         self.seed = seed
+        self.progress_label = progress_label
+        self.progress_every_nodes = progress_every_nodes
+        self._iterations = 0
 
     @property
     def total_examples(self) -> int:
         return len(self.nodes) * self.walks_per_node
 
     def __iter__(self) -> Iterator[list[str]]:
+        self._iterations += 1
+        phase = "vocabulary" if self._iterations == 1 else f"training_pass_{self._iterations - 1}"
+        pass_started = time.perf_counter()
+        print(
+            f"{self.progress_label} walks phase={phase} started "
+            f"walks={self.total_examples:,} nodes={len(self.nodes):,}",
+            flush=True,
+        )
         rng = np.random.default_rng(self.seed)
-        for _ in range(self.walks_per_node):
+        for walk_round in range(1, self.walks_per_node + 1):
+            round_started = time.perf_counter()
             order = rng.permutation(self.nodes)
-            for node in order:
+            for completed, node in enumerate(order, 1):
                 yield biased_walk(
                     self.adjacency,
                     str(node),
@@ -461,6 +476,24 @@ class WalkCorpus:
                     self.q,
                     rng,
                 )
+                if (
+                    completed % self.progress_every_nodes == 0
+                    or completed == len(self.nodes)
+                ):
+                    overall = (walk_round - 1) * len(self.nodes) + completed
+                    print(
+                        f"{self.progress_label} walks phase={phase} "
+                        f"round={walk_round}/{self.walks_per_node} "
+                        f"nodes={completed:,}/{len(self.nodes):,} "
+                        f"progress={overall / self.total_examples:.1%} "
+                        f"round_elapsed={time.perf_counter() - round_started:.1f}s",
+                        flush=True,
+                    )
+        print(
+            f"{self.progress_label} walks phase={phase} complete "
+            f"elapsed={time.perf_counter() - pass_started:.1f}s",
+            flush=True,
+        )
 
 
 def train_node2vec(
@@ -475,18 +508,66 @@ def train_node2vec(
     negative: int,
     workers: int,
     seed: int,
+    progress_label: str = "node2vec",
+    progress_every_nodes: int = 5000,
 ) -> dict[str, np.ndarray]:
     """Train skip-gram embeddings from biased walks and L2-normalize them."""
     if not adjacency:
         return {}
     try:
         from gensim.models import Word2Vec
+        from gensim.models.callbacks import CallbackAny2Vec
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise SystemExit(
             "Gensim is required for node2vec training. Install it in the active "
             "environment with: pip install 'gensim>=4.4,<5'"
         ) from exc
-    corpus = WalkCorpus(adjacency, walk_length, walks_per_node, p, q, seed)
+    class EpochProgress(CallbackAny2Vec):
+        def __init__(self) -> None:
+            self.epoch = 0
+            self.previous_loss = 0.0
+            self.epoch_started = 0.0
+            self.training_started = 0.0
+
+        def on_train_begin(self, model: Word2Vec) -> None:
+            self.training_started = time.perf_counter()
+            print(
+                f"{progress_label} training started epochs={epochs} "
+                f"vocabulary={len(model.wv):,}",
+                flush=True,
+            )
+
+        def on_epoch_begin(self, model: Word2Vec) -> None:
+            self.epoch_started = time.perf_counter()
+            print(
+                f"{progress_label} epoch={self.epoch + 1}/{epochs} started",
+                flush=True,
+            )
+
+        def on_epoch_end(self, model: Word2Vec) -> None:
+            cumulative_loss = float(model.get_latest_training_loss())
+            epoch_loss = cumulative_loss - self.previous_loss
+            self.previous_loss = cumulative_loss
+            print(
+                f"{progress_label} epoch={self.epoch + 1}/{epochs} complete "
+                f"epoch_loss={epoch_loss:.6g} cumulative_loss={cumulative_loss:.6g} "
+                f"epoch_elapsed={time.perf_counter() - self.epoch_started:.1f}s "
+                f"total_elapsed={time.perf_counter() - self.training_started:.1f}s",
+                flush=True,
+            )
+            self.epoch += 1
+
+    corpus = WalkCorpus(
+        adjacency, walk_length, walks_per_node, p, q, seed,
+        progress_label=progress_label,
+        progress_every_nodes=progress_every_nodes,
+    )
+    print(
+        f"{progress_label} vocabulary_build started dimensions={dimensions} "
+        f"walk_length={walk_length} walks_per_node={walks_per_node}",
+        flush=True,
+    )
+    vocabulary_started = time.perf_counter()
     model = Word2Vec(
         vector_size=dimensions,
         window=window,
@@ -497,10 +578,17 @@ def train_node2vec(
         seed=seed,
     )
     model.build_vocab(corpus_iterable=corpus)
+    print(
+        f"{progress_label} vocabulary_build complete vocabulary={len(model.wv):,} "
+        f"elapsed={time.perf_counter() - vocabulary_started:.1f}s",
+        flush=True,
+    )
     model.train(
         corpus_iterable=corpus,
         total_examples=corpus.total_examples,
         epochs=epochs,
+        compute_loss=True,
+        callbacks=[EpochProgress()],
     )
     embeddings: dict[str, np.ndarray] = {}
     for node in model.wv.index_to_key:
@@ -654,6 +742,7 @@ def validate_hyperparameters(args: argparse.Namespace) -> None:
         "epochs",
         "negative",
         "workers",
+        "progress_every_nodes",
         "p",
         "q",
     )
@@ -702,6 +791,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--q", type=float, default=1.0)
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--progress-every-nodes",
+        type=int,
+        default=5000,
+        help="Report walk-generation progress every N nodes (default: 5000).",
+    )
     parser.add_argument(
         "--half-life-days",
         type=float,
@@ -786,6 +881,8 @@ def main() -> int:
             negative=args.negative,
             workers=args.workers,
             seed=args.seed + number - 1,
+            progress_label=f"snapshot[{number}/{len(assignments)}] node2vec",
+            progress_every_nodes=args.progress_every_nodes,
         )
         features = calculate_graph_features(batch, embeddings)
         metadata = batch.loc[

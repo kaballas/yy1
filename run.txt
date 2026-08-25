@@ -802,3 +802,96 @@ python train_tune_all_finished_winner_ranker.py \
   --ranker-diagnostics --minimum-feature-coverage 0.09
 
 
+Rebuild the graph because the existing table contains the old pedigree weights:
+
+  python build_racing_graph_features.py \
+    --db db/race_runners.sqlite \
+    --output-table graph_features \
+    --snapshot-frequency monthly \
+    --dimensions 16 \
+    --walk-length 20 \
+    --walks-per-node 5 \
+    --window 5 \
+    --epochs 3 \
+    --p 1.0 \
+    --q 1.0 \
+    --workers 1 \
+    --seed 42 \
+    --replace
+
+  Then rerun into a fresh directory:
+
+  python evaluate_graph_winner_features.py \
+    --db db/race_runners.sqlite \
+    --graph-table graph_features \
+    --features-json winner_ranker_features.json \
+    --baseline-model c2 \
+    --validation-races 1000 \
+    --test-races 1000 \
+    --ensemble-size 3 \
+    --max-estimators 700 \
+    --early-stopping-rounds 60 \
+    --selection-objective top1 \
+    --bootstrap-samples 20000 \
+    --bootstrap-confidence 0.95 \
+    --jobs 6 \
+    --seed 42 \
+    --output-dir outputs/graph_winner_feature_experiment_static_pedigree_seed42
+
+
+  python build_racing_graph_features.py \
+    --db db/race_runners.sqlite \
+    --output-table graph_features_july_aug \
+    --target-from 2026-06-30T14:00:00Z \
+    --target-to 2026-08-31T14:00:00Z \
+    --snapshot-frequency monthly \
+    --dimensions 16 \
+    --walk-length 20 \
+    --walks-per-node 5 \
+    --window 5 \
+    --epochs 3 \
+    --p 1.0 \
+    --q 1.0 \
+    --workers 1 \
+    --seed 42 \
+    --progress-every-nodes 5000
+
+
+python build_racing_graph_features.py \
+    --db db/race_runners.sqlite \
+    --output-table graph_features_july_aug \
+    --target-from 2026-06-30T14:00:00Z \
+    --target-to 2026-08-31T14:00:00Z \
+    --snapshot-frequency monthly \
+    --dimensions 16 \
+    --walk-length 20 \
+    --walks-per-node 5 \
+    --window 5 \
+    --epochs 3 \
+    --p 1.0 \
+    --q 1.0 \
+    --workers 1 \
+    --seed 42 \
+    --progress-every-nodes 5000  
+
+
+python train_predict_graph_month.py \
+    --db db/race_runners.sqlite \
+    --graph-table graph_features_july_aug \
+    --features-json winner_ranker_features.json \
+    --baseline-model c2 \
+    --models graph_c \
+    --train-start 2026-07-01 \
+    --train-end 2026-08-01 \
+    --timezone Australia/Sydney \
+    --race-id 10845517 \
+    --validation-races 100 \
+    --ensemble-size 1 \
+    --max-estimators 300 \
+    --early-stopping-rounds 30 \
+    --selection-objective top1 \
+    --jobs 6 \
+    --seed 42 \
+    --output-dir outputs/graph_july_quick_10845517
+ 
+
