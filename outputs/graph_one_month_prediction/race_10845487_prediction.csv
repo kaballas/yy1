@@ -1,0 +1,10 @@
+display,runner_number,runner_name,graph_a_score,graph_a_rank,graph_b_score,graph_b_rank,graph_c_score,graph_c_rank,graph_d_score,graph_d_rank,selected_score,selected_rank
+1,2,Heuristic,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+2,4,Grinzinger Pod,0.875,2.0,0.875,2.0,0.875,2.0,0.875,2.0,0.875,2.0
+3,7,Brown Sugar,0.75,3.0,0.625,4.0,0.5,5.0,0.625,4.0,0.75,3.0
+4,6,Better Late,0.625,4.0,0.75,3.0,0.75,3.0,0.75,3.0,0.625,4.0
+5,1,Cryptonic,0.5,5.0,0.5,5.0,0.625,4.0,0.5,5.0,0.5,5.0
+6,9,Angara,0.375,6.0,0.375,6.0,0.375,6.0,0.375,6.0,0.375,6.0
+7,11,Lika Remi,0.25,7.0,0.25,7.0,0.25,7.0,0.25,7.0,0.25,7.0
+8,12,Incantress,0.125,8.0,0.125,8.0,0.125,8.0,0.0,9.0,0.125,8.0
+9,10,Miss Checkoni,0.0,9.0,0.0,9.0,0.0,9.0,0.125,8.0,0.0,9.0

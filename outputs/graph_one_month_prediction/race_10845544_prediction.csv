@@ -1,0 +1,10 @@
+display,runner_number,runner_name,graph_a_score,graph_a_rank,graph_b_score,graph_b_rank,graph_c_score,graph_c_rank,graph_d_score,graph_d_rank,selected_score,selected_rank
+1,3,Shooter Mcgavin,0.875,2.0,0.875,2.0,0.875,2.0,0.875,2.0,1.0,1.0
+2,7,Blacklip,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.875,2.0
+3,5,Stormbourg,0.75,3.0,0.75,3.0,0.75,3.0,0.75,3.0,0.75,3.0
+4,9,Manchego,0.625,4.0,0.625,4.0,0.625,4.0,0.625,4.0,0.625,4.0
+5,4,Sonic Surge,0.5,5.0,0.5,5.0,0.5,5.0,0.5,5.0,0.5,5.0
+6,10,Ponte Arcobaleno,0.375,6.0,0.375,6.0,0.375,6.0,0.375,6.0,0.375,6.0
+7,11,Fugacity,0.125,8.0,0.125,8.0,0.125,8.0,0.125,8.0,0.25,7.0
+8,8,Faceoff,0.25,7.0,0.25,7.0,0.25,7.0,0.25,7.0,0.125,8.0
+9,12,Wild Vitality,0.0,9.0,0.0,9.0,0.0,9.0,0.0,9.0,0.0,9.0

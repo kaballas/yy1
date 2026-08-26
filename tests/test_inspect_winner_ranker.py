@@ -17,6 +17,8 @@ from inspect_winner_ranker import (
     model_output_path,
     model_features_from_bundle,
     runner_vs_field_contribution_table,
+    validate_derived_feature_version,
+    winner_backing_feature_table,
 )
 
 
@@ -35,6 +37,18 @@ def test_all_model_outputs_get_distinct_model_suffixes(tmp_path):
     assert model_output_path(path, "x1", False) == path
     assert model_output_path(path, "x1", True) == tmp_path / "shap_x1.csv"
     assert model_output_path(None, "x1", True) is None
+
+
+def test_feature_version_mismatch_warns_but_does_not_fail():
+    frame = pd.DataFrame({"derived_racing_features_version": ["2026-08-22-1"]})
+
+    with pytest.warns(UserWarning, match="Race feature version '2026-08-22-1' was not used by this bundle"):
+        validate_derived_feature_version(
+            frame,
+            ["2026-08-20-v6"],
+            target="bundle",
+            refresh_hint="Rerun the training pipeline.",
+        )
 
 
 def test_combined_gain_averages_across_models_with_missing_features_as_zero():
@@ -84,6 +98,41 @@ def test_contribution_delta_reports_direction_and_member_agreement():
     assert speed["shap_delta_mean"] == pytest.approx(1.25)
     assert speed["member_sign_agreement"] == 1.0
     assert result.iloc[0]["feature"] == "speed"
+
+
+def test_winner_backing_table_keeps_only_winner_favoring_features():
+    matrix = pd.DataFrame({
+        "speed": [8.0, 9.0, 5.0],
+        "weight": [55.0, 57.0, 56.0],
+    })
+    # Members agree: speed helps runner 1 (the winner), weight helps runner 0.
+    contributions = np.asarray([
+        [[-1.0, 0.5, 0.1], [2.0, -0.5, 0.1], [-1.0, 0.0, 0.1]],
+        [[-0.5, 0.4, 0.2], [1.5, -0.4, 0.2], [-0.5, 0.0, 0.2]],
+    ])
+
+    result = winner_backing_feature_table(matrix, contributions, 1, 0)
+
+    assert result["feature"].tolist() == ["speed"]
+    row = result.iloc[0]
+    assert row["winner_shap_minus_other"] == pytest.approx(2.5)
+    assert row["winner_field_rank"] == 1
+    assert bool(row["solo_pick_correct"])
+
+
+def test_winner_backing_table_omits_rank_when_direction_is_unknown():
+    matrix = pd.DataFrame({"constant": [1.0, 1.0], "speed": [8.0, 5.0]})
+    contributions = np.asarray([
+        [[0.5, 1.0, 0.1], [0.3, 0.0, 0.1]],
+        [[0.4, 1.0, 0.2], [0.2, 0.0, 0.2]],
+    ])
+
+    result = winner_backing_feature_table(
+        matrix, contributions, 0, 1
+    ).set_index("feature")
+
+    assert np.isnan(result.loc["constant", "winner_field_rank"])
+    assert not bool(result.loc["constant", "solo_pick_correct"])
 
 
 def test_runner_vs_field_diagnosis_separates_negative_and_positive_reasons():

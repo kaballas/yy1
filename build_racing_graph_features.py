@@ -39,7 +39,15 @@ IDENTITY_COLUMNS = (
     "sire",
     "dam",
     "competition_name",
+    "distance_m",
+    "track_status",
+    *(f"recent_{slot}_{name}" for slot in range(1, 7) for name in (
+        "date", "class", "jockey", "track_name", "distance_m", "place",
+        "track_status",
+    )),
 )
+
+RECENT_RUN_SLOTS = tuple(range(1, 7))
 
 NODE_COLUMNS = (
     "graph_horse_node",
@@ -48,6 +56,11 @@ NODE_COLUMNS = (
     "graph_sire_node",
     "graph_dam_node",
     "graph_venue_node",
+    "graph_distance_node",
+    "graph_track_status_node",
+    *(f"graph_recent_{slot}_{name}_node" for slot in RECENT_RUN_SLOTS for name in (
+        "run", "jockey", "venue", "distance", "place", "track_status", "class",
+    )),
 )
 
 SIMILARITY_PAIRS = {
@@ -78,6 +91,45 @@ SIMILARITY_PAIRS = {
     "graph_jockey_venue_similarity": (
         "graph_jockey_node", "graph_venue_node"
     ),
+    "graph_horse_distance_similarity": (
+        "graph_horse_node", "graph_distance_node"
+    ),
+    "graph_horse_track_status_similarity": (
+        "graph_horse_node", "graph_track_status_node"
+    ),
+    "graph_jockey_distance_similarity": (
+        "graph_jockey_node", "graph_distance_node"
+    ),
+    "graph_trainer_distance_similarity": (
+        "graph_trainer_node", "graph_distance_node"
+    ),
+    "graph_jockey_track_status_similarity": (
+        "graph_jockey_node", "graph_track_status_node"
+    ),
+    "graph_trainer_track_status_similarity": (
+        "graph_trainer_node", "graph_track_status_node"
+    ),
+    "graph_horse_recent_run_similarity": (
+        "graph_horse_node", "graph_recent_1_run_node"
+    ),
+    "graph_jockey_recent_jockey_similarity": (
+        "graph_jockey_node", "graph_recent_1_jockey_node"
+    ),
+    "graph_venue_recent_venue_similarity": (
+        "graph_venue_node", "graph_recent_1_venue_node"
+    ),
+    "graph_distance_recent_distance_similarity": (
+        "graph_distance_node", "graph_recent_1_distance_node"
+    ),
+    "graph_track_status_recent_track_status_similarity": (
+        "graph_track_status_node", "graph_recent_1_track_status_node"
+    ),
+    "graph_horse_recent_class_similarity": (
+        "graph_horse_node", "graph_recent_1_class_node"
+    ),
+    "graph_horse_recent_place_similarity": (
+        "graph_horse_node", "graph_recent_1_place_node"
+    ),
 }
 
 # Experiment 1 deliberately gives node2vec only the primitive relationships.
@@ -97,6 +149,18 @@ STATIC_GRAPH_EDGE_PAIRS = (
     ("graph_horse_node", "graph_dam_node"),
 )
 
+RECENT_RUN_CONTEXT_NODE_NAMES = (
+    "jockey", "venue", "distance", "place", "track_status", "class",
+)
+
+CURRENT_RUN_CONTEXT_NODE_COLUMNS = (
+    "graph_horse_node",
+    "graph_jockey_node",
+    "graph_venue_node",
+    "graph_distance_node",
+    "graph_track_status_node",
+)
+
 AVAILABILITY_FEATURES = {
     "graph_horse_embedding_available": "graph_horse_node",
     "graph_jockey_embedding_available": "graph_jockey_node",
@@ -104,6 +168,15 @@ AVAILABILITY_FEATURES = {
     "graph_sire_embedding_available": "graph_sire_node",
     "graph_dam_embedding_available": "graph_dam_node",
     "graph_venue_embedding_available": "graph_venue_node",
+    "graph_distance_embedding_available": "graph_distance_node",
+    "graph_track_status_embedding_available": "graph_track_status_node",
+    "graph_recent_run_embedding_available": "graph_recent_1_run_node",
+    "graph_recent_jockey_embedding_available": "graph_recent_1_jockey_node",
+    "graph_recent_venue_embedding_available": "graph_recent_1_venue_node",
+    "graph_recent_distance_embedding_available": "graph_recent_1_distance_node",
+    "graph_recent_place_embedding_available": "graph_recent_1_place_node",
+    "graph_recent_track_status_embedding_available": "graph_recent_1_track_status_node",
+    "graph_recent_class_embedding_available": "graph_recent_1_class_node",
 }
 
 RACE_RELATIVE_SUFFIXES = ("rank_in_race", "minus_race_mean")
@@ -120,6 +193,11 @@ VENUE_ALIASES = {
     "devonport": "devonport synthetic",
     "riccarton": "riccarton park",
     "murray bridge": "murray bridge gh",
+}
+
+RACE_TIMEZONES = {
+    "australia": "Australia/Sydney",
+    "new zealand": "Pacific/Auckland",
 }
 
 
@@ -160,6 +238,87 @@ def typed_node(kind: str, value: object) -> str | None:
     return f"{kind}:{normalized}" if normalized is not None else None
 
 
+def distance_node(value: object) -> str | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric) or numeric <= 0:
+        return None
+    return f"distance:{int(round(numeric))}m"
+
+
+def place_node(value: object) -> str | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric) or numeric <= 0:
+        return None
+    return f"place:{int(round(numeric))}"
+
+
+def track_status_node(value: object) -> str | None:
+    normalized = normalize_identity(value)
+    if normalized is None:
+        return None
+    match = re.search(
+        r"\b(good|soft|heavy|firm|synthetic|yielding|dead|slow|fast|sloppy)\b",
+        normalized,
+    )
+    going = match.group(1) if match else normalized
+    return f"track_status:{going}"
+
+
+def venue_node(value: object) -> str | None:
+    normalized = normalize_identity(value)
+    if normalized is None:
+        return None
+    normalized = VENUE_ALIASES.get(normalized, normalized)
+    return f"venue:{normalized}"
+
+
+def parse_recent_dates(values: pd.Series) -> pd.Series:
+    """Parse feed DD/MM/YYYY dates while preserving explicit ISO dates."""
+    text = values.astype("string").str.strip()
+    iso = text.str.match(r"^\d{4}-\d{2}-\d{2}(?:[T ]|$)", na=False)
+    parsed = pd.Series(pd.NaT, index=values.index, dtype="datetime64[ns, UTC]")
+    parsed.loc[iso] = pd.to_datetime(
+        text.loc[iso], format="mixed", utc=True, errors="coerce"
+    )
+    parsed.loc[~iso] = pd.to_datetime(
+        text.loc[~iso], format="mixed", dayfirst=True, utc=True, errors="coerce"
+    )
+    return parsed
+
+
+def recent_run_node(
+    horse_node: object,
+    date_value: object,
+    venue: object,
+    distance: object,
+) -> str | None:
+    if horse_node is None or pd.isna(horse_node):
+        return None
+    if isinstance(date_value, pd.Timestamp):
+        date = date_value
+    else:
+        date = parse_recent_dates(pd.Series([date_value])).iloc[0]
+    if pd.isna(date):
+        return None
+    venue_value = str(venue) if venue is not None and not pd.isna(venue) else "unknown"
+    distance_value = (
+        str(distance) if distance is not None and not pd.isna(distance) else "unknown"
+    )
+    return f"run:{horse_node}|{date.date().isoformat()}|{venue_value}|{distance_value}"
+
+
+def local_race_time(value: pd.Timestamp, country: object) -> pd.Timestamp:
+    """Return a race timestamp in the feed's local calendar-date timezone."""
+    timezone = RACE_TIMEZONES.get(normalize_identity(country))
+    return value.tz_convert(timezone) if timezone is not None else value
+
+
 def add_node_identities(frame: pd.DataFrame) -> pd.DataFrame:
     """Attach typed graph node IDs without mutating source identity columns."""
     result = frame.copy()
@@ -177,10 +336,48 @@ def add_node_identities(frame: pd.DataFrame) -> pd.DataFrame:
         result[f"graph_{node_type}_node"] = result[column].map(
             lambda value, kind=node_type: typed_node(kind, value)
         )
-    venue = result["competition_name"].map(normalize_identity).replace(VENUE_ALIASES)
-    result["graph_venue_node"] = venue.map(
-        lambda value: f"venue:{value}" if value is not None and not pd.isna(value) else None
-    )
+    result["graph_venue_node"] = result["competition_name"].map(venue_node)
+    result["graph_distance_node"] = result["distance_m"].map(distance_node)
+    result["graph_track_status_node"] = result["track_status"].map(track_status_node)
+    for slot in RECENT_RUN_SLOTS:
+        prefix = f"recent_{slot}"
+        graph_prefix = f"graph_recent_{slot}"
+        result[f"_recent_{slot}_time"] = parse_recent_dates(
+            result[f"{prefix}_date"]
+        )
+        result[f"{graph_prefix}_jockey_node"] = result[f"{prefix}_jockey"].map(
+            lambda value: typed_node("jockey", value)
+        )
+        result[f"{graph_prefix}_venue_node"] = result[f"{prefix}_track_name"].map(
+            venue_node
+        )
+        result[f"{graph_prefix}_distance_node"] = result[
+            f"{prefix}_distance_m"
+        ].map(distance_node)
+        result[f"{graph_prefix}_place_node"] = result[f"{prefix}_place"].map(
+            place_node
+        )
+        result[f"{graph_prefix}_track_status_node"] = result[
+            f"{prefix}_track_status"
+        ].map(track_status_node)
+        result[f"{graph_prefix}_class_node"] = result[f"{prefix}_class"].map(
+            lambda value: typed_node("class", value)
+        )
+        event_dates = result[f"_recent_{slot}_time"]
+        event_venues = result[f"{graph_prefix}_venue_node"].fillna("unknown")
+        event_distances = result[f"{graph_prefix}_distance_node"].fillna("unknown")
+        valid_event = result["graph_horse_node"].notna() & event_dates.notna()
+        run_nodes = (
+            "run:"
+            + result["graph_horse_node"].fillna("").astype(str)
+            + "|"
+            + event_dates.dt.strftime("%Y-%m-%d").fillna("")
+            + "|"
+            + event_venues.astype(str)
+            + "|"
+            + event_distances.astype(str)
+        )
+        result[f"{graph_prefix}_run_node"] = run_nodes.where(valid_event, None)
     return result
 
 
@@ -263,6 +460,7 @@ def load_race_rows(database: Path, table: str) -> pd.DataFrame:
         "sire",
         "dam",
         "competition_name",
+        "country",
         "competition_id",
         "start_time_iso",
         "status",
@@ -270,6 +468,12 @@ def load_race_rows(database: Path, table: str) -> pd.DataFrame:
         "source_betting_status",
         "active_field_size",
         "career_starts",
+        "distance_m",
+        "track_status",
+        *(f"recent_{slot}_{name}" for slot in RECENT_RUN_SLOTS for name in (
+            "date", "class", "jockey", "track_name", "distance_m", "place",
+            "track_status",
+        )),
     )
     uri = f"file:{database.resolve()}?mode=ro"
     with sqlite3.connect(uri, uri=True) as connection:
@@ -343,9 +547,12 @@ def graph_edges(
         raise ValueError(f"Unknown edge weight mode: {edge_weight_mode}")
     repeated_edges: dict[tuple[str, str], float] = defaultdict(float)
     static_edges: set[tuple[str, str]] = set()
-    selected = history.loc[:, [*NODE_COLUMNS, "_start_time"]]
+    run_event_edges: set[tuple[str, str]] = set()
+    recent_date_columns = [f"_recent_{slot}_time" for slot in RECENT_RUN_SLOTS]
+    selected_columns = [*NODE_COLUMNS, "country", *recent_date_columns]
+    selected = history.loc[:, [*selected_columns, "_start_time"]]
     for row in selected.itertuples(index=False, name=None):
-        values = dict(zip(NODE_COLUMNS, row[:-1]))
+        values = dict(zip(selected_columns, row[:-1]))
         start_time = row[-1]
         weight = 1.0
         if half_life_days is not None:
@@ -367,6 +574,54 @@ def graph_edges(
             if key[0] != key[1]:
                 static_edges.add(key)
 
+        # Materialize the row's own finished performance. Without this edge set,
+        # a target's latest run can never already exist in a strictly earlier
+        # graph: the target is the first later row that exposes it as recent_1.
+        current_run_node = recent_run_node(
+            values["graph_horse_node"],
+            local_race_time(start_time, values["country"]),
+            values["graph_venue_node"],
+            values["graph_distance_node"],
+        )
+        if current_run_node is not None:
+            for column in CURRENT_RUN_CONTEXT_NODE_COLUMNS:
+                context_node = values[column]
+                if context_node is None or pd.isna(context_node):
+                    continue
+                key = (
+                    (current_run_node, context_node)
+                    if current_run_node < context_node
+                    else (context_node, current_run_node)
+                )
+                if key[0] != key[1]:
+                    run_event_edges.add(key)
+
+        # A historical performance can recur in recent_1..recent_6 across
+        # several later database rows. The set keeps those facts deduplicated
+        # while adding context not present on the performance's own row.
+        for slot in RECENT_RUN_SLOTS:
+            event_time = values[f"_recent_{slot}_time"]
+            if pd.isna(event_time) or event_time >= start_time or event_time >= snapshot:
+                continue
+            run_node = values[f"graph_recent_{slot}_run_node"]
+            if run_node is None or pd.isna(run_node):
+                continue
+            context_nodes = [values["graph_horse_node"]]
+            context_nodes.extend(
+                values[f"graph_recent_{slot}_{name}_node"]
+                for name in RECENT_RUN_CONTEXT_NODE_NAMES
+            )
+            for context_node in context_nodes:
+                if context_node is None or pd.isna(context_node):
+                    continue
+                key = (
+                    (run_node, context_node)
+                    if run_node < context_node
+                    else (context_node, run_node)
+                )
+                if key[0] != key[1]:
+                    run_event_edges.add(key)
+
     if edge_weight_mode == "log":
         edges = {key: math.log1p(weight) for key, weight in repeated_edges.items()}
     elif edge_weight_mode == "binary":
@@ -375,6 +630,8 @@ def graph_edges(
         edges = dict(repeated_edges)
     # Pedigree remains exactly one regardless of repeated-edge mode or decay.
     edges.update({key: 1.0 for key in static_edges})
+    # Run-context edges are deduplicated historical facts, not interaction counts.
+    edges.update({key: 1.0 for key in run_event_edges})
     return edges
 
 
@@ -385,10 +642,13 @@ def repeated_edge_weight_statistics(
         [
             weight
             for (left, right), weight in edges.items()
-            if not (
-                (left.startswith("horse:") and right.startswith(("sire:", "dam:")))
-                or (right.startswith("horse:") and left.startswith(("sire:", "dam:")))
-            )
+            if frozenset((left.split(":", 1)[0], right.split(":", 1)[0]))
+            in {
+                frozenset(("horse", "jockey")),
+                frozenset(("horse", "trainer")),
+                frozenset(("horse", "venue")),
+                frozenset(("jockey", "trainer")),
+            }
         ],
         dtype=np.float64,
     )
@@ -427,6 +687,31 @@ def _weighted_choice(
     return candidates[int(rng.choice(len(candidates), p=probabilities))]
 
 
+def first_order_samplers(
+    adjacency: Mapping[str, Mapping[str, float]],
+) -> dict[str, tuple[tuple[str, ...], np.ndarray]]:
+    """Cache exact weighted samplers for the p=q=1 node2vec special case."""
+    samplers: dict[str, tuple[tuple[str, ...], np.ndarray]] = {}
+    for node, neighbors in adjacency.items():
+        # Mapping insertion order can originate in set-backed edge aggregation.
+        # Canonical ordering makes --seed reproducible across Python processes.
+        candidates = tuple(sorted(neighbors))
+        weights = np.fromiter(
+            (neighbors[candidate] for candidate in candidates), dtype=np.float64
+        )
+        samplers[node] = (candidates, np.cumsum(weights))
+    return samplers
+
+
+def _cached_weighted_choice(
+    sampler: tuple[tuple[str, ...], np.ndarray], rng: np.random.Generator
+) -> str:
+    candidates, cumulative = sampler
+    threshold = float(rng.random()) * float(cumulative[-1])
+    position = int(np.searchsorted(cumulative, threshold, side="right"))
+    return candidates[min(position, len(candidates) - 1)]
+
+
 def biased_walk(
     adjacency: Mapping[str, Mapping[str, float]],
     start: str,
@@ -434,6 +719,9 @@ def biased_walk(
     p: float,
     q: float,
     rng: np.random.Generator,
+    cached_samplers: Mapping[
+        str, tuple[tuple[str, ...], np.ndarray]
+    ] | None = None,
 ) -> list[str]:
     """Generate one second-order node2vec walk."""
     walk = [start]
@@ -442,7 +730,10 @@ def biased_walk(
         neighbors = adjacency.get(current, {})
         if not neighbors:
             break
-        candidates = tuple(neighbors)
+        if cached_samplers is not None:
+            walk.append(_cached_weighted_choice(cached_samplers[current], rng))
+            continue
+        candidates = tuple(sorted(neighbors))
         weights = np.fromiter((neighbors[node] for node in candidates), dtype=float)
         if len(walk) > 1:
             previous = walk[-2]
@@ -487,6 +778,22 @@ class WalkCorpus:
         self.progress_label = progress_label
         self.progress_every_nodes = progress_every_nodes
         self._iterations = 0
+        self.cached_samplers: dict[
+            str, tuple[tuple[str, ...], np.ndarray]
+        ] | None = None
+        if p == 1.0 and q == 1.0:
+            started = time.perf_counter()
+            print(
+                f"{self.progress_label} sampler_cache started mode=p1_q1",
+                flush=True,
+            )
+            self.cached_samplers = first_order_samplers(adjacency)
+            print(
+                f"{self.progress_label} sampler_cache complete "
+                f"nodes={len(self.cached_samplers):,} "
+                f"elapsed={time.perf_counter() - started:.1f}s",
+                flush=True,
+            )
 
     @property
     def total_examples(self) -> int:
@@ -513,6 +820,7 @@ class WalkCorpus:
                     self.p,
                     self.q,
                     rng,
+                    self.cached_samplers,
                 )
                 if (
                     completed % self.progress_every_nodes == 0
@@ -909,6 +1217,11 @@ def main() -> int:
         )
         adjacency = adjacency_from_edges(edges)
         repeated_stats = repeated_edge_weight_statistics(edges)
+        run_nodes = sum(node.startswith("run:") for node in adjacency)
+        run_context_edges = sum(
+            left.startswith("run:") or right.startswith("run:")
+            for left, right in edges
+        )
         summary = GraphSummary(len(adjacency), len(edges), len(history))
         print(
             f"snapshot[{number}/{len(assignments)}]={snapshot.isoformat()} "
@@ -923,6 +1236,11 @@ def main() -> int:
             f"median={repeated_stats['median']:.4f} "
             f"mean={repeated_stats['mean']:.4f} p95={repeated_stats['p95']:.4f} "
             f"max={repeated_stats['max']:.4f}",
+            flush=True,
+        )
+        print(
+            f"snapshot_historical_run_graph run_nodes={run_nodes:,} "
+            f"run_context_edges={run_context_edges:,} deduplicated=yes",
             flush=True,
         )
         if args.dry_run:

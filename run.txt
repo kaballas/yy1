@@ -862,7 +862,7 @@ python build_racing_graph_features.py \
     --output-table graph_features_july_aug \
     --target-from 2026-06-30T14:00:00Z \
     --target-to 2026-08-31T14:00:00Z \
-    --snapshot-frequency monthly \
+    --snapshot-frequency dayly \
     --dimensions 16 \
     --walk-length 20 \
     --walks-per-node 5 \
@@ -870,7 +870,7 @@ python build_racing_graph_features.py \
     --epochs 3 \
     --p 1.0 \
     --q 1.0 \
-    --workers 1 \
+    --workers 10 \
     --seed 42 \
     --progress-every-nodes 5000  
 
@@ -894,4 +894,23 @@ python train_predict_graph_month.py \
     --seed 42 \
     --output-dir outputs/graph_july_quick_10845517
  
+
+python train_predict_graph_month.py \
+    --db db/race_runners.sqlite \
+    --graph-table graph_features_events_july_aug \
+    --features-json winner_ranker_features.json \
+    --baseline-model c2 \
+    --models graph_a graph_b graph_c graph_d \
+    --train-start 2026-07-01 \
+    --train-end 2026-08-01 \
+    --timezone Australia/Sydney \
+    --race-id 10845517 \
+    --validation-races 100 \
+    --ensemble-size 1 \
+    --max-estimators 300 \
+    --early-stopping-rounds 30 \
+    --selection-objective top1 \
+    --jobs 6 \
+    --seed 42 \
+    --output-dir outputs/graph_events_july_10845517
 

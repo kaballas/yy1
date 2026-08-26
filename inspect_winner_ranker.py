@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -207,6 +208,50 @@ def contribution_delta_table(
     }).sort_values("absolute_delta", ascending=False, kind="stable", ignore_index=True)
 
 
+def winner_backing_feature_table(
+    matrix: pd.DataFrame,
+    member_contributions: np.ndarray,
+    winner: int,
+    other: int,
+) -> pd.DataFrame:
+    """List features whose evidence pointed to the actual winner over ``other``.
+
+    ``winner_field_rank`` ranks the winner's raw value within the field in the
+    direction the model rewards (sign of the value/SHAP correlation); rank 1
+    means ranking the race by this feature alone would have picked the winner.
+    """
+    feature_shap = member_contributions[:, :, :-1].mean(axis=0)
+    winner_delta = feature_shap[winner] - feature_shap[other]
+    values = matrix.to_numpy(dtype=np.float64)
+    field_ranks = np.full(len(matrix.columns), np.nan)
+    solo_correct = np.zeros(len(matrix.columns), dtype=bool)
+    for index, feature in enumerate(matrix.columns):
+        column = pd.to_numeric(matrix[feature], errors="coerce")
+        with warnings.catch_warnings():
+            # Constant columns produce an undefined correlation by design.
+            warnings.simplefilter("ignore", RuntimeWarning)
+            correlation = column.corr(pd.Series(feature_shap[:, index]))
+        if not np.isfinite(correlation) or correlation == 0:
+            continue
+        rank = column.rank(
+            ascending=correlation < 0, method="min", na_option="bottom"
+        )
+        field_ranks[index] = rank.iloc[winner]
+        solo_correct[index] = field_ranks[index] == 1
+    table = pd.DataFrame({
+        "feature": list(matrix.columns),
+        "winner_value": values[winner],
+        "other_value": values[other],
+        "winner_shap_minus_other": winner_delta,
+        "winner_field_rank": field_ranks,
+        "solo_pick_correct": solo_correct,
+    })
+    table = table.loc[table["winner_shap_minus_other"] > 0]
+    return table.sort_values(
+        "winner_shap_minus_other", ascending=False, kind="stable", ignore_index=True
+    )
+
+
 def runner_vs_field_contribution_table(
     matrix: pd.DataFrame,
     member_contributions: np.ndarray,
@@ -343,6 +388,31 @@ def model_output_path(path: Path | None, label: str, multiple: bool) -> Path | N
     return resolved.with_name(f"{resolved.stem}_{label}{resolved.suffix}")
 
 
+def validate_derived_feature_version(
+    frame: pd.DataFrame,
+    expected_versions: list[str],
+    *,
+    target: str,
+    refresh_hint: str,
+) -> None:
+    """Warn when the race and bundle were built with different feature versions."""
+    versions = sorted(
+        str(value)
+        for value in frame["derived_racing_features_version"].dropna().unique()
+    )
+    if len(versions) != 1 or frame["derived_racing_features_version"].isna().any():
+        raise ValueError(
+            "Race has missing/mixed derived feature versions; run the feature updater"
+        )
+    if expected_versions and versions[0] not in expected_versions:
+        warnings.warn(
+            f"Race feature version {versions[0]!r} was not used by this {target}; "
+            f"the loaded model bundle may be stale. {refresh_hint}",
+            UserWarning,
+            stacklevel=2,
+        )
+
+
 def inspect_model(
     args: argparse.Namespace,
     bundle: dict[str, Any],
@@ -353,21 +423,18 @@ def inspect_model(
 ) -> pd.DataFrame:
     features = model_features_from_bundle(bundle, label)
     frame = load_finished_race(args.db, args.race_id, features)
-    versions = sorted(
-        str(value)
-        for value in frame["derived_racing_features_version"].dropna().unique()
-    )
     expected_versions = [
         str(value) for value in bundle.get("derived_feature_versions", [])
     ]
-    if len(versions) != 1 or frame["derived_racing_features_version"].isna().any():
-        raise ValueError(
-            "Race has missing/mixed derived feature versions; run the feature updater"
-        )
-    if expected_versions and versions[0] not in expected_versions:
-        raise ValueError(
-            f"Race feature version {versions[0]!r} was not used by this bundle"
-        )
+    validate_derived_feature_version(
+        frame,
+        expected_versions,
+        target="bundle",
+        refresh_hint=(
+            "Rerun train_winner_ranker_pipeline.py to regenerate the bundle before "
+            "using it for ranking or inspection."
+        ),
+    )
     matrix = model_feature_matrix(frame, features)
     models = load_models(paths)
     scores, raw_margin, member_contributions = (
@@ -421,6 +488,25 @@ def inspect_model(
     print(delta.head(args.top_features).drop(columns="absolute_delta").to_string(
         index=False, float_format=lambda value: f"{value:.6f}"
     ))
+
+    other = selected if selected != winner else comparison
+    backing = winner_backing_feature_table(matrix, member_contributions, winner, other)
+    other_row = frame.iloc[other]
+    print("\nFEATURES THAT WOULD HAVE PREDICTED THE RACE CORRECTLY")
+    print(
+        f"winner={winner_row['runner_number']} {winner_row['runner_name']} "
+        f"other={other_row['runner_number']} {other_row['runner_name']}\n"
+        f"features_backing_winner={len(backing)}/{len(features)} "
+        f"solo_pick_correct={int(backing['solo_pick_correct'].sum())} "
+        "(winner_field_rank=1 means ranking by that feature alone picks the "
+        "winner)"
+    )
+    if backing.empty:
+        print("no features favoured the actual winner over the other runner")
+    else:
+        print(backing.head(args.top_features).to_string(
+            index=False, float_format=lambda value: f"{value:.6f}"
+        ))
     print("\nGLOBAL GAIN IMPORTANCE")
     gain = global_gain_table(models)
     print(gain.head(args.top_features).to_string(

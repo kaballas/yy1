@@ -1,0 +1,10 @@
+display,runner_number,runner_name,graph_a_score,graph_a_rank,graph_b_score,graph_b_rank,graph_c_score,graph_c_rank,graph_d_score,graph_d_rank,selected_score,selected_rank
+1,3,Divine Secrets,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+2,2,Blenheim Girl,0.875,2.0,0.875,2.0,0.875,2.0,0.875,2.0,0.875,2.0
+3,10,Diamond Model,0.75,3.0,0.75,3.0,0.625,4.0,0.75,3.0,0.75,3.0
+4,8,Tulipwood,0.5,5.0,0.375,6.0,0.375,6.0,0.5,5.0,0.625,4.0
+5,6,Pelevecchio,0.625,4.0,0.625,4.0,0.75,3.0,0.625,4.0,0.5,5.0
+6,12,Fire 'N' Stone,0.375,6.0,0.5,5.0,0.5,5.0,0.375,6.0,0.375,6.0
+7,9,Beverly Hills,0.25,7.0,0.25,7.0,0.25,7.0,0.25,7.0,0.25,7.0
+8,11,Erina,0.125,8.0,0.125,8.0,0.125,8.0,0.125,8.0,0.125,8.0
+9,15,Pearler,0.0,9.0,0.0,9.0,0.0,9.0,0.0,9.0,0.0,9.0

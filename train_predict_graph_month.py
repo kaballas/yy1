@@ -41,6 +41,15 @@ from train_winner_ranker_pipeline import model_parameters
 
 ROOT = Path(__file__).resolve().parent
 
+RECENT_DETAIL_NAMES = (
+    "class", "jockey", "track_name", "distance_m", "place", "track_status",
+)
+RACE_DETAIL_COLUMNS = (
+    "runner_country", "jockey", "trainer", "sire", "dam", "distance_m",
+    "track_status",
+    *(f"recent_{slot}_{name}" for slot in range(1, 7) for name in RECENT_DETAIL_NAMES),
+)
+
 
 def utc_timestamp(value: str, option: str, timezone: str) -> pd.Timestamp:
     try:
@@ -75,7 +84,9 @@ def load_target_race(
     race_features = [
         name
         for name in required_features
-        if not name.startswith("graph_") and name not in metadata
+        if not name.startswith("graph_")
+        and name not in metadata
+        and name not in RACE_DETAIL_COLUMNS
     ]
     uri = f"file:{database.resolve()}?mode=ro"
     with sqlite3.connect(uri, uri=True) as connection:
@@ -89,7 +100,9 @@ def load_target_race(
                 f"PRAGMA table_info({quote_identifier(graph_table)})"
             )
         }
-        missing_race = sorted(set([*metadata, *race_features]) - race_schema)
+        missing_race = sorted(
+            set([*metadata, *RACE_DETAIL_COLUMNS, *race_features]) - race_schema
+        )
         missing_graph = sorted(set(graph_features) - graph_schema)
         if missing_race:
             raise ValueError("race_runners is missing: " + ", ".join(missing_race))
@@ -98,6 +111,7 @@ def load_target_race(
         selected = [
             "r.rowid AS source_rowid",
             *(f"r.{quote_identifier(name)}" for name in metadata),
+            *(f"r.{quote_identifier(name)}" for name in RACE_DETAIL_COLUMNS),
             *(f"r.{quote_identifier(name)}" for name in race_features),
             "g.snapshot_date",
             *(f"g.{quote_identifier(name)}" for name in graph_features),
@@ -131,11 +145,191 @@ def load_target_race(
     return target
 
 
+def display_value(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "<null>"
+    if isinstance(value, (float, np.floating)):
+        return f"{float(value):g}"
+    return str(value)
+
+
+def print_target_race_details(target: pd.DataFrame) -> None:
+    race = target.iloc[0]
+    snapshots = sorted(str(value) for value in target["snapshot_date"].dropna().unique())
+    print("\nTARGET RACE DETAILS")
+    print(
+        f"race_id={int(race['race_id'])} competition_id={race['competition_id']} "
+        f"venue={display_value(race['competition_name'])} "
+        f"race_number={display_value(race['race_number'])} "
+        f"race_name={display_value(race['race_name'])}"
+    )
+    print(
+        f"start={race['start_time_iso']} status={display_value(race['status'])} "
+        f"betting_status={display_value(race['source_betting_status'])} "
+        f"distance_m={display_value(race['distance_m'])} "
+        f"track_status={display_value(race['track_status'])} "
+        f"active_runners={len(target)} graph_snapshots={json.dumps(snapshots)}"
+    )
+    print("\nTARGET RUNNER AND RECENT-FORM DETAILS")
+    for row in target.itertuples(index=False):
+        values = row._asdict()
+        print(
+            f"runner={display_value(values['runner_number'])} "
+            f"name={display_value(values['runner_name'])} "
+            f"country={display_value(values['runner_country'])} "
+            f"jockey={display_value(values['jockey'])} "
+            f"trainer={display_value(values['trainer'])} "
+            f"sire={display_value(values['sire'])} dam={display_value(values['dam'])}"
+        )
+        for slot in range(1, 7):
+            details = " ".join(
+                f"{name}={display_value(values[f'recent_{slot}_{name}'])}"
+                for name in RECENT_DETAIL_NAMES
+            )
+            print(f"  recent_{slot}: {details}")
+
+
+def write_race_input_audit(
+    target: pd.DataFrame,
+    feature_sets: dict[str, list[str]],
+    output_dir: Path,
+) -> Path:
+    model_features = list(dict.fromkeys(
+        feature for features in feature_sets.values() for feature in features
+    ))
+    columns = list(dict.fromkeys([
+        "source_rowid", "race_id", "start_time_iso", "snapshot_date",
+        "competition_id", "competition_name", "race_number", "race_name",
+        "status", "source_betting_status", "active_field_size", "runner_mask",
+        "runner_number", "runner_name", *RACE_DETAIL_COLUMNS, *model_features,
+    ]))
+    path = output_dir / f"race_{int(target['race_id'].iloc[0])}_input_values.csv"
+    target.loc[:, columns].to_csv(path, index=False)
+    return path
+
+
+def exact_xgboost_input_frame(
+    frame: pd.DataFrame,
+    features: list[str],
+) -> pd.DataFrame:
+    """Return audit metadata plus the exact numeric X matrix in column order."""
+    matrix = model_feature_matrix(frame, features)
+    metadata_columns = [
+        column
+        for column in (
+            "race_id", "runner_number", "runner_name", "is_winner"
+        )
+        if column in frame
+    ]
+    return pd.concat(
+        [
+            frame.loc[:, metadata_columns].reset_index(drop=True),
+            matrix.reset_index(drop=True),
+        ],
+        axis=1,
+    )
+
+
+def write_selected_xgboost_audits(
+    label: str,
+    features: list[str],
+    tuning: pd.DataFrame,
+    validation: pd.DataFrame,
+    full_training: pd.DataFrame,
+    target: pd.DataFrame,
+    selected_trees: list[int],
+    args: argparse.Namespace,
+    output_dir: Path,
+) -> dict[str, str]:
+    cohorts = {
+        "tuning": tuning,
+        "validation": validation,
+        "full_refit": full_training,
+        "prediction": target,
+    }
+    paths: dict[str, str] = {}
+    for cohort_name, cohort in cohorts.items():
+        path = output_dir / f"{label}_{cohort_name}_xgboost_input.csv"
+        exact_xgboost_input_frame(cohort, features).to_csv(path, index=False)
+        paths[f"{cohort_name}_input_csv"] = str(path)
+
+    group_payload = {
+        name: group_sizes(cohort).astype(int).tolist()
+        for name, cohort in cohorts.items()
+    }
+    groups_path = output_dir / f"{label}_xgboost_group_sizes.json"
+    groups_path.write_text(
+        json.dumps(group_payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    paths["group_sizes_json"] = str(groups_path)
+
+    parameters = [
+        model_parameters(args, args.seed + member * 1009, trees)
+        for member, trees in enumerate(selected_trees)
+    ]
+    parameters_path = output_dir / f"{label}_xgboost_parameters.json"
+    parameters_path.write_text(
+        json.dumps(parameters, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    paths["parameters_json"] = str(parameters_path)
+    return paths
+
+
+def print_selected_xgboost_details(
+    label: str,
+    features: list[str],
+    full_training: pd.DataFrame,
+    target: pd.DataFrame,
+    selected_trees: list[int],
+    args: argparse.Namespace,
+) -> None:
+    training_matrix = model_feature_matrix(full_training, features)
+    prediction_matrix = model_feature_matrix(target, features)
+    groups = group_sizes(full_training).astype(int)
+    missing = training_matrix.isna().sum()
+    parameters = [
+        model_parameters(args, args.seed + member * 1009, trees)
+        for member, trees in enumerate(selected_trees)
+    ]
+    print("\nSELECTED XGBOOST EXACT INPUT DETAILS")
+    print(
+        f"model={label} training_rows={len(training_matrix):,} "
+        f"training_races={len(groups):,} features={len(features):,} "
+        f"group_size_min={groups.min()} group_size_median={np.median(groups):g} "
+        f"group_size_max={groups.max()}"
+    )
+    print(f"feature_columns={json.dumps(features)}")
+    print(
+        "training_missing_values="
+        + json.dumps({feature: int(missing[feature]) for feature in features})
+    )
+    print(f"member_parameters={json.dumps(parameters, sort_keys=True)}")
+    target_display = pd.concat(
+        [
+            target.loc[:, ["runner_number", "runner_name"]].reset_index(drop=True),
+            prediction_matrix.reset_index(drop=True),
+        ],
+        axis=1,
+    )
+    print("\nSELECTED XGBOOST EXACT PREDICTION MATRIX")
+    print(
+        target_display.to_string(
+            index=False,
+            na_rep="NaN",
+            float_format=lambda value: f"{value:.6g}",
+        )
+    )
+
+
 MODEL_SIMPLICITY_ORDER = {
     "graph_a": 0,
     "graph_b": 1,
     "graph_c": 2,
     "graph_d": 3,
+    "graph_e": 4,
+    "graph_only": 5,
 }
 
 
@@ -155,6 +349,17 @@ def select_validation_model(
             MODEL_SIMPLICITY_ORDER[label],
         ),
     )
+
+
+def expand_validation_models(requested: Sequence[str]) -> list[str]:
+    """Keep pure graph-only runs pure; expand hybrid experiments to A-E."""
+    requested_unique = list(dict.fromkeys(requested))
+    if requested_unique == ["graph_only"]:
+        return ["graph_only"]
+    hybrid_models = [label for label in MODEL_SIMPLICITY_ORDER if label != "graph_only"]
+    if "graph_only" in requested_unique:
+        return [*hybrid_models, "graph_only"]
+    return hybrid_models
 
 
 def refit_selected_ensemble(
@@ -189,8 +394,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--baseline-model", default="c2")
     parser.add_argument(
         "--models", nargs="+",
-        choices=("graph_a", "graph_b", "graph_c", "graph_d"),
-        default=["graph_a", "graph_b", "graph_c", "graph_d"],
+        choices=(
+            "graph_a", "graph_b", "graph_c", "graph_d", "graph_e", "graph_only",
+        ),
+        default=["graph_a", "graph_b", "graph_c", "graph_d", "graph_e"],
+        help=(
+            "Accepted for command compatibility; model selection always evaluates "
+            "graph_a through graph_e, except --models graph_only runs only the "
+            "pure 87-column graph model."
+        ),
     )
     parser.add_argument("--train-start", required=True)
     parser.add_argument("--train-end", required=True)
@@ -210,6 +422,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jobs", type=int, default=6)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--inspect-only",
+        action="store_true",
+        help="Print/write target inputs, then exit without training models.",
+    )
+    parser.add_argument(
         "--output-dir", type=Path,
         default=ROOT / "outputs" / "graph_one_month_prediction",
     )
@@ -220,15 +437,14 @@ def parse_args() -> argparse.Namespace:
     ):
         if getattr(args, name) < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
-    args.models = list(dict.fromkeys(args.models))
-    required_models = list(MODEL_SIMPLICITY_ORDER)
-    missing_models = [label for label in required_models if label not in args.models]
-    if missing_models:
-        parser.error(
-            "validation selection requires all graph models; missing from --models: "
-            + ", ".join(missing_models)
+    requested_models = list(dict.fromkeys(args.models))
+    args.models = expand_validation_models(requested_models)
+    if requested_models != args.models:
+        print(
+            f"requested_models={','.join(requested_models)} "
+            f"expanded_validation_models={','.join(args.models)}",
+            flush=True,
         )
-    args.models = required_models
     return args
 
 
@@ -278,6 +494,12 @@ def main() -> int:
 
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    print_target_race_details(target)
+    race_input_path = write_race_input_audit(target, feature_sets, output_dir)
+    print(f"race_input_values={race_input_path}")
+    if args.inspect_only:
+        print("inspect_only=yes models_trained=no")
+        return 0
     print(
         f"training_window=[{train_start}, {train_end}) "
         f"eligible_races={len(race_ids):,} tuning_races={len(tuning_ids):,} "
@@ -306,6 +528,31 @@ def main() -> int:
         f"validation_mrr={validation_metrics[selected_model]['mrr']:.5f}",
         flush=True,
     )
+    print(
+        f"selected_model_input_columns="
+        f"{json.dumps(feature_sets[selected_model])}",
+        flush=True,
+    )
+    print_selected_xgboost_details(
+        selected_model,
+        feature_sets[selected_model],
+        full_training,
+        target,
+        selected_trees[selected_model],
+        args,
+    )
+    xgboost_audit_paths = write_selected_xgboost_audits(
+        selected_model,
+        feature_sets[selected_model],
+        tuning,
+        validation,
+        full_training,
+        target,
+        selected_trees[selected_model],
+        args,
+        output_dir,
+    )
+    print(f"selected_xgboost_input_audits={json.dumps(xgboost_audit_paths)}")
     selected_ensemble = refit_selected_ensemble(
         args,
         selected_model,
@@ -368,6 +615,8 @@ def main() -> int:
         ),
         "selection_metric": selection_eval_metrics(args.selection_objective)[-1],
         "prediction_csv": str(prediction_path),
+        "race_input_values_csv": str(race_input_path),
+        "selected_xgboost_input_audits": xgboost_audit_paths,
     }
     (output_dir / "one_month_prediction_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"

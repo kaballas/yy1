@@ -20,6 +20,8 @@ from rank_winner_models import (
     select_historical_cohort,
     terminal_display_table,
     terminal_table_text,
+    unique_model_top_combinations,
+    unique_model_top_sets,
 )
 
 
@@ -251,6 +253,49 @@ def test_terminal_table_colors_only_rank_ones():
     assert rendered.count("\033[31m1\033[0m") == 3
     assert "runner_number" in rendered
     assert "contrarian_top3" in rendered
+
+
+def test_unique_model_top_combinations_collapses_identical_ordered_selections():
+    output = pd.DataFrame({
+        "runner_number": [8, 9, 6, 4, 1],
+        "runner_name": ["A", "B", "C", "D", "E"],
+        "fluc2": [4.4, 3.8, 4.8, 10.0, 13.0],
+        "a_rank": [1, 2, 3, 4, 5],
+        "b_rank": [1, 2, 3, 4, 5],
+        "c_rank": [2, 1, 5, 3, 4],
+    })
+
+    summary = unique_model_top_combinations(
+        output, ["a_rank", "b_rank", "c_rank"], 4
+    )
+
+    assert summary["runner_numbers"].tolist() == ["8,9,6,4", "9,8,4,1"]
+    assert summary["model_count"].tolist() == [2, 1]
+    assert summary["models"].tolist() == ["a,b", "c"]
+    assert summary["runner_names"].tolist() == ["A > B > C > D", "B > A > D > E"]
+    with pytest.raises(ValueError, match="must be positive"):
+        unique_model_top_combinations(output, ["a_rank"], 0)
+
+
+def test_unique_model_top_sets_ignores_runner_order():
+    output = pd.DataFrame({
+        "runner_number": [8, 9, 6, 4, 1],
+        "runner_name": ["A", "B", "C", "D", "E"],
+        "a_rank": [1, 2, 3, 4, 5],
+        "b_rank": [2, 1, 4, 3, 5],
+        "c_rank": [2, 1, 5, 3, 4],
+    })
+
+    summary = unique_model_top_sets(
+        output, ["a_rank", "b_rank", "c_rank"], 4
+    )
+
+    assert summary["runner_numbers"].tolist() == ["4,6,8,9", "1,4,8,9"]
+    assert summary["model_count"].tolist() == [2, 1]
+    assert summary["models"].tolist() == ["a,b", "c"]
+    assert summary["runner_names"].tolist() == ["D + C + A + B", "E + D + A + B"]
+    with pytest.raises(ValueError, match="must be positive"):
+        unique_model_top_sets(output, ["a_rank"], 0)
 
 
 def test_number_one_summary_counts_visible_rankings_but_not_display_order():

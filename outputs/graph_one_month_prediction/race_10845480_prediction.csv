@@ -1,0 +1,12 @@
+display,runner_number,runner_name,graph_a_score,graph_a_rank,graph_b_score,graph_b_rank,graph_c_score,graph_c_rank,graph_d_score,graph_d_rank,selected_score,selected_rank
+1,7,Need A Miracle,0.9,2.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+2,2,Stallone,1.0,1.0,0.9,2.0,0.9,2.0,0.9,2.0,0.9,2.0
+3,8,Ensign Parker,0.8,3.0,0.7,4.0,0.8,3.0,0.8,3.0,0.8,3.0
+4,5,Onmalone,0.7,4.0,0.6,5.0,0.6,5.0,0.7,4.0,0.7,4.0
+5,3,Extra Heights,0.6,5.0,0.8,3.0,0.7,4.0,0.6,5.0,0.6,5.0
+6,11,Wandjad,0.5,6.0,0.5,6.0,0.4,7.0,0.5,6.0,0.5,6.0
+7,10,Dreymon,0.4,7.0,0.3,8.0,0.5,6.0,0.4,7.0,0.4,7.0
+8,4,Sizzler,0.3,8.0,0.4,7.0,0.3,8.0,0.3,8.0,0.3,8.0
+9,9,Fiction Society,0.2,9.0,0.2,9.0,0.2,9.0,0.2,9.0,0.2,9.0
+10,1,Sharp Shock,0.1,10.0,0.1,10.0,0.1,10.0,0.1,10.0,0.1,10.0
+11,12,Ocean Shores,0.0,11.0,0.0,11.0,0.0,11.0,0.0,11.0,0.0,11.0

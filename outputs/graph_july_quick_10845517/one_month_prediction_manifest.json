@@ -1,0 +1,152 @@
+{
+  "database": "/home/theo/yy1/db/race_runners.sqlite",
+  "diagnostic_model_scope": "tuning-window models before the selected model is refit on the complete training window",
+  "feature_sets": {
+    "graph_a": [
+      "distance_m",
+      "field_size",
+      "current_barrier_percentile",
+      "dry_rating",
+      "jockey_history_top3_excess",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "distance_step_down_pct"
+    ],
+    "graph_b": [
+      "distance_m",
+      "field_size",
+      "current_barrier_percentile",
+      "dry_rating",
+      "jockey_history_top3_excess",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "distance_step_down_pct",
+      "graph_horse_jockey_similarity",
+      "graph_horse_trainer_similarity",
+      "graph_horse_sire_similarity",
+      "graph_horse_dam_similarity",
+      "graph_horse_venue_similarity",
+      "graph_jockey_trainer_similarity"
+    ],
+    "graph_c": [
+      "distance_m",
+      "field_size",
+      "current_barrier_percentile",
+      "dry_rating",
+      "jockey_history_top3_excess",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "distance_step_down_pct",
+      "graph_horse_jockey_similarity",
+      "graph_horse_trainer_similarity",
+      "graph_horse_sire_similarity",
+      "graph_horse_dam_similarity",
+      "graph_horse_venue_similarity",
+      "graph_jockey_trainer_similarity",
+      "graph_horse_trainer_similarity_rank_in_race",
+      "graph_horse_trainer_similarity_minus_race_mean",
+      "graph_horse_jockey_similarity_rank_in_race",
+      "graph_horse_jockey_similarity_minus_race_mean",
+      "graph_jockey_trainer_similarity_rank_in_race",
+      "graph_jockey_trainer_similarity_minus_race_mean",
+      "graph_horse_sire_similarity_rank_in_race",
+      "graph_horse_sire_similarity_minus_race_mean",
+      "graph_horse_venue_similarity_rank_in_race",
+      "graph_horse_venue_similarity_minus_race_mean"
+    ],
+    "graph_d": [
+      "distance_m",
+      "field_size",
+      "current_barrier_percentile",
+      "dry_rating",
+      "jockey_history_top3_excess",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "distance_step_down_pct",
+      "graph_horse_jockey_similarity",
+      "graph_horse_trainer_similarity",
+      "graph_horse_sire_similarity",
+      "graph_horse_dam_similarity",
+      "graph_horse_venue_similarity",
+      "graph_jockey_trainer_similarity",
+      "graph_horse_trainer_similarity_rank_in_race",
+      "graph_horse_trainer_similarity_minus_race_mean",
+      "graph_horse_jockey_similarity_rank_in_race",
+      "graph_horse_jockey_similarity_minus_race_mean",
+      "graph_jockey_trainer_similarity_rank_in_race",
+      "graph_jockey_trainer_similarity_minus_race_mean",
+      "graph_horse_sire_similarity_rank_in_race",
+      "graph_horse_sire_similarity_minus_race_mean",
+      "graph_horse_venue_similarity_rank_in_race",
+      "graph_horse_venue_similarity_minus_race_mean",
+      "graph_sire_trainer_similarity",
+      "graph_sire_jockey_similarity",
+      "graph_dam_trainer_similarity",
+      "graph_trainer_venue_similarity",
+      "graph_jockey_venue_similarity",
+      "graph_horse_embedding_available",
+      "graph_jockey_embedding_available",
+      "graph_trainer_embedding_available",
+      "graph_sire_embedding_available",
+      "graph_dam_embedding_available",
+      "graph_venue_embedding_available"
+    ]
+  },
+  "graph_table": "graph_features_july_aug",
+  "prediction_csv": "/home/theo/yy1/outputs/graph_july_quick_10845517/race_10845521_prediction.csv",
+  "schema_version": 1,
+  "selected_model": "graph_a",
+  "selected_trees": {
+    "graph_a": [
+      5
+    ],
+    "graph_b": [
+      21
+    ],
+    "graph_c": [
+      7
+    ],
+    "graph_d": [
+      20
+    ]
+  },
+  "selection_metric": "ndcg@1",
+  "target_race_id": 10845521,
+  "target_start": "2026-08-24 06:00:00+00:00",
+  "training_races": 1437,
+  "training_window": {
+    "end": "2026-08-01 00:00:00+10:00",
+    "start": "2026-07-01 00:00:00+10:00"
+  },
+  "validation_metrics": {
+    "graph_a": {
+      "mean_winner_rank": 3.3344444444444443,
+      "mrr": 0.5016304044539338,
+      "races": 900.0,
+      "top1_hit_rate": 0.29,
+      "top2_hit_rate": 0.4666666666666667,
+      "top3_hit_rate": 0.6133333333333333
+    },
+    "graph_b": {
+      "mean_winner_rank": 3.3855555555555554,
+      "mrr": 0.48659852493185823,
+      "races": 900.0,
+      "top1_hit_rate": 0.27111111111111114,
+      "top2_hit_rate": 0.44222222222222224,
+      "top3_hit_rate": 0.6177777777777778
+    },
+    "graph_c": {
+      "mean_winner_rank": 3.55,
+      "mrr": 0.4745672321505655,
+      "races": 900.0,
+      "top1_hit_rate": 0.26,
+      "top2_hit_rate": 0.44555555555555554,
+      "top3_hit_rate": 0.5788888888888889
+    },
+    "graph_d": {
+      "mean_winner_rank": 3.473333333333333,
+      "mrr": 0.47828672870339534,
+      "races": 900.0,
+      "top1_hit_rate": 0.26555555555555554,
+      "top2_hit_rate": 0.42333333333333334,
+      "top3_hit_rate": 0.6088888888888889
+    }
+  },
+  "validation_races_for_tree_selection": 900
+}

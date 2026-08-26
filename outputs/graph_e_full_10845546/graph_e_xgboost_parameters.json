@@ -1,0 +1,23 @@
+[
+  {
+    "colsample_bytree": 0.65,
+    "eval_metric": [
+      "ndcg@1",
+      "ndcg@3",
+      "map"
+    ],
+    "lambdarank_num_pair_per_sample": 8,
+    "lambdarank_pair_method": "topk",
+    "learning_rate": 0.025,
+    "max_depth": 4,
+    "min_child_weight": 12,
+    "n_estimators": 49,
+    "n_jobs": 6,
+    "objective": "rank:ndcg",
+    "random_state": 42,
+    "reg_alpha": 0.25,
+    "reg_lambda": 10.0,
+    "subsample": 0.8,
+    "tree_method": "hist"
+  }
+]

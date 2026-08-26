@@ -14,6 +14,7 @@ import json
 import os
 import sqlite3
 import sys
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -127,6 +128,17 @@ def parse_args() -> argparse.Namespace:
             "Maximum individual model columns/results to print when using a "
             "race-model manifest (default: 10). All models still contribute to "
             "consensus. Use 0 to display every model."
+        ),
+    )
+    parser.add_argument(
+        "--unique-top-limit",
+        type=int,
+        action="append",
+        dest="unique_top_limits",
+        help=(
+            "Show each unique ordered model top-N runner combination once in a "
+            "separate summary, plus its order-ignored set summary. May be "
+            "repeated (default: 4 and 3). Use 0 to disable both summaries."
         ),
     )
     parser.add_argument(
@@ -292,6 +304,101 @@ def terminal_display_table(
         for column in table.columns
         if column.endswith("_rank")
     })
+
+
+def unique_model_top_combinations(
+    output: pd.DataFrame, model_rank_columns: list[str], top_n: int
+) -> pd.DataFrame:
+    """Collapse identical ordered model top-N combinations into one row."""
+    columns = [
+        "combination", "runner_numbers", "runner_names", "model_count", "models",
+    ]
+    if top_n < 1:
+        raise ValueError("unique model top limit must be positive")
+    rank_columns = list(dict.fromkeys(
+        column for column in model_rank_columns if column in output.columns
+    ))
+    grouped: dict[tuple[int, ...], dict[str, Any]] = {}
+    for column in rank_columns:
+        ranked = output.loc[
+            pd.to_numeric(output[column], errors="coerce").notna()
+        ].sort_values(
+            [column, "runner_number"], kind="stable"
+        ).head(top_n)
+        if ranked.empty:
+            continue
+        runner_numbers = tuple(ranked["runner_number"].astype(int))
+        entry = grouped.setdefault(runner_numbers, {
+            "runner_names": tuple(ranked["runner_name"].astype(str)),
+            "models": [],
+        })
+        entry["models"].append(column.removesuffix("_rank"))
+    if not grouped:
+        return pd.DataFrame(columns=columns)
+    rows = [
+        {
+            "runner_numbers": ",".join(map(str, runner_numbers)),
+            "runner_names": " > ".join(entry["runner_names"]),
+            "model_count": len(entry["models"]),
+            "models": ",".join(entry["models"]),
+        }
+        for runner_numbers, entry in grouped.items()
+    ]
+    result = pd.DataFrame(rows).sort_values(
+        ["model_count", "runner_numbers"],
+        ascending=[False, True],
+        kind="stable",
+        ignore_index=True,
+    )
+    result.insert(0, "combination", np.arange(1, len(result) + 1))
+    return result.loc[:, columns]
+
+
+def unique_model_top_sets(
+    output: pd.DataFrame, model_rank_columns: list[str], top_n: int
+) -> pd.DataFrame:
+    """Collapse model top-N selections that contain the same runners in any order."""
+    columns = [
+        "set", "runner_numbers", "runner_names", "model_count", "models",
+    ]
+    if top_n < 1:
+        raise ValueError("unique model top limit must be positive")
+    rank_columns = list(dict.fromkeys(
+        column for column in model_rank_columns if column in output.columns
+    ))
+    names = output.assign(
+        runner_number=pd.to_numeric(output["runner_number"], errors="raise").astype(int)
+    ).set_index("runner_number")["runner_name"].astype(str).to_dict()
+    grouped: dict[tuple[int, ...], list[str]] = {}
+    for column in rank_columns:
+        ranked = output.loc[
+            pd.to_numeric(output[column], errors="coerce").notna()
+        ].sort_values(
+            [column, "runner_number"], kind="stable"
+        ).head(top_n)
+        if ranked.empty:
+            continue
+        runner_set = tuple(sorted(ranked["runner_number"].astype(int)))
+        grouped.setdefault(runner_set, []).append(column.removesuffix("_rank"))
+    if not grouped:
+        return pd.DataFrame(columns=columns)
+    rows = [
+        {
+            "runner_numbers": ",".join(map(str, runner_set)),
+            "runner_names": " + ".join(names[number] for number in runner_set),
+            "model_count": len(models),
+            "models": ",".join(models),
+        }
+        for runner_set, models in grouped.items()
+    ]
+    result = pd.DataFrame(rows).sort_values(
+        ["model_count", "runner_numbers"],
+        ascending=[False, True],
+        kind="stable",
+        ignore_index=True,
+    )
+    result.insert(0, "set", np.arange(1, len(result) + 1))
+    return result.loc[:, columns]
 
 
 def terminal_table_text(
@@ -558,6 +665,18 @@ def completed_winner_model_results(
 
 def main() -> None:
     args = parse_args()
+    requested_unique_top_limits = (
+        args.unique_top_limits
+        if args.unique_top_limits is not None
+        else [4, 3]
+    )
+    if any(limit < 0 for limit in requested_unique_top_limits):
+        raise ValueError("--unique-top-limit must be zero or greater")
+    if 0 in requested_unique_top_limits and len(requested_unique_top_limits) > 1:
+        raise ValueError("--unique-top-limit 0 cannot be combined with other limits")
+    unique_top_limits = list(dict.fromkeys(
+        limit for limit in requested_unique_top_limits if limit > 0
+    ))
     bundle = load_bundle(args.bundle)
     legacy_form_features = list(bundle["form_features"])
     configured_model_features = bundle.get("model_features", {})
@@ -596,9 +715,13 @@ def main() -> None:
             "Race has missing/mixed derived feature versions; run the feature updater"
         )
     if expected and versions[0] not in expected:
-        raise ValueError(
+        warnings.warn(
             f"Race feature version {versions[0]!r} was not used for training; "
-            "rerun train_winner_ranker_pipeline.py"
+            "the loaded winner-ranker bundle may be stale. Rerun "
+            "train_winner_ranker_pipeline.py to refresh it before relying on the "
+            "output.",
+            UserWarning,
+            stacklevel=2,
         )
 
     race_ids = frame["race_id"].to_numpy(dtype=np.int64)
@@ -863,6 +986,30 @@ def main() -> None:
         column for column in dict.fromkeys(columns) if column in output.columns
     ]
     print(terminal_table_text(output, visible_columns))
+    for unique_top_limit in unique_top_limits:
+        unique_top = unique_model_top_combinations(
+            output, all_model_rank_columns, unique_top_limit
+        )
+        print(f"\nUNIQUE MODEL TOP-{unique_top_limit} COMBINATIONS")
+        if unique_top.empty:
+            print("No model top selections are available")
+        else:
+            print(unique_top.to_string(
+                index=False, float_format=lambda value: f"{value:.4f}"
+            ))
+        unique_sets = unique_model_top_sets(
+            output, all_model_rank_columns, unique_top_limit
+        )
+        print(
+            f"\nUNIQUE MODEL TOP-{unique_top_limit} SETS "
+            "(ORDER IGNORED)"
+        )
+        if unique_sets.empty:
+            print("No model top selections are available")
+        else:
+            print(unique_sets.to_string(
+                index=False, float_format=lambda value: f"{value:.4f}"
+            ))
     number_ones = number_one_summary(output, visible_columns)
     print("\nNUMBER-ONE TOTALS")
     if number_ones.empty:

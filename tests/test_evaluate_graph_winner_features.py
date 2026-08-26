@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from build_racing_graph_features import GRAPH_FEATURE_NAMES
 from evaluate_graph_winner_features import (
     chronological_split,
     debutant_presence_metrics,
@@ -36,13 +37,24 @@ def test_feature_sets_are_nested_abcd_and_use_clean_baseline(tmp_path):
     groups = graph_experiment_feature_sets(baseline)
 
     assert baseline == ["distance_m", "field_size"]
-    assert list(groups) == ["graph_a", "graph_b", "graph_c", "graph_d"]
-    assert [len(groups[label]) for label in groups] == [2, 8, 18, 29]
+    assert list(groups) == [
+        "graph_a", "graph_b", "graph_c", "graph_d", "graph_e", "graph_only",
+    ]
+    assert [len(groups[label]) for label in groups] == [2, 8, 18, 29, 77, 87]
     assert set(groups["graph_a"]) < set(groups["graph_b"])
     assert set(groups["graph_b"]) < set(groups["graph_c"])
     assert set(groups["graph_c"]) < set(groups["graph_d"])
+    assert set(groups["graph_d"]) < set(groups["graph_e"])
     assert "graph_sire_trainer_similarity" not in groups["graph_c"]
     assert "graph_sire_trainer_similarity" in groups["graph_d"]
+    assert "graph_horse_recent_run_similarity" in groups["graph_e"]
+    assert (
+        "graph_horse_recent_run_similarity_rank_in_race" in groups["graph_e"]
+    )
+    assert "graph_recent_class_embedding_available" in groups["graph_e"]
+    assert groups["graph_only"] == list(GRAPH_FEATURE_NAMES)
+    assert all(feature.startswith("graph_") for feature in groups["graph_only"])
+    assert not set(baseline) & set(groups["graph_only"])
 
     with pytest.raises(ValueError, match="not market-blind"):
         load_baseline_features(manifest, "market")

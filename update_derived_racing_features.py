@@ -63,7 +63,7 @@ CALCULATION_VERSION_COLUMN = "derived_racing_features_version"
 # Increment this whenever a formula or registry change requires existing rows to
 # be rebuilt. A version marker is reliable where feature NULLs are not: many
 # leakage-safe features are legitimately NULL because a horse has no history.
-CALCULATION_VERSION = "2026-08-20-v6"
+CALCULATION_VERSION = "2026-08-22-1"
 
 
 def add_race_aggregate_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -152,7 +152,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Transactionally calculate derived pre-race feature columns."
     )
-    parser.add_argument("--db", type=Path, default=Path("db/race_runners.sqlite"))
+    parser.add_argument("--db", type=Path, default=Path("/home/theo/yy1/db/race_runners.sqlite"))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--force", action="store_true",

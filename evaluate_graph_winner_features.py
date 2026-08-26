@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Chronologically evaluate nested A/B/C/D node2vec winner feature sets."""
+"""Chronologically evaluate nested A/B/C/D/E node2vec winner feature sets."""
 
 from __future__ import annotations
 
@@ -72,6 +72,34 @@ AVAILABILITY_FEATURES = (
     "graph_venue_embedding_available",
 )
 
+EVENT_CONTEXT_SIMILARITY_FEATURES = (
+    "graph_horse_distance_similarity",
+    "graph_horse_track_status_similarity",
+    "graph_jockey_distance_similarity",
+    "graph_trainer_distance_similarity",
+    "graph_jockey_track_status_similarity",
+    "graph_trainer_track_status_similarity",
+    "graph_horse_recent_run_similarity",
+    "graph_jockey_recent_jockey_similarity",
+    "graph_venue_recent_venue_similarity",
+    "graph_distance_recent_distance_similarity",
+    "graph_track_status_recent_track_status_similarity",
+    "graph_horse_recent_class_similarity",
+    "graph_horse_recent_place_similarity",
+)
+
+EVENT_CONTEXT_AVAILABILITY_FEATURES = (
+    "graph_distance_embedding_available",
+    "graph_track_status_embedding_available",
+    "graph_recent_run_embedding_available",
+    "graph_recent_jockey_embedding_available",
+    "graph_recent_venue_embedding_available",
+    "graph_recent_distance_embedding_available",
+    "graph_recent_place_embedding_available",
+    "graph_recent_track_status_embedding_available",
+    "graph_recent_class_embedding_available",
+)
+
 
 def quote_identifier(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
@@ -105,7 +133,7 @@ def load_baseline_features(manifest: Path, model: str) -> list[str]:
 def graph_experiment_feature_sets(
     baseline: Sequence[str],
 ) -> dict[str, list[str]]:
-    """Return the planned nested A/B/C/D feature groups."""
+    """Return the planned nested A/B/C/D/E feature groups."""
     a = list(dict.fromkeys(baseline))
     b = [*a, *EXPERIENCED_ABSOLUTE_FEATURES]
     relative = [
@@ -115,11 +143,25 @@ def graph_experiment_feature_sets(
     ]
     c = [*b, *relative]
     d = [*c, *DEBUTANT_RELATIONSHIP_FEATURES, *AVAILABILITY_FEATURES]
+    event_relative = [
+        f"{source}_{suffix}"
+        for source in EVENT_CONTEXT_SIMILARITY_FEATURES
+        for suffix in ("rank_in_race", "minus_race_mean")
+    ]
+    e = [
+        *d,
+        *EVENT_CONTEXT_SIMILARITY_FEATURES,
+        *event_relative,
+        *EVENT_CONTEXT_AVAILABILITY_FEATURES,
+    ]
     result = {
         "graph_a": list(dict.fromkeys(a)),
         "graph_b": list(dict.fromkeys(b)),
         "graph_c": list(dict.fromkeys(c)),
         "graph_d": list(dict.fromkeys(d)),
+        "graph_e": list(dict.fromkeys(e)),
+        # Pure graph experiment: no baseline race_runners columns.
+        "graph_only": list(GRAPH_FEATURE_NAMES),
     }
     known_graph = set(GRAPH_FEATURE_NAMES)
     unavailable = sorted(
@@ -512,8 +554,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--models",
         nargs="+",
-        choices=("graph_a", "graph_b", "graph_c", "graph_d"),
-        default=["graph_a", "graph_b", "graph_c", "graph_d"],
+        choices=(
+            "graph_a", "graph_b", "graph_c", "graph_d", "graph_e", "graph_only",
+        ),
+        default=["graph_a", "graph_b", "graph_c", "graph_d", "graph_e"],
     )
     parser.add_argument("--validation-races", type=int, default=1000)
     parser.add_argument("--test-races", type=int, default=1000)
