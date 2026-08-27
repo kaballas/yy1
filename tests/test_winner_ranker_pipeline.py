@@ -18,6 +18,7 @@ from rank_winner_models import (
     model_prediction_tie_diagnostics,
     number_one_rank_summary,
     number_one_summary,
+    recent_selection_mask,
     ranked_output,
     select_historical_cohort,
     terminal_display_table,
@@ -43,6 +44,23 @@ def test_best_today_model_uses_top1_then_top3_then_mrr():
     assert metrics["races"] == 3
     assert metrics["top1_hit_rate"] == pytest.approx(1 / 3)
     assert metrics["top3_hit_rate"] == 1.0
+
+
+def test_recent_selection_uses_yesterday_and_only_earlier_today():
+    starts = pd.Series([
+        "2026-08-26T23:59:00Z",
+        "2026-08-27T00:00:00Z",
+        "2026-08-27T23:59:00Z",
+        "2026-08-28T00:10:00Z",
+        "2026-08-28T00:50:00Z",
+        "2026-08-28T01:00:00Z",
+    ])
+
+    mask = recent_selection_mask(
+        starts, pd.Timestamp("2026-08-28T00:50:00Z")
+    )
+
+    assert mask.tolist() == [False, True, True, True, False, False]
 
 
 def test_consensus_display_selects_nearest_models_and_honors_zero_limit():
@@ -123,13 +141,25 @@ def test_model_feature_matrix_uses_manifest_order_and_engineered_values():
 
 
 def test_model_feature_matrix_preserves_text_as_native_category():
-    frame = pd.DataFrame({"class_name": ["BM64", None], "speed": [7.0, 8.0]})
+    frame = pd.DataFrame({
+        "class_name": pd.Categorical(["BM64", "__MISSING__"]),
+        "speed": [7.0, 8.0],
+    })
 
     matrix = model_feature_matrix(frame, ["class_name", "speed"])
 
     assert isinstance(matrix["class_name"].dtype, pd.CategoricalDtype)
     assert matrix["class_name"].astype(str).tolist() == ["BM64", "__MISSING__"]
     assert matrix["speed"].dtype.kind == "f"
+
+
+def test_all_null_object_column_is_numeric_missing_not_categorical():
+    frame = pd.DataFrame({"softGroundPro": [None, None]})
+
+    matrix = model_feature_matrix(frame, ["softGroundPro"])
+
+    assert not isinstance(matrix["softGroundPro"].dtype, pd.CategoricalDtype)
+    assert matrix["softGroundPro"].isna().all()
 
 
 def test_ranker_validates_and_reports_categorical_prediction_inputs():

@@ -363,16 +363,10 @@ def model_feature_matrix(frame: pd.DataFrame, features: list[str]) -> pd.DataFra
     for feature in matrix:
         values = matrix[feature]
         if isinstance(values.dtype, pd.CategoricalDtype):
+            # Only prepare_categorical_features may establish categorical
+            # intent. SQLite REAL columns containing only NULL can otherwise
+            # arrive from pandas as object dtype and must remain numeric.
             matrix[feature] = values
-        elif (
-            pd.api.types.is_object_dtype(values.dtype)
-            or pd.api.types.is_string_dtype(values.dtype)
-        ):
-            # XGBoost >=3.1 stores category names in JSON models and safely
-            # recodes pandas categories at prediction time.
-            matrix[feature] = values.astype("string").str.strip().fillna("__MISSING__").astype(
-                "category"
-            )
         else:
             matrix[feature] = pd.to_numeric(values, errors="coerce").replace(
                 [np.inf, -np.inf], np.nan

@@ -497,7 +497,7 @@ def validate_production_selection_scope(
     competition_ids: list[int] | None,
 ) -> None:
     """Reject the known post-result market-miss label as a selection cohort."""
-    if competition_ids and 9999 in competition_ids:
+    if competition_ids and 999 in competition_ids:
         raise ValueError(
             "competition_id=999 is assigned after results to races where the "
             "market top three completely missed the actual top three. It may be "
@@ -1033,13 +1033,8 @@ def main() -> None:
 
     results: list[dict[str, Any]] = []
     total = len(feature_sets)
-    base_parameters = model_parameters(
-        parameter_args, args.seed, args.max_estimators
-    )
-    base_parameters["eval_metric"] = (
-        ["ndcg@1", "ndcg@3", "map"]
-        if args.selection_objective == "winner"
-        else ["ndcg@1", "map", "ndcg@3"]
+    base_parameters = forward_selection_model_parameters(
+        parameter_args, args.seed, args.max_estimators, args.selection_objective
     )
     base_train_matrix = model_feature_matrix(training, base_features)
     base_validation_matrix = model_feature_matrix(validation, base_features)
@@ -1089,10 +1084,9 @@ def main() -> None:
         unavailable = [feature for feature in features if feature not in frame.columns]
         if unavailable:
             raise ValueError(f"{label} has unavailable features: {', '.join(unavailable)}")
-        parameters = model_parameters(
-            parameter_args, args.seed, args.max_estimators
+        parameters = forward_selection_model_parameters(
+            parameter_args, args.seed, args.max_estimators, args.selection_objective
         )
-        parameters["eval_metric"] = base_parameters["eval_metric"]
         train_matrix = model_feature_matrix(training, features)
         validation_matrix = model_feature_matrix(validation, features)
         model = XGBRanker(

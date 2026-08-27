@@ -554,14 +554,16 @@ def score_finished_rows_from_bundle(
             models, matrix, race_ids
         )
         output[f"{label}_score"] = score
-        output[f"{label}_rank"] = pd.Series(score).groupby(
+        output[f"{label}_rank"] = pd.Series(score, index=output.index).groupby(
             output["race_id"], sort=False
-        ).rank(method="first", ascending=False).astype(int)
+        ).rank(method="first", ascending=False).astype("Int64")
     market_score = rank_percentiles(market_scores(frame), race_ids)
     output["market_score"] = market_score
-    output["market_rank"] = pd.Series(market_score).groupby(
+    output["market_rank"] = pd.Series(
+        market_score, index=output.index
+    ).groupby(
         output["race_id"], sort=False
-    ).rank(method="first", ascending=False).astype(int)
+    ).rank(method="first", ascending=False).astype("Int64")
     categorical_by_model = {
         label: [
             feature for feature in configured_features.get(label, [])

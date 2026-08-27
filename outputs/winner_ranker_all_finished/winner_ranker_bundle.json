@@ -36,7 +36,8 @@
       "x14",
       "x15",
       "t1",
-      "t2"
+      "t2",
+      "t3"
     ],
     "model_oof_metrics": {
       "a0": {
@@ -142,6 +143,14 @@
         "races": 2560.0,
         "top1_hit_rate": 0.2390625,
         "top3_hit_rate": 0.495703125
+      },
+      "t3": {
+        "mean_winner_rank": 4.1236328125,
+        "mrr": 0.4334432492882687,
+        "race_logloss": 2.237307292331363,
+        "races": 2560.0,
+        "top1_hit_rate": 0.22890625,
+        "top3_hit_rate": 0.490625
       },
       "x1": {
         "mean_winner_rank": 4.523828125,
@@ -339,6 +348,11 @@
         12,
         11
       ],
+      "t3": [
+        2,
+        1,
+        6
+      ],
       "x1": [
         5,
         1,
@@ -505,12 +519,12 @@
         "top3_hit_rate": 0.49765625
       },
       "equal_dynamic_blend": {
-        "mean_winner_rank": 4.187109375,
-        "mrr": 0.4291169464216339,
-        "race_logloss": 2.2677654714258746,
+        "mean_winner_rank": 4.1708984375,
+        "mrr": 0.4319054884938387,
+        "race_logloss": 2.266328697890196,
         "races": 2560.0,
-        "top1_hit_rate": 0.22890625,
-        "top3_hit_rate": 0.502734375
+        "top1_hit_rate": 0.2328125,
+        "top3_hit_rate": 0.501953125
       },
       "raw_market_benchmark": {
         "mean_winner_rank": 4.067578125,
@@ -535,6 +549,14 @@
         "races": 2560.0,
         "top1_hit_rate": 0.2390625,
         "top3_hit_rate": 0.495703125
+      },
+      "t3_only": {
+        "mean_winner_rank": 4.1236328125,
+        "mrr": 0.4334432492882687,
+        "race_logloss": 2.237307292331363,
+        "races": 2560.0,
+        "top1_hit_rate": 0.22890625,
+        "top3_hit_rate": 0.490625
       },
       "tuned_dynamic_blend": {
         "mean_winner_rank": 4.051171875,
@@ -683,6 +705,7 @@
       "market": 0.0,
       "t1": 0.004,
       "t2": 0.0,
+      "t3": 0.0,
       "x1": 0.0,
       "x10": 0.0,
       "x11": 0.0,
@@ -773,6 +796,11 @@
         26,
         2,
         6
+      ],
+      "t3": [
+        8,
+        2,
+        13
       ],
       "x1": [
         2,
@@ -867,6 +895,7 @@
     "market": 0.0,
     "t1": 0.004,
     "t2": 0.0,
+    "t3": 0.0,
     "x1": 0.0,
     "x10": 0.0,
     "x11": 0.0,
@@ -948,6 +977,11 @@
       26,
       2,
       6
+    ],
+    "t3": [
+      8,
+      2,
+      13
     ],
     "x1": [
       2,
@@ -10411,6 +10445,7 @@
     "market": 0.0,
     "t1": 0.0,
     "t2": 0.0,
+    "t3": 0.0,
     "x1": 0.0,
     "x10": 0.0,
     "x11": 0.0,
@@ -11082,6 +11117,15 @@
       "current_class_level",
       "recent_min_weight_kg"
     ],
+    "t3": [
+      "active_field_size",
+      "prize_money_rank_minus_market_rank",
+      "fluc2",
+      "trackFamiliarity",
+      "draw_number",
+      "current_class_level",
+      "recent_min_weight_kg"
+    ],
     "x1": [
       "distance_m",
       "recent_places",
@@ -11335,6 +11379,11 @@
       "/home/theo/yy1/outputs/winner_ranker_all_finished/t2_all_finished_seed_1351051.json",
       "/home/theo/yy1/outputs/winner_ranker_all_finished/t2_all_finished_seed_1352060.json"
     ],
+    "t3": [
+      "/home/theo/yy1/outputs/winner_ranker_all_finished/t3_all_finished_seed_1400042.json",
+      "/home/theo/yy1/outputs/winner_ranker_all_finished/t3_all_finished_seed_1401051.json",
+      "/home/theo/yy1/outputs/winner_ranker_all_finished/t3_all_finished_seed_1402060.json"
+    ],
     "x1": [
       "/home/theo/yy1/outputs/winner_ranker_all_finished/x1_all_finished_seed_550042.json",
       "/home/theo/yy1/outputs/winner_ranker_all_finished/x1_all_finished_seed_551051.json",
@@ -11429,6 +11478,7 @@
     "market": 0.0,
     "t1": 0.004,
     "t2": 0.0,
+    "t3": 0.0,
     "x1": 0.0,
     "x10": 0.0,
     "x11": 0.0,

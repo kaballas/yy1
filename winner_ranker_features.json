@@ -974,6 +974,23 @@
         "feature_count": 5,
         "top_features": 10
       }
+    },
+    "t3": {
+      "features": [
+        "active_field_size",
+        "prize_money_rank_minus_market_rank",
+        "fluc2",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg"
+      ],
+      "selection": {
+        "method": "inspect_winner_ranker_winner_backing",
+        "race_id": 10842431,
+        "feature_count": 5,
+        "top_features": 10
+      }
     }
   }
 }

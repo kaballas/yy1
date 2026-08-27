@@ -235,6 +235,22 @@ def crossfit_fold_ids(race_ids: list[int], folds: int) -> list[list[int]]:
     return result
 
 
+# Per-model/per-member XGBoost seeds are namespaced as
+# ``args.seed + phase_base + model_index * 10_000 + member * 1009`` so that
+# distinct fit phases never share a seed. Cross-fit fold phases occupy
+# ``fold_number * 100_000`` for ``fold_number`` in ``1..folds``; the two
+# deployment (full-history) phases below must start after the highest
+# possible fold offset, which scales with ``folds``.
+def deployment_tune_seed_base(folds: int) -> int:
+    """Seed-offset namespace base for full-history tree-count tuning."""
+    return (folds + 1) * 100_000
+
+
+def final_refit_seed_base(folds: int) -> int:
+    """Seed-offset namespace base for the final full-history model refit."""
+    return (folds + 2) * 100_000
+
+
 def filter_races_by_utc_weekday(
     races: pd.DataFrame, weekday: str | None
 ) -> pd.DataFrame:
@@ -503,7 +519,6 @@ def load_model_feature_sets(
 ) -> dict[str, list[str]]:
     """Load and validate the exact ordered input columns for each model."""
     path = manifest_path.resolve()
-    print(path)
     if not path.is_file():
         raise ValueError(f"Feature manifest does not exist: {path}")
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -1378,6 +1393,7 @@ def main() -> None:
         existing_bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
         existing_features = existing_bundle.get("model_features", {})
         existing_models = existing_bundle.get("models", {})
+        existing_categorical_levels = existing_bundle.get("categorical_levels", {})
         for label in reused_labels:
             if list(existing_features.get(label, [])) != feature_sets[label]:
                 raise ValueError(
@@ -1388,6 +1404,24 @@ def main() -> None:
             if not paths or any(not Path(path).is_file() for path in paths):
                 raise ValueError(
                     f"Cannot reuse {label}: existing saved model files are missing"
+                )
+            reused_categorical = [
+                feature for feature in feature_sets[label]
+                if feature in categorical_features
+            ]
+            mismatched_categorical = [
+                feature for feature in reused_categorical
+                if list(existing_categorical_levels.get(feature, []))
+                != list(saved_categorical_levels.get(feature, []))
+            ]
+            if mismatched_categorical:
+                raise ValueError(
+                    f"Cannot reuse {label}: the current cohort's categorical "
+                    "vocabulary differs from the existing bundle for "
+                    + ", ".join(mismatched_categorical)
+                    + "; reusing it would silently mismatch its trained category "
+                    "codes. Include it in --models to retrain, or rerun with the "
+                    "same eligible cohort."
                 )
         existing_oof = pd.read_csv(oof_path)
         # Report cohort drift before expensive cross-fitting and confirm that
@@ -1601,7 +1635,7 @@ def main() -> None:
                 label,
                 all_finished,
                 feature_sets[label],
-                1_000_000 + model_index * 10_000,
+                deployment_tune_seed_base(args.folds) + model_index * 10_000,
             )
             for model_index, label in enumerate(training_labels)
         }
@@ -1622,7 +1656,7 @@ def main() -> None:
     for model_index, (label, configured_features) in enumerate(feature_sets.items()):
         if label not in requested_labels:
             continue
-        seed_offset = model_index * 50_000
+        seed_offset = final_refit_seed_base(args.folds) + model_index * 10_000
         final_models = fit_ensemble(
             args,
             label,

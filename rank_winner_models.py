@@ -45,7 +45,7 @@ from backtest_all_finished_winner_blends import (
     artifact_strategies,
     best_backtest_strategy,
     filter_complete_races,
-    load_finished_date_rows,
+    load_finished_database_rows,
     load_predictions,
     score_finished_rows_from_bundle,
 )
@@ -171,11 +171,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output-csv", type=Path)
     parser.add_argument(
+        "--no-recent-model-selection",
         "--no-today-model-selection",
+        dest="no_today_model_selection",
         action="store_true",
         help=(
             "For --ranking tuned, skip selecting the best bundle model on "
-            "earlier finished races from the target's UTC date."
+            "yesterday plus earlier finished races from the target's UTC date."
         ),
     )
     return parser.parse_args()
@@ -219,29 +221,57 @@ def best_today_model(
     return label, {model: 1.0 if model == label else 0.0 for model in model_labels}, best
 
 
+def recent_selection_mask(
+    starts: pd.Series, target_start: pd.Timestamp
+) -> pd.Series:
+    """Select all of yesterday and only pre-target races from today."""
+    parsed = pd.to_datetime(starts, errors="coerce", utc=True)
+    target_start = pd.to_datetime(target_start, utc=True)
+    target_date = target_start.normalize()
+    dates = parsed.dt.normalize()
+    return dates.eq(target_date - pd.Timedelta(days=1)) | (
+        dates.eq(target_date) & parsed.lt(target_start)
+    )
+
+
 def select_today_model_for_target(
     database: Path,
     bundle: dict[str, Any],
     target: pd.Series,
     model_labels: list[str],
 ) -> tuple[str, dict[str, float], dict[str, Any]]:
-    """Backtest only same-day races that finished before the target started."""
+    """Backtest yesterday plus today's races completed before target start."""
     target_start = pd.to_datetime(target["start_time_iso"], utc=True)
-    exact_date = target_start.strftime("%Y-%m-%d")
+    target_date = target_start.normalize()
+    yesterday = target_date - pd.Timedelta(days=1)
     categorical = [str(value) for value in bundle.get("categorical_features", [])]
-    prior = load_finished_date_rows(database, exact_date, categorical)
+    prior = load_finished_database_rows(database, categorical)
     starts = pd.to_datetime(prior["start_time_iso"], errors="coerce", utc=True)
     prior = prior.loc[
-        starts.lt(target_start)
+        recent_selection_mask(prior["start_time_iso"], target_start)
         & prior["race_id"].astype(int).ne(int(target["race_id"]))
     ].copy()
     if prior.empty:
         raise ValueError(
-            f"No finished races started before target race {int(target['race_id'])} "
-            f"on {exact_date} UTC"
+            "No eligible finished races exist in the leakage-safe selection "
+            f"window {yesterday.strftime('%Y-%m-%d')} through target time "
+            f"{target_start.isoformat()}"
         )
     scored = score_finished_rows_from_bundle(prior, bundle, model_labels)
-    return best_today_model(scored, model_labels)
+    label, weights, metrics = best_today_model(scored, model_labels)
+    selected_starts = pd.to_datetime(
+        prior.groupby("race_id", sort=False).head(1)["start_time_iso"],
+        errors="coerce",
+        utc=True,
+    )
+    selected_dates = selected_starts.dt.normalize()
+    metrics.update({
+        "today_prior_races": int(selected_dates.eq(target_date).sum()),
+        "yesterday_races": int(selected_dates.eq(yesterday).sum()),
+        "target_date_utc": target_date.strftime("%Y-%m-%d"),
+        "yesterday_date_utc": yesterday.strftime("%Y-%m-%d"),
+    })
+    return label, weights, metrics
 
 
 def load_bundle(path: Path) -> dict[str, Any]:
@@ -933,8 +963,8 @@ def main() -> None:
             today_selection_error: str | None = None
             if not args.no_today_model_selection:
                 print(
-                    "today_model_selection=running "
-                    "scope=same_utc_date_prior_finished_races",
+                    "recent_model_selection=running "
+                    "scope=yesterday_plus_today_prior_finished_races",
                     flush=True,
                 )
                 try:
@@ -951,8 +981,8 @@ def main() -> None:
                 except ValueError as exc:
                     today_selection_error = str(exc)
                 else:
-                    cohort_strategy = f"today_best_model:{today_label}"
-                    cohort_scope = "same_utc_date_prior_finished_races"
+                    cohort_strategy = f"recent_best_model:{today_label}"
+                    cohort_scope = "yesterday_plus_today_prior_finished_races"
                     exact_cohort_races = int(cohort_strategy_metrics["races"])
             if diagnostic_weights is None and predictions_path.resolve().is_file():
                 oof_model_labels, strategies = artifact_strategies(bundle, config)
@@ -987,7 +1017,7 @@ def main() -> None:
                 )
             if today_selection_error and cohort_strategy_fallback:
                 cohort_strategy_fallback = (
-                    f"today selection unavailable ({today_selection_error}); "
+                    f"recent selection unavailable ({today_selection_error}); "
                     + cohort_strategy_fallback
                 )
             if not diagnostic_weights:
@@ -1048,6 +1078,12 @@ def main() -> None:
         for label in model_features
         if label in scores
     ]
+    rank_totals = model_rank_total_summary(output, all_model_rank_columns)
+    if "consensus_rank" in rank_totals.columns:
+        output = output.merge(
+            rank_totals[["runner_number", "consensus_rank"]],
+            on="runner_number", how="left",
+        )
     displayed_model_rank_columns = all_model_rank_columns
     if using_original_race_models:
         displayed_model_rank_columns = consensus_representative_model_columns(
@@ -1128,10 +1164,14 @@ def main() -> None:
             f"target_race_number={int(race['race_number'])}\n"
         )
         if cohort_strategy is not None and cohort_strategy_metrics is not None:
-            if cohort_scope == "same_utc_date_prior_finished_races":
+            if cohort_scope == "yesterday_plus_today_prior_finished_races":
                 heading += (
                     f"cohort_scope={cohort_scope} "
-                    f"today_prior_finished_races={exact_cohort_races} "
+                    f"yesterday_utc={cohort_strategy_metrics['yesterday_date_utc']} "
+                    f"yesterday_races={cohort_strategy_metrics['yesterday_races']} "
+                    f"today_utc={cohort_strategy_metrics['target_date_utc']} "
+                    f"today_prior_races={cohort_strategy_metrics['today_prior_races']} "
+                    f"selection_races={exact_cohort_races} "
                     "target_excluded=yes later_races_excluded=yes\n"
                 )
             else:
@@ -1215,7 +1255,6 @@ def main() -> None:
         print(number_ones.to_string(
             index=False, float_format=lambda value: f"{value:.4f}"
         ))
-    rank_totals = model_rank_total_summary(output, all_model_rank_columns)
     print("\nMODEL RANK TOTALS (lower is better)")
     if rank_totals.empty:
         print("No model rank columns are available")
