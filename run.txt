@@ -794,7 +794,7 @@ python train_market_mover_tests.py \
 python train_tune_all_finished_winner_ranker.py \
   --folds 5 \
   --ensemble-size 3 \
-  --objective top1 \
+  --objective top3 \
   --weight-step 0.001 \
   --max-estimators 700 \
   --early-stopping-rounds 60 \
@@ -914,3 +914,54 @@ python train_predict_graph_month.py \
     --seed 42 \
     --output-dir outputs/graph_events_july_10845517
 
+ python inspect_winner_ranker.py \
+    --race-id 10842431 \
+    --top-features 10 \
+    --train-and-repredict \
+    --training-competition-id 999 \
+    --trainer-args \
+    --folds 5 \
+    --ensemble-size 3 \
+    --objective top3 \
+    --weight-step 0.001 \
+    --max-estimators 700 \
+    --early-stopping-rounds 60 \
+    --tree-count-validation-races 1000 \
+    --ranker-diagnostics \
+    --minimum-feature-coverage 0.01
+
+
+python train_tune_all_finished_winner_ranker.py \
+    --competition-id 999 \
+    --folds 3 \
+    --ensemble-size 3 \
+    --objective top3 \
+    --weight-step 0.001 \
+    --max-estimators 60 \
+    --early-stopping-rounds 200 \
+    --tree-count-validation-races 2000 \
+    --ranker-diagnostics \
+    --minimum-feature-coverage 0.01 --models x8 --reuse-unselected-models
+
+
+
+
+     python update_text_vectors.py \
+    --dimensions 32 \
+    --epochs 20 \
+    --workers 4 \
+    --batch-size 500
+
+
+  python train_market_mover_tests.py \
+    --features-json test.json \
+    --competition-id 999 \
+    --validation-races 400 \
+    --test-races 200 \
+    --max-estimators 1000 \
+    --early-stopping-rounds 60 \
+    --selection-objective winner \
+    --minimum-uplift 0.001 \
+    --forward-select \
+    --include-current-market \
+    --add-all-improving-after-round-one

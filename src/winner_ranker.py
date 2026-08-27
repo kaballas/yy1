@@ -120,24 +120,63 @@ def database_numeric_columns(database: Path) -> list[str]:
     ]
 
 
-def load_training_rows(database: Path, numeric_columns: list[str]) -> pd.DataFrame:
-    """Load active finished runners without relying on outcome-defined views."""
+DEFAULT_NATIVE_CATEGORICAL_FEATURES = [
+    "country", "class_name", "grade", "tempo", "track_status",
+    "runner_country", "sex", "colour", "blinkers",
+    "expected_settling_position",
+    *[
+        f"recent_{index}_{suffix}"
+        for index in range(1, 7)
+        for suffix in ("track_name", "track_status", "class")
+    ],
+]
+
+
+def database_text_columns(database: Path) -> list[str]:
+    """Return text race_runners columns in stable schema order."""
+    with sqlite3.connect(f"file:{database.resolve()}?mode=ro", uri=True) as connection:
+        rows = connection.execute('PRAGMA table_info("race_runners")').fetchall()
+    return [
+        str(row[1]) for row in rows
+        if any(token in str(row[2]).upper() for token in ("CHAR", "CLOB", "TEXT"))
+    ]
+
+
+def load_training_rows(
+    database: Path,
+    numeric_columns: list[str],
+    competition_id: int | None = None,
+    categorical_columns: Iterable[str] = (),
+) -> pd.DataFrame:
+    """Load active finished runners, optionally for one competition."""
+    if competition_id is not None and competition_id < 1:
+        raise ValueError("competition_id must be positive")
     metadata = [
         "race_id", "start_time_iso", "competition_id", "competition_name",
         "race_number", "race_name", "runner_number", "runner_name", "fluc2",
         "status", "rank_label", "is_winner", "derived_racing_features_version",
     ]
-    requested = list(dict.fromkeys([*metadata, *numeric_columns]))
+    requested = list(dict.fromkeys([
+        *metadata, *numeric_columns, *categorical_columns,
+    ]))
     selected = ", ".join(quote_identifier(column) for column in requested)
+    conditions = [
+        "status = 'finished'",
+        "runner_mask = 1",
+        "is_winner IN (0, 1)",
+    ]
+    parameters: list[int] = []
+    if competition_id is not None:
+        conditions.append("competition_id = ?")
+        parameters.append(int(competition_id))
     sql = (
         f"SELECT {selected} FROM race_runners "
-        "WHERE status = 'finished' AND runner_mask = 1 "
-        "AND is_winner IN (0, 1) "
+        f"WHERE {' AND '.join(conditions)} "
         "ORDER BY start_time_iso, race_id, runner_number"
     )
     #print(sql)
     with sqlite3.connect(f"file:{database.resolve()}?mode=ro", uri=True) as connection:
-        return pd.read_sql_query(sql, connection)
+        return pd.read_sql_query(sql, connection, params=parameters)
 
 
 def eligible_races(frame: pd.DataFrame, minimum_runners: int = 4) -> pd.DataFrame:
@@ -211,6 +250,53 @@ def select_form_features(
     return selected, duplicate_of
 
 
+def select_categorical_features(
+    training: pd.DataFrame,
+    requested: Iterable[str],
+    minimum_coverage: float = 0.20,
+) -> list[str]:
+    """Keep available, populated, non-constant categorical inputs."""
+    if not 0.0 < minimum_coverage <= 1.0:
+        raise ValueError("minimum_coverage must be in (0, 1]")
+    selected: list[str] = []
+    for feature in requested:
+        if feature not in training:
+            continue
+        values = training[feature].astype("string").str.strip().replace("", pd.NA)
+        if float(values.notna().mean()) < minimum_coverage:
+            continue
+        if int(values.nunique(dropna=True)) <= 1:
+            continue
+        selected.append(feature)
+    return selected
+
+
+def categorical_levels(
+    frame: pd.DataFrame, features: Iterable[str]
+) -> dict[str, list[str]]:
+    """Return deterministic category vocabularies, including missing values."""
+    result: dict[str, list[str]] = {}
+    for feature in features:
+        values = frame[feature].astype("string").str.strip().fillna("__MISSING__")
+        result[feature] = sorted(set(values.astype(str)))
+    return result
+
+
+def prepare_categorical_features(
+    frame: pd.DataFrame,
+    levels: dict[str, list[str]],
+) -> pd.DataFrame:
+    """Apply saved category vocabularies; unseen values become missing."""
+    result = frame.copy()
+    for feature, categories in levels.items():
+        if feature not in result:
+            continue
+        values = result[feature].astype("string").str.strip().fillna("__MISSING__")
+        known = values.where(values.isin(categories), pd.NA)
+        result[feature] = pd.Categorical(known, categories=categories)
+    return result
+
+
 def rows_for_races(frame: pd.DataFrame, race_ids: Iterable[int]) -> pd.DataFrame:
     """Return whole races in chronological/runner order."""
     wanted = set(map(int, race_ids))
@@ -273,9 +359,25 @@ def model_feature_matrix(frame: pd.DataFrame, features: list[str]) -> pd.DataFra
             columns[feature] = frame[feature]
         else:
             raise ValueError(f"Configured model feature is unavailable: {feature}")
-    return pd.DataFrame(columns, index=frame.index).apply(
-        pd.to_numeric, errors="coerce"
-    ).replace([np.inf, -np.inf], np.nan)
+    matrix = pd.DataFrame(columns, index=frame.index)
+    for feature in matrix:
+        values = matrix[feature]
+        if isinstance(values.dtype, pd.CategoricalDtype):
+            matrix[feature] = values
+        elif (
+            pd.api.types.is_object_dtype(values.dtype)
+            or pd.api.types.is_string_dtype(values.dtype)
+        ):
+            # XGBoost >=3.1 stores category names in JSON models and safely
+            # recodes pandas categories at prediction time.
+            matrix[feature] = values.astype("string").str.strip().fillna("__MISSING__").astype(
+                "category"
+            )
+        else:
+            matrix[feature] = pd.to_numeric(values, errors="coerce").replace(
+                [np.inf, -np.inf], np.nan
+            )
+    return matrix
 
 
 def group_sizes(frame: pd.DataFrame) -> np.ndarray:

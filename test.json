@@ -2,2446 +2,5358 @@
   "schema_version": 1,
   "description": "Market-mover ablation models: every shared base feature plus one independently tested race_runners feature.",
   "base_features": [
-    "form_average_finish_percentile_6"
-  ],
-  "excluded_features": [
-    "fluc1",
-    "fluc2",
-    "fluc2_price_rank",
-    "fluc1_price_rank",
+    "active_field_size",
     "open_price",
-    "race_consensus_rank",
-    "race_consensus_score",
-    "market_fluc1_to_fluc2_move",
-    "open_price_rank",
-    "market_implied_prob_change_open_to_fluc2",
-    "market_total_abs_movement",
-    "market_implied_prob_change_fluc1_to_fluc2",
-    "recent_finish_percentile_weighted_6_minus_race_mean",
-    "historical_market_overperformance_avg_6"
+    "fluc2",
+    "fluc1",
+    "trackFamiliarity",
+    "draw_number",
+    "current_class_level",
+    "recent_min_weight_kg"
   ],
+  "excluded_features": [],
+  "categorical_features": [],
   "models": {
     "t1": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "distance_m"
       ]
     },
     "t2": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "field_size"
       ]
     },
     "t3": {
       "features": [
-        "form_average_finish_percentile_6",
-        "active_field_size"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "weight_kg"
       ]
     },
     "t4": {
       "features": [
-        "form_average_finish_percentile_6",
-        "draw_number"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "age"
       ]
     },
     "t5": {
       "features": [
-        "form_average_finish_percentile_6",
-        "weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "speed_rating"
       ]
     },
     "t6": {
       "features": [
-        "form_average_finish_percentile_6",
-        "age"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "dry_rating"
       ]
     },
     "t7": {
       "features": [
-        "form_average_finish_percentile_6",
-        "speed_rating"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "wet_rating"
       ]
     },
     "t8": {
       "features": [
-        "form_average_finish_percentile_6",
-        "dry_rating"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "win_percentage"
       ]
     },
     "t9": {
       "features": [
-        "form_average_finish_percentile_6",
-        "wet_rating"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "place_percentage"
       ]
     },
     "t10": {
       "features": [
-        "form_average_finish_percentile_6",
-        "win_percentage"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "prize_money"
       ]
     },
     "t11": {
       "features": [
-        "form_average_finish_percentile_6",
-        "place_percentage"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "career_starts"
       ]
     },
     "t12": {
       "features": [
-        "form_average_finish_percentile_6",
-        "prize_money"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "career_wins"
       ]
     },
     "t13": {
       "features": [
-        "form_average_finish_percentile_6",
-        "career_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "career_seconds"
       ]
     },
     "t14": {
       "features": [
-        "form_average_finish_percentile_6",
-        "career_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "career_thirds"
       ]
     },
     "t15": {
       "features": [
-        "form_average_finish_percentile_6",
-        "career_seconds"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "good_starts"
       ]
     },
     "t16": {
       "features": [
-        "form_average_finish_percentile_6",
-        "career_thirds"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "good_wins"
       ]
     },
     "t17": {
       "features": [
-        "form_average_finish_percentile_6",
-        "good_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "soft_starts"
       ]
     },
     "t18": {
       "features": [
-        "form_average_finish_percentile_6",
-        "good_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "soft_wins"
       ]
     },
     "t19": {
       "features": [
-        "form_average_finish_percentile_6",
-        "soft_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "heavy_starts"
       ]
     },
     "t20": {
       "features": [
-        "form_average_finish_percentile_6",
-        "soft_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "heavy_wins"
       ]
     },
     "t21": {
       "features": [
-        "form_average_finish_percentile_6",
-        "heavy_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_starts"
       ]
     },
     "t22": {
       "features": [
-        "form_average_finish_percentile_6",
-        "heavy_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_wins"
       ]
     },
     "t23": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "track_starts"
       ]
     },
     "t24": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "track_wins"
       ]
     },
     "t25": {
       "features": [
-        "form_average_finish_percentile_6",
-        "track_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "first_up_starts"
       ]
     },
     "t26": {
       "features": [
-        "form_average_finish_percentile_6",
-        "track_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "first_up_wins"
       ]
     },
     "t27": {
       "features": [
-        "form_average_finish_percentile_6",
-        "first_up_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "second_up_starts"
       ]
     },
     "t28": {
       "features": [
-        "form_average_finish_percentile_6",
-        "first_up_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "second_up_wins"
       ]
     },
     "t29": {
       "features": [
-        "form_average_finish_percentile_6",
-        "second_up_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "horse_jockey_starts"
       ]
     },
     "t30": {
       "features": [
-        "form_average_finish_percentile_6",
-        "second_up_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "horse_jockey_wins"
       ]
     },
     "t31": {
       "features": [
-        "form_average_finish_percentile_6",
-        "horse_jockey_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_1_place"
       ]
     },
     "t32": {
       "features": [
-        "form_average_finish_percentile_6",
-        "horse_jockey_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_1_distance_m"
       ]
     },
     "t33": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_1_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_1_weight_kg"
       ]
     },
     "t34": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_1_distance_m"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_1_barrier"
       ]
     },
     "t35": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_1_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_1_track_status_value"
       ]
     },
     "t36": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_1_barrier"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_1_starting_price"
       ]
     },
     "t37": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_1_track_status_value"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_1_margin"
       ]
     },
     "t38": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_1_starting_price"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_1_total_runners"
       ]
     },
     "t39": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_1_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_2_place"
       ]
     },
     "t40": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_1_total_runners"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_2_distance_m"
       ]
     },
     "t41": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_2_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_2_weight_kg"
       ]
     },
     "t42": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_2_distance_m"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_2_barrier"
       ]
     },
     "t43": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_2_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_2_track_status_value"
       ]
     },
     "t44": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_2_barrier"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_2_starting_price"
       ]
     },
     "t45": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_2_track_status_value"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_2_margin"
       ]
     },
     "t46": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_2_starting_price"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_2_total_runners"
       ]
     },
     "t47": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_2_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_3_place"
       ]
     },
     "t48": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_2_total_runners"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_3_distance_m"
       ]
     },
     "t49": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_3_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_3_weight_kg"
       ]
     },
     "t50": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_3_distance_m"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_3_barrier"
       ]
     },
     "t51": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_3_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_3_track_status_value"
       ]
     },
     "t52": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_3_barrier"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_3_starting_price"
       ]
     },
     "t53": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_3_track_status_value"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_3_margin"
       ]
     },
     "t54": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_3_starting_price"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_3_total_runners"
       ]
     },
     "t55": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_3_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_4_place"
       ]
     },
     "t56": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_3_total_runners"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_4_distance_m"
       ]
     },
     "t57": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_4_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_4_weight_kg"
       ]
     },
     "t58": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_4_distance_m"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_4_barrier"
       ]
     },
     "t59": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_4_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_4_track_status_value"
       ]
     },
     "t60": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_4_barrier"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_4_starting_price"
       ]
     },
     "t61": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_4_track_status_value"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_4_margin"
       ]
     },
     "t62": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_4_starting_price"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_4_total_runners"
       ]
     },
     "t63": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_4_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_5_place"
       ]
     },
     "t64": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_4_total_runners"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_5_distance_m"
       ]
     },
     "t65": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_5_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_5_weight_kg"
       ]
     },
     "t66": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_5_distance_m"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_5_barrier"
       ]
     },
     "t67": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_5_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_5_track_status_value"
       ]
     },
     "t68": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_5_barrier"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_5_starting_price"
       ]
     },
     "t69": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_5_track_status_value"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_5_margin"
       ]
     },
     "t70": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_5_starting_price"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_5_total_runners"
       ]
     },
     "t71": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_5_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_6_place"
       ]
     },
     "t72": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_5_total_runners"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_6_distance_m"
       ]
     },
     "t73": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_6_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_6_weight_kg"
       ]
     },
     "t74": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_6_distance_m"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_6_barrier"
       ]
     },
     "t75": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_6_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_6_track_status_value"
       ]
     },
     "t76": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_6_barrier"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_6_starting_price"
       ]
     },
     "t77": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_6_track_status_value"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_6_margin"
       ]
     },
     "t78": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_6_starting_price"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_6_total_runners"
       ]
     },
     "t79": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_6_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_runs_count"
       ]
     },
     "t80": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_6_total_runners"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_wins"
       ]
     },
     "t81": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_runs_count"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_places"
       ]
     },
     "t82": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_place"
       ]
     },
     "t83": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_places"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_best_place"
       ]
     },
     "t84": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_place_3"
       ]
     },
     "t85": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_best_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_place_5"
       ]
     },
     "t86": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_place_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_win_rate_5"
       ]
     },
     "t87": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_place_5"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_top3_rate_5"
       ]
     },
     "t88": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_win_rate_5"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_margin"
       ]
     },
     "t89": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_top3_rate_5"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_best_margin"
       ]
     },
     "t90": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_margin_3"
       ]
     },
     "t91": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_best_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_starting_price"
       ]
     },
     "t92": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_margin_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_same_distance_runs"
       ]
     },
     "t93": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_starting_price"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_same_track_runs"
       ]
     },
     "t94": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_same_distance_runs"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_same_condition_runs"
       ]
     },
     "t95": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_same_track_runs"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_days_since_last_run"
       ]
     },
     "t96": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_same_condition_runs"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "trackExpert"
       ]
     },
     "t97": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_days_since_last_run"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "goodGroundPro"
       ]
     },
     "t98": {
       "features": [
-        "form_average_finish_percentile_6",
-        "trackExpert"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "softGroundPro"
       ]
     },
     "t99": {
       "features": [
-        "form_average_finish_percentile_6",
-        "goodGroundPro"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "heavyGroundPro"
       ]
     },
     "t100": {
       "features": [
-        "form_average_finish_percentile_6",
-        "softGroundPro"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "freshWinner"
       ]
     },
     "t101": {
       "features": [
-        "form_average_finish_percentile_6",
-        "heavyGroundPro"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "secondUpWinner"
       ]
     },
     "t102": {
       "features": [
-        "form_average_finish_percentile_6",
-        "freshWinner"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "winningPartnership"
       ]
     },
     "t103": {
       "features": [
-        "form_average_finish_percentile_6",
-        "secondUpWinner"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hotStreak"
       ]
     },
     "t104": {
       "features": [
-        "form_average_finish_percentile_6",
-        "winningPartnership"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recentPodium"
       ]
     },
     "t105": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hotStreak"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distanceFamiliarity"
       ]
     },
     "t106": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recentPodium"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_open_to_fluc1_move"
       ]
     },
     "t107": {
       "features": [
-        "form_average_finish_percentile_6",
-        "trackFamiliarity"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_open_to_fluc2_move"
       ]
     },
     "t108": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distanceFamiliarity"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_fluc1_to_fluc2_move"
       ]
     },
     "t109": {
       "features": [
-        "form_average_finish_percentile_6",
-        "market_open_to_fluc1_move"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_open_to_fluc1_move_pct"
       ]
     },
     "t110": {
       "features": [
-        "form_average_finish_percentile_6",
-        "market_open_to_fluc2_move"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_open_to_fluc2_move_pct"
       ]
     },
     "t111": {
       "features": [
-        "form_average_finish_percentile_6",
-        "market_open_to_fluc1_move_pct"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_fluc1_to_fluc2_move_pct"
       ]
     },
     "t112": {
       "features": [
-        "form_average_finish_percentile_6",
-        "market_open_to_fluc2_move_pct"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_total_abs_movement"
       ]
     },
     "t113": {
       "features": [
-        "form_average_finish_percentile_6",
-        "market_fluc1_to_fluc2_move_pct"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_price_range_pct"
       ]
     },
     "t114": {
       "features": [
-        "form_average_finish_percentile_6",
-        "market_price_range_pct"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_implied_prob_change_open_to_fluc2"
       ]
     },
     "t115": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_best_speed_mps"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_implied_prob_change_fluc1_to_fluc2"
       ]
     },
     "t116": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_speed_mps"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_best_speed_mps"
       ]
     },
     "t117": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_best_similar_distance_speed_mps"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_speed_mps"
       ]
     },
     "t118": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_similar_distance_speed_mps"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_best_similar_distance_speed_mps"
       ]
     },
     "t119": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_avg_place"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_similar_distance_speed_mps"
       ]
     },
     "t120": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_avg_margin"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_avg_place"
       ]
     },
     "t121": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_win_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_avg_margin"
       ]
     },
     "t122": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_top3_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_win_rate"
       ]
     },
     "t123": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_top3_rate"
       ]
     },
     "t124": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_market_edge_weighted"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted"
       ]
     },
     "t125": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_avg_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_market_edge_weighted"
       ]
     },
     "t126": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_avg_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_avg_weight_kg"
       ]
     },
     "t127": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_min_weight_kg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_avg_weight_kg"
       ]
     },
     "t128": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "recent_max_weight_kg"
       ]
     },
     "t129": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "recent_weight_range_kg"
       ]
     },
     "t130": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "weight_change_from_last_run"
       ]
     },
     "t131": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "weight_change_vs_recent_avg"
       ]
     },
     "t132": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "weight_change_vs_recent_weighted_avg"
       ]
     },
     "t133": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "large_weight_drop_flag"
       ]
     },
     "t134": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "weight_drop_after_close_run_flag"
       ]
     },
     "t135": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "last3_win_percentage"
       ]
     },
     "t136": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "last3_place_percentage"
       ]
     },
     "t137": {
       "features": [
-        "form_average_finish_percentile_6",
-        "market_steam_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "open_price_rank"
       ]
     },
     "t138": {
       "features": [
-        "form_average_finish_percentile_6",
-        "speed_rating_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "fluc1_price_rank"
       ]
     },
     "t139": {
       "features": [
-        "form_average_finish_percentile_6",
-        "win_percentage_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "fluc2_price_rank"
       ]
     },
     "t140": {
       "features": [
-        "form_average_finish_percentile_6",
-        "place_percentage_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "market_steam_rank"
       ]
     },
     "t141": {
       "features": [
-        "form_average_finish_percentile_6",
-        "last3_win_percentage_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "speed_rating_rank"
       ]
     },
     "t142": {
       "features": [
-        "form_average_finish_percentile_6",
-        "last3_place_percentage_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "win_percentage_rank"
       ]
     },
     "t143": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_best_speed_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "place_percentage_rank"
       ]
     },
     "t144": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_similar_distance_speed_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "last3_win_percentage_rank"
       ]
     },
     "t145": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_avg_place_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "last3_place_percentage_rank"
       ]
     },
     "t146": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_avg_margin_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_best_speed_rank"
       ]
     },
     "t147": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_win_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_similar_distance_speed_rank"
       ]
     },
     "t148": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_weighted_top3_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_avg_place_rank"
       ]
     },
     "t149": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_avg_margin_rank"
       ]
     },
     "t150": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_market_edge_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_win_rate_rank"
       ]
     },
     "t151": {
       "features": [
-        "form_average_finish_percentile_6",
-        "dry_rating_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_weighted_top3_rate_rank"
       ]
     },
     "t152": {
       "features": [
-        "form_average_finish_percentile_6",
-        "wet_rating_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_rank"
       ]
     },
     "t153": {
       "features": [
-        "form_average_finish_percentile_6",
-        "prize_money_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_market_edge_rank"
       ]
     },
     "t154": {
       "features": [
-        "form_average_finish_percentile_6",
-        "career_win_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_consensus_score"
       ]
     },
     "t155": {
       "features": [
-        "form_average_finish_percentile_6",
-        "career_place_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_consensus_rank"
       ]
     },
     "t156": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_win_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "dry_rating_rank"
       ]
     },
     "t157": {
       "features": [
-        "form_average_finish_percentile_6",
-        "track_win_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "wet_rating_rank"
       ]
     },
     "t158": {
       "features": [
-        "form_average_finish_percentile_6",
-        "first_up_win_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "prize_money_rank"
       ]
     },
     "t159": {
       "features": [
-        "form_average_finish_percentile_6",
-        "second_up_win_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "career_win_rate_rank"
       ]
     },
     "t160": {
       "features": [
-        "form_average_finish_percentile_6",
-        "horse_jockey_win_rate_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "career_place_rate_rank"
       ]
     },
     "t161": {
       "features": [
-        "form_average_finish_percentile_6",
-        "race_overlay_score"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_win_rate_rank"
       ]
     },
     "t162": {
       "features": [
-        "form_average_finish_percentile_6",
-        "race_overlay_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "track_win_rate_rank"
       ]
     },
     "t163": {
       "features": [
-        "form_average_finish_percentile_6",
-        "race_signal_agreement_score"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "first_up_win_rate_rank"
       ]
     },
     "t164": {
       "features": [
-        "form_average_finish_percentile_6",
-        "race_signal_agreement_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "second_up_win_rate_rank"
       ]
     },
     "t165": {
       "features": [
-        "form_average_finish_percentile_6",
-        "form_barrier_percentile_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "horse_jockey_win_rate_rank"
       ]
     },
     "t166": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_last600_seconds_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_overlay_score"
       ]
     },
     "t167": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_last600_seconds_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_overlay_rank"
       ]
     },
     "t168": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_last600_best_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_signal_agreement_score"
       ]
     },
     "t169": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_last600_std_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_signal_agreement_rank"
       ]
     },
     "t170": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_last600_trend"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "form_barrier_percentile_weighted_6"
       ]
     },
     "t171": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_closing_speed_ratio_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_last600_seconds_weighted_3"
       ]
     },
     "t172": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_closing_speed_ratio_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_last600_seconds_weighted_6"
       ]
     },
     "t173": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_class_level"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_last600_best_6"
       ]
     },
     "t174": {
       "features": [
-        "form_average_finish_percentile_6",
-        "form_class_level_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_last600_std_6"
       ]
     },
     "t175": {
       "features": [
-        "form_average_finish_percentile_6",
-        "form_class_level_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_last600_trend"
       ]
     },
     "t176": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_change_vs_recent_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_closing_speed_ratio_weighted_3"
       ]
     },
     "t177": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_drop_from_recent_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_closing_speed_ratio_weighted_6"
       ]
     },
     "t178": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_history_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "form_class_level_weighted_3"
       ]
     },
     "t179": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_history_top3_excess"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "form_class_level_weighted_6"
       ]
     },
     "t180": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_recent_top3_excess"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_change_vs_recent_3"
       ]
     },
     "t181": {
       "features": [
-        "form_average_finish_percentile_6",
-        "trainer_history_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_drop_from_recent_best"
       ]
     },
     "t182": {
       "features": [
-        "form_average_finish_percentile_6",
-        "trainer_history_top3_excess"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_history_starts"
       ]
     },
     "t183": {
       "features": [
-        "form_average_finish_percentile_6",
-        "trainer_recent_top3_excess"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_history_top3_excess"
       ]
     },
     "t184": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_starts"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_recent_top3_excess"
       ]
     },
     "t185": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_top3_excess"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "trainer_history_starts"
       ]
     },
     "t186": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_recent_top3_excess"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "trainer_history_top3_excess"
       ]
     },
     "t187": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_last1"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "trainer_recent_top3_excess"
       ]
     },
     "t188": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_starts"
       ]
     },
     "t189": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_avg_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_top3_excess"
       ]
     },
     "t190": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_recent_top3_excess"
       ]
     },
     "t191": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_last1"
       ]
     },
     "t192": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_best_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_avg_3"
       ]
     },
     "t193": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_best_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_avg_6"
       ]
     },
     "t194": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_std_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_3"
       ]
     },
     "t195": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_slope_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_6"
       ]
     },
     "t196": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_slope_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_best_3"
       ]
     },
     "t197": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_last_minus_avg3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_best_6"
       ]
     },
     "t198": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_avg3_minus_avg6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_std_6"
       ]
     },
     "t199": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_slope_3"
       ]
     },
     "t200": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_avg_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_slope_6"
       ]
     },
     "t201": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_last_minus_avg3"
       ]
     },
     "t202": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_avg3_minus_avg6"
       ]
     },
     "t203": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_best_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_avg_3"
       ]
     },
     "t204": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_best_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_avg_6"
       ]
     },
     "t205": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_std_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_weighted_3"
       ]
     },
     "t206": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_slope_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_weighted_6"
       ]
     },
     "t207": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_slope_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_best_3"
       ]
     },
     "t208": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_last_minus_avg3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_best_6"
       ]
     },
     "t209": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_last1"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_std_6"
       ]
     },
     "t210": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_slope_3"
       ]
     },
     "t211": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_avg_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_slope_6"
       ]
     },
     "t212": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_last_minus_avg3"
       ]
     },
     "t213": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_last1"
       ]
     },
     "t214": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_best_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_avg_3"
       ]
     },
     "t215": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_slope_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_avg_6"
       ]
     },
     "t216": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_last1"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_weighted_3"
       ]
     },
     "t217": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_weighted_6"
       ]
     },
     "t218": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_best_3"
       ]
     },
     "t219": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_slope_3"
       ]
     },
     "t220": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_best_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_last1"
       ]
     },
     "t221": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_slope_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_avg_3"
       ]
     },
     "t222": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_implied_probability_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_avg_6"
       ]
     },
     "t223": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_implied_probability_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_weighted_3"
       ]
     },
     "t224": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_change_last_run"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_weighted_6"
       ]
     },
     "t225": {
       "features": [
-        "form_average_finish_percentile_6",
-        "abs_distance_change_last_run"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_best_3"
       ]
     },
     "t226": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_change_pct_last_run"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_slope_3"
       ]
     },
     "t227": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_minus_recent_avg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_implied_probability_weighted_3"
       ]
     },
     "t228": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_minus_recent_weighted_avg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_implied_probability_weighted_6"
       ]
     },
     "t229": {
       "features": [
-        "form_average_finish_percentile_6",
-        "abs_distance_minus_recent_weighted_avg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_change_last_run"
       ]
     },
     "t230": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_runs"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "abs_distance_change_last_run"
       ]
     },
     "t231": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_finish_percentile_avg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_change_pct_last_run"
       ]
     },
     "t232": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_finish_percentile_weighted"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_minus_recent_avg"
       ]
     },
     "t233": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_margin_quality_avg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_minus_recent_weighted_avg"
       ]
     },
     "t234": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_margin_quality_weighted"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "abs_distance_minus_recent_weighted_avg"
       ]
     },
     "t235": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_top3_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_runs"
       ]
     },
     "t236": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_step_up_m"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_finish_percentile_avg"
       ]
     },
     "t237": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_step_down_m"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_finish_percentile_weighted"
       ]
     },
     "t238": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_step_up_pct"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_margin_quality_avg"
       ]
     },
     "t239": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_step_down_pct"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_margin_quality_weighted"
       ]
     },
     "t240": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_step_up_finish_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_top3_rate"
       ]
     },
     "t241": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_step_up_observations"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_step_up_m"
       ]
     },
     "t242": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_step_down_finish_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_step_down_m"
       ]
     },
     "t243": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_step_down_observations"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_step_up_pct"
       ]
     },
     "t244": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_barrier_percentile_last1"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_step_down_pct"
       ]
     },
     "t245": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_barrier_percentile_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_step_up_finish_percentile"
       ]
     },
     "t246": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_barrier_percentile_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_step_up_observations"
       ]
     },
     "t247": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_barrier_percentile_std_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_step_down_finish_percentile"
       ]
     },
     "t248": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_barrier_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_step_down_observations"
       ]
     },
     "t249": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_minus_recent_barrier_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_barrier_percentile_last1"
       ]
     },
     "t250": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_weight_minus_last"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_barrier_percentile_avg_3"
       ]
     },
     "t251": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_weight_minus_recent_avg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_barrier_percentile_weighted_6"
       ]
     },
     "t252": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_weight_minus_recent_weighted_avg"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_barrier_percentile_std_6"
       ]
     },
     "t253": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_weight_change_pct"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_barrier_percentile"
       ]
     },
     "t254": {
       "features": [
-        "form_average_finish_percentile_6",
-        "best_finish_percentile_at_equal_or_higher_weight"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_minus_recent_barrier_percentile"
       ]
     },
     "t255": {
       "features": [
-        "form_average_finish_percentile_6",
-        "best_margin_quality_at_equal_or_higher_weight"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_weight_minus_last"
       ]
     },
     "t256": {
       "features": [
-        "form_average_finish_percentile_6",
-        "form_ceiling_finish_percentile_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_weight_minus_recent_avg"
       ]
     },
     "t257": {
       "features": [
-        "form_average_finish_percentile_6",
-        "form_consistency_finish_percentile_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_weight_minus_recent_weighted_avg"
       ]
     },
     "t258": {
       "features": [
-        "form_average_finish_percentile_6",
-        "form_ceiling_minus_average"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_weight_change_pct"
       ]
     },
     "t259": {
       "features": [
-        "form_average_finish_percentile_6",
-        "margin_quality_ceiling_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "best_finish_percentile_at_equal_or_higher_weight"
       ]
     },
     "t260": {
       "features": [
-        "form_average_finish_percentile_6",
-        "margin_quality_average_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "best_margin_quality_at_equal_or_higher_weight"
       ]
     },
     "t261": {
       "features": [
-        "form_average_finish_percentile_6",
-        "margin_quality_consistency_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "form_ceiling_finish_percentile_6"
       ]
     },
     "t262": {
       "features": [
-        "form_average_finish_percentile_6",
-        "best_run_recency_index"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "form_average_finish_percentile_6"
       ]
     },
     "t263": {
       "features": [
-        "form_average_finish_percentile_6",
-        "second_best_run_recency_index"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "form_consistency_finish_percentile_6"
       ]
     },
     "t264": {
       "features": [
-        "form_average_finish_percentile_6",
-        "best_run_is_last_start"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "form_ceiling_minus_average"
       ]
     },
     "t265": {
       "features": [
-        "form_average_finish_percentile_6",
-        "best_run_within_last_2"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "margin_quality_ceiling_6"
       ]
     },
     "t266": {
       "features": [
-        "form_average_finish_percentile_6",
-        "best_run_within_last_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "margin_quality_average_6"
       ]
     },
     "t267": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent3_vs_career_finish_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "margin_quality_consistency_6"
       ]
     },
     "t268": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent6_vs_career_finish_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "best_run_recency_index"
       ]
     },
     "t269": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent3_vs_career_place_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "second_best_run_recency_index"
       ]
     },
     "t270": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent6_vs_career_place_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "best_run_is_last_start"
       ]
     },
     "t271": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_form_vs_career_form"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "best_run_within_last_2"
       ]
     },
     "t272": {
       "features": [
-        "form_average_finish_percentile_6",
-        "same_track_runs"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "best_run_within_last_3"
       ]
     },
     "t273": {
       "features": [
-        "form_average_finish_percentile_6",
-        "same_track_finish_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent3_vs_career_finish_percentile"
       ]
     },
     "t274": {
       "features": [
-        "form_average_finish_percentile_6",
-        "same_track_margin_quality"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent6_vs_career_finish_percentile"
       ]
     },
     "t275": {
       "features": [
-        "form_average_finish_percentile_6",
-        "same_track_top3_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent3_vs_career_place_rate"
       ]
     },
     "t276": {
       "features": [
-        "form_average_finish_percentile_6",
-        "same_track_distance_runs"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent6_vs_career_place_rate"
       ]
     },
     "t277": {
       "features": [
-        "form_average_finish_percentile_6",
-        "same_track_distance_finish_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_form_vs_career_form"
       ]
     },
     "t278": {
       "features": [
-        "form_average_finish_percentile_6",
-        "same_track_distance_margin_quality"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "same_track_runs"
       ]
     },
     "t279": {
       "features": [
-        "form_average_finish_percentile_6",
-        "same_track_distance_top3_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "same_track_finish_percentile"
       ]
     },
     "t280": {
       "features": [
-        "form_average_finish_percentile_6",
-        "condition_runs"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "same_track_margin_quality"
       ]
     },
     "t281": {
       "features": [
-        "form_average_finish_percentile_6",
-        "condition_win_rate_smoothed"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "same_track_top3_rate"
       ]
     },
     "t282": {
       "features": [
-        "form_average_finish_percentile_6",
-        "condition_top3_rate_smoothed"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "same_track_distance_runs"
       ]
     },
     "t283": {
       "features": [
-        "form_average_finish_percentile_6",
-        "condition_finish_percentile"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "same_track_distance_finish_percentile"
       ]
     },
     "t284": {
       "features": [
-        "form_average_finish_percentile_6",
-        "condition_margin_quality"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "same_track_distance_margin_quality"
       ]
     },
     "t285": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "same_track_distance_top3_rate"
       ]
     },
     "t286": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_avg_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "condition_runs"
       ]
     },
     "t287": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "condition_win_rate_smoothed"
       ]
     },
     "t288": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "condition_top3_rate_smoothed"
       ]
     },
     "t289": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_best_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "condition_finish_percentile"
       ]
     },
     "t290": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_best_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "condition_margin_quality"
       ]
     },
     "t291": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_std_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_avg_3"
       ]
     },
     "t292": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_slope_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_avg_6"
       ]
     },
     "t293": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_last600_slope_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_weighted_3"
       ]
     },
     "t294": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_run_quality_last1"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_weighted_6"
       ]
     },
     "t295": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_run_quality_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_best_3"
       ]
     },
     "t296": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_run_quality_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_best_6"
       ]
     },
     "t297": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_run_quality_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_std_6"
       ]
     },
     "t298": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_run_quality_best_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_slope_3"
       ]
     },
     "t299": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_run_quality_slope_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_last600_slope_6"
       ]
     },
     "t300": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_last1"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_run_quality_last1"
       ]
     },
     "t301": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_run_quality_avg_3"
       ]
     },
     "t302": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_best_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_run_quality_weighted_3"
       ]
     },
     "t303": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_ceiling_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_run_quality_weighted_6"
       ]
     },
     "t304": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_average_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_run_quality_best_3"
       ]
     },
     "t305": {
       "features": [
-        "form_average_finish_percentile_6",
-        "sectional_consistency_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_run_quality_slope_3"
       ]
     },
     "t306": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_change_last_run"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_last1"
       ]
     },
     "t307": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_step_up"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_avg_3"
       ]
     },
     "t308": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_step_down"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_best_3"
       ]
     },
     "t309": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_class_avg_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_ceiling_6"
       ]
     },
     "t310": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_class_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_average_6"
       ]
     },
     "t311": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_best_class"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "sectional_consistency_6"
       ]
     },
     "t312": {
       "features": [
-        "form_average_finish_percentile_6",
-        "performance_at_current_or_stronger_class"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_change_last_run"
       ]
     },
     "t313": {
       "features": [
-        "form_average_finish_percentile_6",
-        "best_finish_percentile_at_stronger_class"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_step_up"
       ]
     },
     "t314": {
       "features": [
-        "form_average_finish_percentile_6",
-        "best_margin_quality_at_stronger_class"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_step_down"
       ]
     },
     "t315": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_last1"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_class_avg_3"
       ]
     },
     "t316": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_class_weighted_6"
       ]
     },
     "t317": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_best_class"
       ]
     },
     "t318": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_margin_quality_weighted_3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "performance_at_current_or_stronger_class"
       ]
     },
     "t319": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_margin_quality_weighted_6"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "best_finish_percentile_at_stronger_class"
       ]
     },
     "t320": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_runs"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "best_margin_quality_at_stronger_class"
       ]
     },
     "t321": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_wins"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_last1"
       ]
     },
     "t322": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_top3"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_weighted_3"
       ]
     },
     "t323": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_win_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_weighted_6"
       ]
     },
     "t324": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_top3_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_margin_quality_weighted_3"
       ]
     },
     "t325": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_smoothed_win_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_margin_quality_weighted_6"
       ]
     },
     "t326": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_smoothed_top3_rate"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_runs"
       ]
     },
     "t327": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_win_excess"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_wins"
       ]
     },
     "t328": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_synergy"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_top3"
       ]
     },
     "t329": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_form_strength"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_win_rate"
       ]
     },
     "t330": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_3_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_top3_rate"
       ]
     },
     "t331": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_3_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_smoothed_win_rate"
       ]
     },
     "t332": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_3_minus_race_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate"
       ]
     },
     "t333": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_3_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_win_excess"
       ]
     },
     "t334": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_3_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_synergy"
       ]
     },
     "t335": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_3_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_form_strength"
       ]
     },
     "t336": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_6_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_3_rank_in_race"
       ]
     },
     "t337": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_6_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_3_pct_in_race"
       ]
     },
     "t338": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_6_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_3_minus_race_mean"
       ]
     },
     "t339": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_6_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_3_minus_race_median"
       ]
     },
     "t340": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_finish_percentile_weighted_6_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_3_zscore_in_race"
       ]
     },
     "t341": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_weighted_3_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_3_gap_to_best"
       ]
     },
     "t342": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_weighted_3_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_6_rank_in_race"
       ]
     },
     "t343": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_weighted_3_minus_race_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_6_pct_in_race"
       ]
     },
     "t344": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_weighted_3_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_6_minus_race_mean"
       ]
     },
     "t345": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_weighted_3_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_6_minus_race_median"
       ]
     },
     "t346": {
       "features": [
-        "form_average_finish_percentile_6",
-        "recent_margin_quality_weighted_3_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_6_zscore_in_race"
       ]
     },
     "t347": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_weighted_3_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_finish_percentile_weighted_6_gap_to_best"
       ]
     },
     "t348": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_weighted_3_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_weighted_3_rank_in_race"
       ]
     },
     "t349": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_weighted_3_minus_race_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_weighted_3_pct_in_race"
       ]
     },
     "t350": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_weighted_3_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_weighted_3_minus_race_mean"
       ]
     },
     "t351": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_weighted_3_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_weighted_3_minus_race_median"
       ]
     },
     "t352": {
       "features": [
-        "form_average_finish_percentile_6",
-        "historical_market_overperformance_weighted_3_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_weighted_3_zscore_in_race"
       ]
     },
     "t353": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_best_3_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "recent_margin_quality_weighted_3_gap_to_best"
       ]
     },
     "t354": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_best_3_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_weighted_3_rank_in_race"
       ]
     },
     "t355": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_best_3_minus_race_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_weighted_3_pct_in_race"
       ]
     },
     "t356": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_best_3_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_weighted_3_minus_race_mean"
       ]
     },
     "t357": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_best_3_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_weighted_3_minus_race_median"
       ]
     },
     "t358": {
       "features": [
-        "form_average_finish_percentile_6",
-        "hidden_sectional_run_best_3_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_weighted_3_zscore_in_race"
       ]
     },
     "t359": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_finish_percentile_weighted_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "historical_market_overperformance_weighted_3_gap_to_best"
       ]
     },
     "t360": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_finish_percentile_weighted_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_best_3_rank_in_race"
       ]
     },
     "t361": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_finish_percentile_weighted_minus_race_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_best_3_pct_in_race"
       ]
     },
     "t362": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_finish_percentile_weighted_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_best_3_minus_race_mean"
       ]
     },
     "t363": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_finish_percentile_weighted_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_best_3_minus_race_median"
       ]
     },
     "t364": {
       "features": [
-        "form_average_finish_percentile_6",
-        "similar_distance_finish_percentile_weighted_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_best_3_zscore_in_race"
       ]
     },
     "t365": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_weighted_3_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "hidden_sectional_run_best_3_gap_to_best"
       ]
     },
     "t366": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_weighted_3_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_finish_percentile_weighted_rank_in_race"
       ]
     },
     "t367": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_weighted_3_minus_race_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_finish_percentile_weighted_pct_in_race"
       ]
     },
     "t368": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_weighted_3_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_finish_percentile_weighted_minus_race_mean"
       ]
     },
     "t369": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_weighted_3_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_finish_percentile_weighted_minus_race_median"
       ]
     },
     "t370": {
       "features": [
-        "form_average_finish_percentile_6",
-        "class_adjusted_finish_percentile_weighted_3_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_finish_percentile_weighted_zscore_in_race"
       ]
     },
     "t371": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_smoothed_top3_rate_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "similar_distance_finish_percentile_weighted_gap_to_best"
       ]
     },
     "t372": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_smoothed_top3_rate_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_rank_in_race"
       ]
     },
     "t373": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_smoothed_top3_rate_minus_race_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_pct_in_race"
       ]
     },
     "t374": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_smoothed_top3_rate_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_minus_race_mean"
       ]
     },
     "t375": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_smoothed_top3_rate_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_minus_race_median"
       ]
     },
     "t376": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_trainer_history_smoothed_top3_rate_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_zscore_in_race"
       ]
     },
     "t377": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_form_strength_rank_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_gap_to_best"
       ]
     },
     "t378": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_form_strength_pct_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_rank_in_race"
       ]
     },
     "t379": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_form_strength_minus_race_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_pct_in_race"
       ]
     },
     "t380": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_form_strength_minus_race_median"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_minus_race_mean"
       ]
     },
     "t381": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_form_strength_zscore_in_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_minus_race_median"
       ]
     },
     "t382": {
       "features": [
-        "form_average_finish_percentile_6",
-        "current_form_strength_gap_to_best"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_zscore_in_race"
       ]
     },
     "t383": {
       "features": [
-        "form_average_finish_percentile_6",
-        "margin_rank_minus_market_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_gap_to_best"
       ]
     },
     "t384": {
       "features": [
-        "form_average_finish_percentile_6",
-        "margin_market_rank_abs_gap"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_form_strength_rank_in_race"
       ]
     },
     "t385": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_speed_rank_minus_market_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_form_strength_pct_in_race"
       ]
     },
     "t386": {
       "features": [
-        "form_average_finish_percentile_6",
-        "distance_speed_market_rank_abs_gap"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_form_strength_minus_race_mean"
       ]
     },
     "t387": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_rank_minus_market_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_form_strength_minus_race_median"
       ]
     },
     "t388": {
       "features": [
-        "form_average_finish_percentile_6",
-        "jockey_market_rank_abs_gap"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_form_strength_zscore_in_race"
       ]
     },
     "t389": {
       "features": [
-        "form_average_finish_percentile_6",
-        "career_rank_minus_market_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "current_form_strength_gap_to_best"
       ]
     },
     "t390": {
       "features": [
-        "form_average_finish_percentile_6",
-        "career_market_rank_abs_gap"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "margin_rank_minus_market_rank"
       ]
     },
     "t391": {
       "features": [
-        "form_average_finish_percentile_6",
-        "prize_money_rank_minus_market_rank"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "margin_market_rank_abs_gap"
       ]
     },
     "t392": {
       "features": [
-        "form_average_finish_percentile_6",
-        "prize_money_market_rank_abs_gap"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_speed_rank_minus_market_rank"
       ]
     },
     "t393": {
       "features": [
-        "form_average_finish_percentile_6",
-        "total_prize_money"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "distance_speed_market_rank_abs_gap"
       ]
     },
     "t394": {
       "features": [
-        "form_average_finish_percentile_6",
-        "race_field_avg_prize_money"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_rank_minus_market_rank"
       ]
     },
     "t395": {
       "features": [
-        "form_average_finish_percentile_6",
-        "race_field_max_prize_money"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "jockey_market_rank_abs_gap"
       ]
     },
     "t396": {
       "features": [
-        "form_average_finish_percentile_6",
-        "race_field_avg_speed_rating"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "career_rank_minus_market_rank"
       ]
     },
     "t397": {
       "features": [
-        "form_average_finish_percentile_6",
-        "race_field_max_speed_rating"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "career_market_rank_abs_gap"
       ]
     },
     "t398": {
       "features": [
-        "form_average_finish_percentile_6",
-        "weight_vs_field_mean"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "prize_money_rank_minus_market_rank"
       ]
     },
     "t399": {
       "features": [
-        "form_average_finish_percentile_6",
-        "num_scratchings"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "prize_money_market_rank_abs_gap"
       ]
     },
     "t400": {
       "features": [
-        "form_average_finish_percentile_6",
-        "preparation_run_number"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "total_prize_money"
       ]
     },
     "t401": {
       "features": [
-        "form_average_finish_percentile_6",
-        "runs_this_preparation_before_race"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_field_avg_prize_money"
       ]
     },
     "t402": {
       "features": [
-        "form_average_finish_percentile_6",
-        "first_up_flag"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_field_max_prize_money"
       ]
     },
     "t403": {
       "features": [
-        "form_average_finish_percentile_6",
-        "second_up_flag"
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_field_avg_speed_rating"
       ]
     },
     "t404": {
       "features": [
-        "form_average_finish_percentile_6",
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "race_field_max_speed_rating"
+      ]
+    },
+    "t405": {
+      "features": [
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "weight_vs_field_mean"
+      ]
+    },
+    "t406": {
+      "features": [
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "num_scratchings"
+      ]
+    },
+    "t407": {
+      "features": [
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "preparation_run_number"
+      ]
+    },
+    "t408": {
+      "features": [
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "runs_this_preparation_before_race"
+      ]
+    },
+    "t409": {
+      "features": [
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "first_up_flag"
+      ]
+    },
+    "t410": {
+      "features": [
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
+        "second_up_flag"
+      ]
+    },
+    "t411": {
+      "features": [
+        "active_field_size",
+        "open_price",
+        "fluc2",
+        "fluc1",
+        "trackFamiliarity",
+        "draw_number",
+        "current_class_level",
+        "recent_min_weight_kg",
         "third_up_flag"
       ]
     }

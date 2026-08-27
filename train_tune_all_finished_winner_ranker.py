@@ -39,7 +39,9 @@ from backtest_winner_blend import (
 from src.config import DEFAULT_DB
 from src.winner_ranker import (
     MARKET_ENGINEERED_FEATURES,
+    categorical_levels,
     database_numeric_columns,
+    database_text_columns,
     eligible_races,
     ensemble_rank_scores,
     group_sizes,
@@ -48,9 +50,11 @@ from src.winner_ranker import (
     market_scores,
     market_deviation_metrics,
     model_feature_matrix,
+    prepare_categorical_features,
     rank_percentiles,
     rows_for_races,
     select_form_features,
+    select_categorical_features,
     validate_ranker_groups,
     winner_field_size_slices,
     winner_metrics,
@@ -68,9 +72,17 @@ class OOFCohortMismatchError(ValueError):
     """Raised when saved OOF rows cannot be reused for the current cohort."""
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument(
+        "--competition-id",
+        type=int,
+        help=(
+            "Train only active finished races with this competition_id. "
+            "The ID is used only to select rows and is never a model feature."
+        ),
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -109,6 +121,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--folds", type=int, default=5)
     parser.add_argument("--minimum-runners", type=int, default=4)
     parser.add_argument("--minimum-feature-coverage", type=float, default=0.20)
+    parser.add_argument(
+        "--native-categorical",
+        action="store_true",
+        help=(
+            "Use XGBoost native categorical splits for text fields explicitly "
+            "listed in each model's --features-json entry. No features are appended."
+        ),
+    )
     parser.add_argument(
         "--training-weekday",
         choices=(
@@ -195,7 +215,7 @@ def parse_args() -> argparse.Namespace:
             "bundle and matching OOF file instead of excluding them."
         ),
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def crossfit_fold_ids(race_ids: list[int], folds: int) -> list[list[int]]:
@@ -282,6 +302,83 @@ def tree_count_eval_metrics(objective: str) -> list[str]:
     raise ValueError(f"Unknown tree-count objective: {objective}")
 
 
+def print_model_race_matrix_audit(
+    label: str,
+    role: str,
+    frame: pd.DataFrame,
+    configured_features: list[str],
+) -> None:
+    """Print every runner and configured value for one model/role race."""
+    if frame.empty:
+        raise ValueError(f"Cannot audit an empty {role} frame")
+    race_id = int(frame.iloc[0]["race_id"])
+    race = frame.loc[frame["race_id"].astype(int) == race_id].copy()
+    matrix = model_feature_matrix(race, configured_features)
+    identity_columns = [
+        column for column in ("race_id", "runner_number", "runner_name", "is_winner")
+        if column in race
+    ]
+    display = pd.concat(
+        [race[identity_columns].reset_index(drop=True), matrix.reset_index(drop=True)],
+        axis=1,
+    )
+    feature_types = {
+        feature: (
+            "categorical"
+            if isinstance(matrix[feature].dtype, pd.CategoricalDtype)
+            else "numeric"
+        )
+        for feature in configured_features
+    }
+    print("=" * 100)
+    print(
+        f"MODEL MATRIX AUDIT model={label} role={role} race_id={race_id} "
+        f"runners={len(race)} features={len(configured_features)}"
+    )
+    print("feature_types=" + json.dumps(feature_types, sort_keys=False))
+    with pd.option_context(
+        "display.max_columns", None,
+        "display.width", 10000,
+        "display.max_colwidth", 80,
+    ):
+        print(display.to_string(index=False, na_rep="NULL"), flush=True)
+
+
+def print_first_fold_matrix_audits(
+    label: str,
+    outer_training: pd.DataFrame,
+    outer_holdout: pd.DataFrame,
+    configured_features: list[str],
+    maximum_inner_validation_races: int,
+) -> None:
+    """Print representative train, validation, and OOF prediction matrices."""
+    ordered_ids = outer_training.groupby("race_id", sort=False).head(1)[
+        "race_id"
+    ].astype(int).tolist()
+    inner_train_ids, inner_validation_ids = inner_tree_count_split(
+        ordered_ids, maximum_inner_validation_races
+    )
+    print_model_race_matrix_audit(
+        label,
+        "inner_training",
+        rows_for_races(outer_training, [inner_train_ids[0]]),
+        configured_features,
+    )
+    print_model_race_matrix_audit(
+        label,
+        "inner_validation",
+        rows_for_races(outer_training, [inner_validation_ids[0]]),
+        configured_features,
+    )
+    first_holdout_id = int(outer_holdout.iloc[0]["race_id"])
+    print_model_race_matrix_audit(
+        label,
+        "outer_oof_prediction",
+        rows_for_races(outer_holdout, [first_holdout_id]),
+        configured_features,
+    )
+
+
 def tune_tree_counts(
     args: argparse.Namespace,
     label: str,
@@ -314,6 +411,8 @@ def tune_tree_counts(
     for member in range(args.ensemble_size):
         seed = args.seed + seed_offset + member * 1009
         parameters = model_parameters(args, seed, args.max_estimators)
+        if any(isinstance(dtype, pd.CategoricalDtype) for dtype in train_matrix.dtypes):
+            parameters["enable_categorical"] = True
         parameters["eval_metric"] = tree_count_eval_metrics(args.objective)
         model = XGBRanker(
             **parameters,
@@ -365,7 +464,10 @@ def fit_ensemble(
     models: list[XGBRanker] = []
     for member, trees in enumerate(estimators):
         seed = args.seed + seed_offset + member * 1009
-        model = XGBRanker(**model_parameters(args, seed, trees))
+        parameters = model_parameters(args, seed, trees)
+        if any(isinstance(dtype, pd.CategoricalDtype) for dtype in matrix.dtypes):
+            parameters["enable_categorical"] = True
+        model = XGBRanker(**parameters)
         model.fit(matrix, targets, group=groups, verbose=False)
         models.append(model)
     return models
@@ -446,6 +548,29 @@ def load_model_feature_sets(
                 + ", ".join(unavailable)
             )
     return feature_sets
+
+
+def manifest_text_features(
+    manifest_path: Path, database_text_features: list[str]
+) -> list[str]:
+    """Return only text features explicitly listed by the model manifest."""
+    path = manifest_path.resolve()
+    if not path.is_file():
+        raise ValueError(f"Feature manifest does not exist: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    models = payload.get("models")
+    if not isinstance(models, dict):
+        raise ValueError(f"{path} must contain a models object")
+    database_text = set(database_text_features)
+    requested: list[str] = []
+    for model in models.values():
+        features = model.get("features") if isinstance(model, dict) else None
+        if not isinstance(features, list):
+            continue
+        requested.extend(
+            str(feature) for feature in features if feature in database_text
+        )
+    return list(dict.fromkeys(requested))
 
 
 def load_race_model_feature_sets(
@@ -1047,6 +1172,8 @@ def main() -> None:
     )
     if args.jobs < 1:
         raise ValueError("--jobs must be at least 1")
+    if args.competition_id is not None and args.competition_id < 1:
+        raise ValueError("--competition-id must be positive")
     args.models = normalize_requested_models(args.models)
     if args.ensemble_size < 1:
         raise ValueError("ensemble-size must be positive")
@@ -1083,8 +1210,34 @@ def main() -> None:
         ], check=True)
 
     numeric_columns = database_numeric_columns(database)
-    frame = load_training_rows(database, numeric_columns)
+    database_categorical_columns = database_text_columns(database)
+    requested_categorical = (
+        manifest_text_features(args.features_json, database_categorical_columns)
+        if args.native_categorical and not args.race_models_manifest
+        else []
+    )
+    frame = load_training_rows(
+        database,
+        numeric_columns,
+        args.competition_id,
+        requested_categorical,
+    )
+    if frame.empty:
+        scope = (
+            f"competition_id={args.competition_id}"
+            if args.competition_id is not None else "all competitions"
+        )
+        raise ValueError(f"No active finished training runners found for {scope}")
     races = eligible_races(frame, args.minimum_runners)
+    if races.empty:
+        scope = (
+            f" for competition_id={args.competition_id}"
+            if args.competition_id is not None else ""
+        )
+        raise ValueError(
+            "No races with the required runner count and exactly one winner"
+            + scope
+        )
     all_weekday_eligible_races = len(races)
     races = filter_races_by_utc_weekday(races, args.training_weekday)
     if races.empty:
@@ -1096,6 +1249,15 @@ def main() -> None:
             f"training_weekday_utc={args.training_weekday} "
             f"weekday_races={len(races):,} "
             f"all_weekday_eligible_races={all_weekday_eligible_races:,}",
+            flush=True,
+        )
+    if args.competition_id is not None:
+        competition_names = sorted(
+            str(value) for value in frame["competition_name"].dropna().unique()
+        )
+        print(
+            f"training_competition_id={args.competition_id} "
+            f"competition_names={json.dumps(competition_names)}",
             flush=True,
         )
     eligible_ids = races["race_id"].astype(int).tolist()
@@ -1126,6 +1288,25 @@ def main() -> None:
     eligible_features, duplicates = select_form_features(
         all_finished, numeric_columns, args.minimum_feature_coverage
     )
+    categorical_features = select_categorical_features(
+        all_finished,
+        requested_categorical,
+        args.minimum_feature_coverage,
+    )
+    saved_categorical_levels = categorical_levels(
+        all_finished, categorical_features
+    )
+    all_finished = prepare_categorical_features(
+        all_finished, saved_categorical_levels
+    )
+    eligible_features.extend(categorical_features)
+    if args.native_categorical:
+        print(
+            f"native_categorical_features={json.dumps(categorical_features)} "
+            f"requested={len(requested_categorical)} "
+            f"eligible={len(categorical_features)}",
+            flush=True,
+        )
     # Duplicate detection is useful diagnostics, but a JSON group may
     # intentionally select either copy without also selecting its twin.
     eligible_features.extend(
@@ -1177,6 +1358,14 @@ def main() -> None:
     feature_sets, training_labels, reused_labels = select_requested_model_groups(
         feature_sets, args.models, args.reuse_unselected_models
     )
+    categorical_features = [
+        feature for feature in categorical_features
+        if any(feature in features for features in feature_sets.values())
+    ]
+    saved_categorical_levels = {
+        feature: saved_categorical_levels[feature]
+        for feature in categorical_features
+    }
     requested_labels = set(training_labels)
     existing_bundle: dict[str, Any] = {}
     existing_oof: pd.DataFrame | None = None
@@ -1240,8 +1429,13 @@ def main() -> None:
         f"{json.dumps(fixed_tree_counts_by_model)}\n"
         if args.no_tune_tree_counts else ""
     )
+    competition_scope = (
+        f"competition_id={args.competition_id}"
+        if args.competition_id is not None else "all_eligible_races"
+    )
     print(
         f"source=status_finished active_runner_only=yes "
+        f"competition_scope={competition_scope} "
         f"eligible_races={len(eligible_ids):,} rows={len(all_finished):,} "
         f"folds={args.folds} models={len(feature_sets)} "
         f"duplicates_removed={len(duplicates)}\n"
@@ -1287,6 +1481,14 @@ def main() -> None:
         ):
             if label not in requested_labels:
                 continue
+            if fold_number == 1:
+                print_first_fold_matrix_audits(
+                    label,
+                    training,
+                    holdout,
+                    configured_features,
+                    args.tree_count_validation_races,
+                )
             seed_offset = fold_number * 100_000 + model_index * 10_000
             if args.no_tune_tree_counts:
                 fold_tree_counts = fixed_tree_counts_by_model[label]
@@ -1448,10 +1650,18 @@ def main() -> None:
             "derived_racing_features_version"
         ].dropna().unique()
     )
+    if args.competition_id is not None and args.training_weekday:
+        training_scope = "eligible_finished_races_competition_and_utc_weekday"
+    elif args.competition_id is not None:
+        training_scope = "eligible_finished_races_competition"
+    elif args.training_weekday:
+        training_scope = "eligible_finished_races_utc_weekday"
+    else:
+        training_scope = "all_eligible_finished_races"
     recommendation = {
         "schema_version": 2,
         "blend": "all_finished_crossfit_dynamic_model_groups",
-        "selection_cohort": "all_eligible_finished_races_grouped_oof",
+        "selection_cohort": f"{training_scope}_grouped_oof",
         "raw_market_weight_fixed": 0.0,
         "objective": args.objective,
         "selected_weights": selected_weights,
@@ -1462,6 +1672,9 @@ def main() -> None:
         "eligible_finished_races": len(eligible_ids),
         "eligible_finished_rows": len(all_finished),
         "crossfit_folds": args.folds,
+        "ensemble_size": args.ensemble_size,
+        "minimum_feature_coverage": args.minimum_feature_coverage,
+        "weight_step": args.weight_step,
         "tree_count_selection": tree_count_mode,
         "tree_count_selection_metric": tree_count_selection_metric,
         "oof_median_tree_counts": oof_tree_counts_by_model,
@@ -1478,6 +1691,8 @@ def main() -> None:
         ),
         "sealed_test_available": False,
         "training_weekday_utc": args.training_weekday,
+        "training_competition_id": args.competition_id,
+        "competition_scope": competition_scope,
         "top3_failure_focus": top3_failure_focus,
     }
     deployment_model = (
@@ -1499,15 +1714,15 @@ def main() -> None:
     bundle = {
         "schema_version": 3,
         "objective": "single_winner_ranking",
-        "training_scope": (
-            "eligible_finished_races_utc_weekday"
-            if args.training_weekday else "all_eligible_finished_races"
-        ),
+        "training_scope": training_scope,
         "training_weekday_utc": args.training_weekday,
-        "competition_scope": "all_eligible_races",
+        "training_competition_id": args.competition_id,
+        "competition_scope": competition_scope,
         "competition_id_feature_used": False,
         "form_features": feature_sets.get("form", []),
         "model_features": feature_sets,
+        "categorical_features": categorical_features,
+        "categorical_levels": saved_categorical_levels,
         "feature_manifest": str(feature_manifest),
         "deployment_default": deployment_model,
         "deployment_uses_current_market": deployment_uses_market,

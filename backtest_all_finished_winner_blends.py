@@ -422,7 +422,11 @@ def load_predictions(path: Path, model_labels: list[str]) -> pd.DataFrame:
     return frame.sort_values(sort_columns, kind="stable", ignore_index=True)
 
 
-def load_finished_date_rows(database: Path, exact_date: str) -> pd.DataFrame:
+def load_finished_date_rows(
+    database: Path,
+    exact_date: str,
+    categorical_columns: list[str] | None = None,
+) -> pd.DataFrame:
     """Load eligible finished race rows for a UTC date without model inference."""
     from src.winner_ranker import (
         database_numeric_columns,
@@ -434,7 +438,11 @@ def load_finished_date_rows(database: Path, exact_date: str) -> pd.DataFrame:
     if not resolved_database.is_file():
         raise ValueError(f"Database does not exist: {resolved_database}")
     numeric_columns = database_numeric_columns(resolved_database)
-    all_finished = load_training_rows(resolved_database, numeric_columns)
+    all_finished = load_training_rows(
+        resolved_database,
+        numeric_columns,
+        categorical_columns=categorical_columns or [],
+    )
     times = pd.to_datetime(
         all_finished["start_time_iso"], errors="coerce", utc=True
     )
@@ -450,7 +458,10 @@ def load_finished_date_rows(database: Path, exact_date: str) -> pd.DataFrame:
     return rows_for_races(dated, races["race_id"].astype(int).tolist())
 
 
-def load_finished_database_rows(database: Path) -> pd.DataFrame:
+def load_finished_database_rows(
+    database: Path,
+    categorical_columns: list[str] | None = None,
+) -> pd.DataFrame:
     """Load every eligible finished race currently present in the database."""
     from src.winner_ranker import (
         database_numeric_columns,
@@ -462,7 +473,11 @@ def load_finished_database_rows(database: Path) -> pd.DataFrame:
     if not resolved_database.is_file():
         raise ValueError(f"Database does not exist: {resolved_database}")
     numeric_columns = database_numeric_columns(resolved_database)
-    all_finished = load_training_rows(resolved_database, numeric_columns)
+    all_finished = load_training_rows(
+        resolved_database,
+        numeric_columns,
+        categorical_columns=categorical_columns or [],
+    )
     races = eligible_races(all_finished)
     if races.empty:
         raise ValueError("Database contains no eligible finished races")
@@ -483,8 +498,18 @@ def score_finished_rows_from_bundle(
         ensemble_rank_scores,
         market_scores,
         model_feature_matrix,
+        prepare_categorical_features,
         rank_percentiles,
     )
+    categorical_features = [
+        str(feature) for feature in bundle.get("categorical_features", [])
+    ]
+    levels = {
+        str(feature): [str(value) for value in values]
+        for feature, values in bundle.get("categorical_levels", {}).items()
+        if isinstance(values, list)
+    }
+    frame = prepare_categorical_features(frame, levels)
     output = frame.copy()
     race_ids = frame["race_id"].to_numpy(dtype=np.int64)
     configured_features = dict(bundle.get("model_features", {}))
@@ -499,8 +524,34 @@ def score_finished_rows_from_bundle(
             model = XGBRanker()
             model.load_model(path)
             models.append(model)
+        matrix = model_feature_matrix(frame, features)
+        expected_categorical = set(categorical_features) & set(features)
+        for feature in expected_categorical:
+            if not isinstance(matrix[feature].dtype, pd.CategoricalDtype):
+                raise ValueError(
+                    f"Bundle model {label} expects categorical feature {feature}, "
+                    "but its backtest matrix is not categorical"
+                )
+        for member, model in enumerate(models, start=1):
+            feature_types = list(model.feature_types or [])
+            if expected_categorical and len(feature_types) != len(features):
+                raise ValueError(
+                    f"Bundle model {label} member {member} has incompatible "
+                    "feature-type metadata"
+                )
+            mismatched = [
+                feature
+                for index, feature in enumerate(features)
+                if expected_categorical
+                and ((feature in expected_categorical) != (feature_types[index] == "c"))
+            ]
+            if mismatched:
+                raise ValueError(
+                    f"Bundle model {label} member {member} categorical metadata "
+                    "mismatch: " + ", ".join(mismatched)
+                )
         score = ensemble_rank_scores(
-            models, model_feature_matrix(frame, features), race_ids
+            models, matrix, race_ids
         )
         output[f"{label}_score"] = score
         output[f"{label}_rank"] = pd.Series(score).groupby(
@@ -511,6 +562,23 @@ def score_finished_rows_from_bundle(
     output["market_rank"] = pd.Series(market_score).groupby(
         output["race_id"], sort=False
     ).rank(method="first", ascending=False).astype(int)
+    categorical_by_model = {
+        label: [
+            feature for feature in configured_features.get(label, [])
+            if feature in categorical_features
+        ]
+        for label in model_labels
+    }
+    categorical_by_model = {
+        label: features
+        for label, features in categorical_by_model.items()
+        if features
+    }
+    print(
+        "native_categorical_by_model="
+        + json.dumps(categorical_by_model, sort_keys=True),
+        flush=True,
+    )
     return output
 
 
@@ -522,7 +590,13 @@ def score_finished_date_from_bundle(
 ) -> pd.DataFrame:
     """Score all eligible finished races on one UTC date with fitted models."""
     return score_finished_rows_from_bundle(
-        load_finished_date_rows(database, exact_date), bundle, model_labels
+        load_finished_date_rows(
+            database,
+            exact_date,
+            [str(feature) for feature in bundle.get("categorical_features", [])],
+        ),
+        bundle,
+        model_labels,
     )
 
 
@@ -1456,7 +1530,11 @@ def main() -> None:
         raise ValueError("Bundle is not a single-winner ranking artifact")
     if args.train_per_race:
         frame = filter_complete_races(
-            load_finished_date_rows(args.db, args.date),
+            load_finished_date_rows(
+                args.db,
+                args.date,
+                [str(feature) for feature in bundle.get("categorical_features", [])],
+            ),
             args.competition_id,
             None,
             None,
@@ -1484,9 +1562,16 @@ def main() -> None:
     evaluation_mode = "saved_out_of_fold_predictions"
     if database_inference:
         database_rows = (
-            load_finished_date_rows(args.db, args.date)
+            load_finished_date_rows(
+                args.db,
+                args.date,
+                [str(feature) for feature in bundle.get("categorical_features", [])],
+            )
             if args.date is not None and not args.predict_db
-            else load_finished_database_rows(args.db)
+            else load_finished_database_rows(
+                args.db,
+                [str(feature) for feature in bundle.get("categorical_features", [])],
+            )
         )
         database_rows = filter_complete_races(
             database_rows,

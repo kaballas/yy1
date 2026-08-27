@@ -8,6 +8,8 @@ import pytest
 pytest.importorskip("xgboost")
 
 from rank_winner_models import (
+    best_today_model,
+    categorical_prediction_audit,
     completed_winner_model_results,
     consensus_representative_model_columns,
     load_active_race,
@@ -22,7 +24,25 @@ from rank_winner_models import (
     terminal_table_text,
     unique_model_top_combinations,
     unique_model_top_sets,
+    validate_categorical_model_inputs,
 )
+
+
+def test_best_today_model_uses_top1_then_top3_then_mrr():
+    scored = pd.DataFrame({
+        "race_id": [1, 1, 2, 2, 3, 3],
+        "is_winner": [1, 0, 1, 0, 1, 0],
+        "a_rank": [1, 2, 2, 1, 4, 1],
+        "b_rank": [1, 2, 3, 1, 2, 1],
+    })
+
+    label, weights, metrics = best_today_model(scored, ["a", "b"])
+
+    assert label == "b"
+    assert weights == {"a": 0.0, "b": 1.0}
+    assert metrics["races"] == 3
+    assert metrics["top1_hit_rate"] == pytest.approx(1 / 3)
+    assert metrics["top3_hit_rate"] == 1.0
 
 
 def test_consensus_display_selects_nearest_models_and_honors_zero_limit():
@@ -100,6 +120,64 @@ def test_model_feature_matrix_uses_manifest_order_and_engineered_values():
         "current_market_rank_pct", "speed", "fluc2",
     ]
     assert matrix["current_market_rank_pct"].tolist() == [1.0, 0.0]
+
+
+def test_model_feature_matrix_preserves_text_as_native_category():
+    frame = pd.DataFrame({"class_name": ["BM64", None], "speed": [7.0, 8.0]})
+
+    matrix = model_feature_matrix(frame, ["class_name", "speed"])
+
+    assert isinstance(matrix["class_name"].dtype, pd.CategoricalDtype)
+    assert matrix["class_name"].astype(str).tolist() == ["BM64", "__MISSING__"]
+    assert matrix["speed"].dtype.kind == "f"
+
+
+def test_ranker_validates_and_reports_categorical_prediction_inputs():
+    from types import SimpleNamespace
+
+    frame = pd.DataFrame({
+        "runner_number": [1, 2],
+        "runner_name": ["Alpha", "Beta"],
+        "tempo": pd.Categorical(["Fast", "Slow"]),
+        "speed": [8.0, 7.0],
+    })
+    matrix = model_feature_matrix(frame, ["speed", "tempo"])
+    model = SimpleNamespace(feature_types=["float", "c"])
+
+    validate_categorical_model_inputs(
+        "t1", ["speed", "tempo"], matrix, [model], ["tempo"]
+    )
+    by_model, values = categorical_prediction_audit(
+        frame, {"t1": ["speed", "tempo"]}, ["tempo"]
+    )
+
+    assert by_model == {"t1": ["tempo"]}
+    assert values.columns.tolist() == ["runner_number", "runner_name", "tempo"]
+
+
+def test_ranker_rejects_bundle_model_categorical_mismatch():
+    from types import SimpleNamespace
+
+    matrix = pd.DataFrame({"tempo": pd.Categorical(["Fast"])})
+    model = SimpleNamespace(feature_types=["float"])
+
+    with pytest.raises(ValueError, match="categorical metadata mismatch"):
+        validate_categorical_model_inputs(
+            "t1", ["tempo"], matrix, [model], ["tempo"]
+        )
+
+
+def test_saved_categorical_levels_turn_unseen_values_into_missing():
+    from src.winner_ranker import prepare_categorical_features
+
+    frame = pd.DataFrame({"class_name": ["BM64", "UNSEEN"]})
+    prepared = prepare_categorical_features(
+        frame, {"class_name": ["__MISSING__", "BM64"]}
+    )
+    matrix = model_feature_matrix(prepared, ["class_name"])
+
+    assert matrix["class_name"].iloc[0] == "BM64"
+    assert pd.isna(matrix["class_name"].iloc[1])
 
 
 def test_named_blend_includes_dynamic_model_groups():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one market-base-plus-one-feature model per numeric database feature."""
+"""Build one market-base-plus-one-feature model per database feature."""
 
 from __future__ import annotations
 
@@ -9,10 +9,20 @@ import sqlite3
 from pathlib import Path
 
 from feature_hinter import candidate_features, database_schema
+from feature_population_report import NON_FEATURE_COLUMNS
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [ 
- "form_average_finish_percentile_6"
+  "active_field_size",
+     "open_price",
+  "fluc2",
+  "fluc1",
+  "trackFamiliarity",
+  "draw_number",
+  "current_class_level",
+  "recent_min_weight_kg"
+
+
                   ]
 
 # Optional permanent exclusions. Add race_runners feature names here when they
@@ -25,13 +35,14 @@ EXCLUDED_FEATURES: list[str] = [
     "open_price",
     "race_consensus_rank",
     "race_consensus_score",
-    "market_fluc1_to_fluc2_move",
-    "open_price_rank",
-    "market_implied_prob_change_open_to_fluc2",
     "market_total_abs_movement",
     "market_implied_prob_change_fluc1_to_fluc2",
     "recent_finish_percentile_weighted_6_minus_race_mean",
     "historical_market_overperformance_avg_6",
+]
+
+EXCLUDED_FEATURES: list[str] = [
+ 
 ]
 
 
@@ -57,6 +68,14 @@ def parse_args() -> argparse.Namespace:
             "These are combined with EXCLUDED_FEATURES in this script."
         ),
     )
+    parser.add_argument(
+        "--include-categorical",
+        action="store_true",
+        help=(
+            "Also create one ablation model per eligible TEXT column. The raw "
+            "text name is written explicitly into that model's feature list."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -64,6 +83,7 @@ def build_manifest(
     database: Path,
     base_features: list[str] | None = None,
     excluded_features: list[str] | None = None,
+    include_categorical: bool = False,
 ) -> dict[str, object]:
     base_features = list(BASE_FEATURES if base_features is None else base_features)
     excluded_features = list(
@@ -105,11 +125,26 @@ def build_manifest(
 
     omitted = set(base_features) | set(excluded_features)
 
-    additions = [
+    numeric_additions = [
         feature for feature in candidate_features(schema) if feature not in omitted
     ]
+    categorical_columns = [
+        name
+        for name, declared_type in schema
+        if any(
+            token in declared_type.upper() for token in ("CHAR", "CLOB", "TEXT")
+        )
+    ]
+    categorical_additions = [
+        name
+        for name in categorical_columns
+        if include_categorical
+        and name not in omitted
+        and name not in NON_FEATURE_COLUMNS
+    ]
+    additions = [*numeric_additions, *categorical_additions]
     if not additions:
-        raise ValueError("No additional usable numeric race_runners features found")
+        raise ValueError("No additional usable race_runners features found")
 
     models = {
         f"t{index}": {
@@ -125,6 +160,11 @@ def build_manifest(
         ),
         "base_features": base_features,
         "excluded_features": excluded_features,
+        "categorical_features": [
+            feature
+            for feature in [*base_features, *categorical_additions]
+            if feature in categorical_columns
+        ],
         "models": models,
     }
 
@@ -139,6 +179,7 @@ def main() -> None:
     manifest = build_manifest(
         database,
         excluded_features=list(dict.fromkeys(excluded_features)),
+        include_categorical=args.include_categorical,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -151,6 +192,7 @@ def main() -> None:
     print(f"output={output}")
     print(f"base_features={json.dumps(manifest['base_features'])}")
     print(f"excluded_features={json.dumps(manifest['excluded_features'])}")
+    print(f"categorical_features={json.dumps(manifest['categorical_features'])}")
     print(f"models={len(models):,} labels={first_label}..{last_label}")
     print(f"first={json.dumps({first_label: models[first_label]})}")
     print(f"last={json.dumps({last_label: models[last_label]})}")

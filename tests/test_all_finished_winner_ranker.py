@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 import pandas as pd
 import pytest
@@ -11,8 +12,11 @@ from train_tune_all_finished_winner_ranker import (
     filter_races_by_utc_weekday,
     inner_tree_count_split,
     load_model_feature_sets,
+    manifest_text_features,
+    print_model_race_matrix_audit,
     load_race_model_feature_sets,
     normalize_requested_models,
+    parse_args,
     select_requested_model_groups,
     merge_reused_oof_scores,
     print_model_feature_report,
@@ -20,6 +24,7 @@ from train_tune_all_finished_winner_ranker import (
     tree_counts,
     tune_dynamic_model_blend,
 )
+from src.winner_ranker import database_numeric_columns, load_training_rows
 
 
 def test_crossfit_assigns_every_whole_race_once():
@@ -46,6 +51,105 @@ def test_training_weekday_filter_keeps_utc_saturdays():
     filtered = filter_races_by_utc_weekday(races, "Saturday")
 
     assert filtered["race_id"].tolist() == [2]
+
+
+def test_competition_id_argument_accepts_database_id():
+    args = parse_args(["--competition-id", "330"])
+
+    assert args.competition_id == 330
+
+
+def test_native_categorical_argument_is_opt_in():
+    assert not parse_args([]).native_categorical
+    assert parse_args(["--native-categorical"]).native_categorical
+
+
+def test_native_categorical_features_must_be_explicitly_in_manifest(tmp_path):
+    manifest = tmp_path / "features.json"
+    manifest.write_text(json.dumps({
+        "schema_version": 1,
+        "models": {
+            "a": {"features": ["speed", "class_name"]},
+            "b": {"features": ["speed", "track_status"]},
+        },
+    }))
+
+    selected = manifest_text_features(
+        manifest, ["class_name", "track_status", "runner_name"]
+    )
+
+    assert selected == ["class_name", "track_status"]
+
+
+def test_model_race_matrix_audit_prints_all_runners_features_and_types(capsys):
+    frame = pd.DataFrame({
+        "race_id": [10, 10],
+        "runner_number": [1, 2],
+        "runner_name": ["Alpha", "Beta"],
+        "is_winner": [1, 0],
+        "speed": [12.5, None],
+        "track_status": pd.Categorical(["Good", "Soft"]),
+    })
+
+    print_model_race_matrix_audit(
+        "t1", "inner_training", frame, ["speed", "track_status"]
+    )
+
+    output = capsys.readouterr().out
+    assert "model=t1 role=inner_training race_id=10" in output
+    assert '"speed": "numeric"' in output
+    assert '"track_status": "categorical"' in output
+    assert "Alpha" in output and "Beta" in output
+    assert "12.5" in output and "NULL" in output
+
+
+def test_load_training_rows_filters_competition_in_database(tmp_path):
+    database = tmp_path / "races.sqlite"
+    with sqlite3.connect(database) as connection:
+        connection.execute("""
+            CREATE TABLE race_runners (
+                race_id INTEGER,
+                start_time_iso TEXT,
+                competition_id INTEGER,
+                competition_name TEXT,
+                race_number INTEGER,
+                race_name TEXT,
+                runner_number INTEGER,
+                runner_name TEXT,
+                fluc2 REAL,
+                status TEXT,
+                runner_mask INTEGER,
+                rank_label INTEGER,
+                is_winner INTEGER,
+                derived_racing_features_version TEXT,
+                speed REAL
+            )
+        """)
+        connection.executemany(
+            "INSERT INTO race_runners VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (1, "2026-08-01T01:00:00Z", 330, "Doomben", 1, "A", 1,
+                 "One", 2.0, "finished", 1, 1, 1, "v1", 10.0),
+                (2, "2026-08-01T02:00:00Z", 231, "Belmont", 1, "B", 1,
+                 "Two", 3.0, "finished", 1, 1, 1, "v1", 20.0),
+                (3, "2026-08-01T03:00:00Z", 330, "Doomben", 2, "C", 1,
+                 "Three", 4.0, "open", 1, 1, 1, "v1", 30.0),
+            ],
+        )
+
+    all_rows = load_training_rows(database, database_numeric_columns(database))
+    rows = load_training_rows(
+        database, database_numeric_columns(database), competition_id=330
+    )
+
+    assert all_rows["race_id"].tolist() == [1, 2]
+    assert rows["race_id"].tolist() == [1]
+    assert rows["competition_id"].tolist() == [330]
+
+
+def test_load_training_rows_rejects_nonpositive_competition_id(tmp_path):
+    with pytest.raises(ValueError, match="competition_id must be positive"):
+        load_training_rows(tmp_path / "unused.sqlite", [], competition_id=0)
 
 
 def test_crossfit_requires_at_least_two_folds():

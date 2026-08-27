@@ -7,6 +7,8 @@ import pandas as pd
 import pytest
 
 from train_market_mover_tests import (
+    all_qualifying_results,
+    enable_native_categorical,
     best_improving_result,
     forward_feature_pool,
     forward_selection_model_parameters,
@@ -28,6 +30,26 @@ def test_forward_selection_uses_full_feature_and_row_sampling():
     assert parameters["subsample"] == 1.0
     assert parameters["random_state"] == 42
     assert parameters["n_estimators"] == 100
+
+
+def test_native_categorical_is_enabled_only_for_categorical_matrix():
+    numeric = pd.DataFrame({"speed": [1.0, 2.0]})
+    categorical = pd.DataFrame({"tempo": pd.Categorical(["Fast", "Slow"])})
+
+    assert "enable_categorical" not in enable_native_categorical({}, numeric)
+    assert enable_native_categorical({}, categorical)["enable_categorical"] is True
+
+
+def test_bulk_round_one_returns_every_improving_candidate_in_order():
+    results = [
+        {"added_feature": "speed", "status": "improves"},
+        {"added_feature": "age", "status": "skipped"},
+        {"added_feature": "tempo", "status": "improves"},
+    ]
+
+    selected = all_qualifying_results(results)
+
+    assert [row["added_feature"] for row in selected] == ["speed", "tempo"]
 
 
 def test_winner_selection_early_stops_on_smoother_map_metric():
@@ -184,9 +206,7 @@ def test_forward_pool_excludes_current_market_by_default(tmp_path):
     assert list(additions.values()) == ["speed_rating"]
 
 
-def test_rejects_outcome_conditioned_competition_999():
-    with pytest.raises(ValueError, match="assigned after results"):
-        validate_production_selection_scope([999])
-
+def test_allows_explicit_competition_999_training_cohort():
+    validate_production_selection_scope([999])
     validate_production_selection_scope([6])
     validate_production_selection_scope(None)

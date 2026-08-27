@@ -36,6 +36,7 @@ from src.winner_ranker import (
     is_current_market_feature,
     market_scores,
     model_feature_matrix,
+    prepare_categorical_features,
     rank_percentiles,
     uses_current_market_features,
 )
@@ -44,7 +45,9 @@ from backtest_all_finished_winner_blends import (
     artifact_strategies,
     best_backtest_strategy,
     filter_complete_races,
+    load_finished_date_rows,
     load_predictions,
+    score_finished_rows_from_bundle,
 )
 
 
@@ -167,7 +170,78 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--output-csv", type=Path)
+    parser.add_argument(
+        "--no-today-model-selection",
+        action="store_true",
+        help=(
+            "For --ranking tuned, skip selecting the best bundle model on "
+            "earlier finished races from the target's UTC date."
+        ),
+    )
     return parser.parse_args()
+
+
+def best_today_model(
+    scored: pd.DataFrame, model_labels: list[str]
+) -> tuple[str, dict[str, float], dict[str, Any]]:
+    """Select a model by winner top-1, then top-3 and reciprocal rank."""
+    if scored.empty or scored["race_id"].nunique() < 1:
+        raise ValueError("No prior finished races are available today")
+    rows: list[dict[str, Any]] = []
+    race_count = int(scored["race_id"].nunique())
+    for label in model_labels:
+        rank_column = f"{label}_rank"
+        if rank_column not in scored:
+            continue
+        winners = scored.loc[pd.to_numeric(scored["is_winner"], errors="coerce") == 1]
+        ranks = pd.to_numeric(winners[rank_column], errors="coerce")
+        if len(ranks) != race_count or ranks.isna().any():
+            continue
+        rows.append({
+            "model": label,
+            "races": race_count,
+            "top1_hit_rate": float((ranks == 1).mean()),
+            "top3_hit_rate": float((ranks <= 3).mean()),
+            "mrr": float((1.0 / ranks).mean()),
+        })
+    if not rows:
+        raise ValueError("No bundle model produced complete prior-race rankings today")
+    rows.sort(
+        key=lambda row: (
+            -float(row["top1_hit_rate"]),
+            -float(row["top3_hit_rate"]),
+            -float(row["mrr"]),
+            str(row["model"]),
+        )
+    )
+    best = rows[0]
+    label = str(best["model"])
+    return label, {model: 1.0 if model == label else 0.0 for model in model_labels}, best
+
+
+def select_today_model_for_target(
+    database: Path,
+    bundle: dict[str, Any],
+    target: pd.Series,
+    model_labels: list[str],
+) -> tuple[str, dict[str, float], dict[str, Any]]:
+    """Backtest only same-day races that finished before the target started."""
+    target_start = pd.to_datetime(target["start_time_iso"], utc=True)
+    exact_date = target_start.strftime("%Y-%m-%d")
+    categorical = [str(value) for value in bundle.get("categorical_features", [])]
+    prior = load_finished_date_rows(database, exact_date, categorical)
+    starts = pd.to_datetime(prior["start_time_iso"], errors="coerce", utc=True)
+    prior = prior.loc[
+        starts.lt(target_start)
+        & prior["race_id"].astype(int).ne(int(target["race_id"]))
+    ].copy()
+    if prior.empty:
+        raise ValueError(
+            f"No finished races started before target race {int(target['race_id'])} "
+            f"on {exact_date} UTC"
+        )
+    scored = score_finished_rows_from_bundle(prior, bundle, model_labels)
+    return best_today_model(scored, model_labels)
 
 
 def load_bundle(path: Path) -> dict[str, Any]:
@@ -257,6 +331,60 @@ def load_models(paths: list[str]) -> list[XGBRanker]:
     if not models:
         raise ValueError("Bundle contains no models")
     return models
+
+
+def validate_categorical_model_inputs(
+    label: str,
+    configured_features: list[str],
+    matrix: pd.DataFrame,
+    models: list[XGBRanker],
+    categorical_features: list[str],
+) -> None:
+    """Ensure bundle, pandas matrix, and every XGBoost model agree on categories."""
+    expected = set(categorical_features) & set(configured_features)
+    if not expected:
+        return
+    for feature in expected:
+        if not isinstance(matrix[feature].dtype, pd.CategoricalDtype):
+            raise ValueError(
+                f"Model {label} expects categorical feature {feature}, but its "
+                "prediction matrix is not categorical"
+            )
+    for member, model in enumerate(models, start=1):
+        feature_types = list(model.feature_types or [])
+        if len(feature_types) != len(configured_features):
+            raise ValueError(
+                f"Model {label} member {member} feature-type count does not match "
+                "its configured feature list"
+            )
+        mismatched = [
+            feature
+            for index, feature in enumerate(configured_features)
+            if (feature in expected) != (feature_types[index] == "c")
+        ]
+        if mismatched:
+            raise ValueError(
+                f"Model {label} member {member} categorical metadata mismatch: "
+                + ", ".join(mismatched)
+            )
+
+
+def categorical_prediction_audit(
+    frame: pd.DataFrame,
+    model_features: dict[str, list[str]],
+    categorical_features: list[str],
+) -> tuple[dict[str, list[str]], pd.DataFrame]:
+    """Return model-specific categorical inputs and their target-race values."""
+    by_model = {
+        label: [feature for feature in features if feature in categorical_features]
+        for label, features in model_features.items()
+    }
+    by_model = {label: features for label, features in by_model.items() if features}
+    used = list(dict.fromkeys(
+        feature for features in by_model.values() for feature in features
+    ))
+    columns = ["runner_number", "runner_name", *used]
+    return by_model, frame.loc[:, columns].copy()
 
 
 def ranked_output(
@@ -706,6 +834,14 @@ def main() -> None:
         ),
     ]))
     frame = load_active_race(args.db, args.race_id, database_features)
+    frame = prepare_categorical_features(
+        frame,
+        {
+            str(feature): [str(value) for value in values]
+            for feature, values in bundle.get("categorical_levels", {}).items()
+            if isinstance(values, list)
+        },
+    )
     versions = sorted(
         str(value) for value in frame["derived_racing_features_version"].dropna().unique()
     )
@@ -725,14 +861,25 @@ def main() -> None:
         )
 
     race_ids = frame["race_id"].to_numpy(dtype=np.int64)
+    configured_categorical_features = [
+        str(feature) for feature in bundle.get("categorical_features", [])
+    ]
     scores: dict[str, np.ndarray] = {}
     for label, configured_features in model_features.items():
         paths = list(available_models.get(label, []))
         if not paths:
             continue
         models = load_models(paths)
+        matrix = model_feature_matrix(frame, configured_features)
+        validate_categorical_model_inputs(
+            label,
+            configured_features,
+            matrix,
+            models,
+            configured_categorical_features,
+        )
         scores[label] = ensemble_rank_scores(
-            models, model_feature_matrix(frame, configured_features), race_ids
+            models, matrix, race_ids
         )
     market_score = rank_percentiles(market_scores(frame), race_ids)
     scores["market"] = market_score
@@ -783,7 +930,31 @@ def main() -> None:
             predictions_path = args.predictions or (
                 config_path.parent / "all_finished_oof_predictions.csv"
             )
-            if predictions_path.resolve().is_file():
+            today_selection_error: str | None = None
+            if not args.no_today_model_selection:
+                print(
+                    "today_model_selection=running "
+                    "scope=same_utc_date_prior_finished_races",
+                    flush=True,
+                )
+                try:
+                    (
+                        today_label,
+                        diagnostic_weights,
+                        cohort_strategy_metrics,
+                    ) = select_today_model_for_target(
+                        args.db,
+                        bundle,
+                        frame.iloc[0],
+                        [label for label in model_features if label in scores],
+                    )
+                except ValueError as exc:
+                    today_selection_error = str(exc)
+                else:
+                    cohort_strategy = f"today_best_model:{today_label}"
+                    cohort_scope = "same_utc_date_prior_finished_races"
+                    exact_cohort_races = int(cohort_strategy_metrics["races"])
+            if diagnostic_weights is None and predictions_path.resolve().is_file():
                 oof_model_labels, strategies = artifact_strategies(bundle, config)
                 predictions = load_predictions(
                     predictions_path, oof_model_labels
@@ -809,10 +980,15 @@ def main() -> None:
                     ) = best_backtest_strategy(
                         cohort, oof_model_labels, strategies
                     )
-            else:
+            elif diagnostic_weights is None:
                 diagnostic_weights = configured_weights
                 cohort_strategy_fallback = (
                     f"OOF predictions do not exist: {predictions_path.resolve()}"
+                )
+            if today_selection_error and cohort_strategy_fallback:
+                cohort_strategy_fallback = (
+                    f"today selection unavailable ({today_selection_error}); "
+                    + cohort_strategy_fallback
                 )
             if not diagnostic_weights:
                 raise ValueError("Blend recommendation contains no usable weights")
@@ -952,17 +1128,23 @@ def main() -> None:
             f"target_race_number={int(race['race_number'])}\n"
         )
         if cohort_strategy is not None and cohort_strategy_metrics is not None:
+            if cohort_scope == "same_utc_date_prior_finished_races":
+                heading += (
+                    f"cohort_scope={cohort_scope} "
+                    f"today_prior_finished_races={exact_cohort_races} "
+                    "target_excluded=yes later_races_excluded=yes\n"
+                )
+            else:
+                heading += (
+                    f"cohort_scope={cohort_scope} "
+                    f"exact_race_number_oof_races={exact_cohort_races} "
+                    f"minimum_exact_cohort_races={MIN_EXACT_COHORT_RACES}\n"
+                )
             heading += (
-                f"cohort_scope={cohort_scope} "
-                f"exact_race_number_oof_races={exact_cohort_races} "
-                f"minimum_exact_cohort_races={MIN_EXACT_COHORT_RACES}\n"
                 f"cohort_best_strategy={cohort_strategy} "
-                f"historical_oof_races="
-                f"{int(cohort_strategy_metrics['races'])} "
-                f"top1_hit_rate="
-                f"{float(cohort_strategy_metrics['top1_hit_rate']):.5f} "
-                f"top3_hit_rate="
-                f"{float(cohort_strategy_metrics['top3_hit_rate']):.5f} "
+                f"selection_races={int(cohort_strategy_metrics['races'])} "
+                f"top1_hit_rate={float(cohort_strategy_metrics['top1_hit_rate']):.5f} "
+                f"top3_hit_rate={float(cohort_strategy_metrics['top3_hit_rate']):.5f} "
                 f"mrr={float(cohort_strategy_metrics['mrr']):.5f}\n"
             )
         elif cohort_strategy_fallback is not None:
@@ -975,6 +1157,21 @@ def main() -> None:
         "contrarian_top3: form top three while outside market top three"
     )
     print(heading)
+    categorical_by_model, categorical_values = categorical_prediction_audit(
+        frame, model_features, configured_categorical_features
+    )
+    print(
+        "native_categorical_by_model="
+        + json.dumps(categorical_by_model, sort_keys=True)
+    )
+    if categorical_by_model:
+        print("CATEGORICAL VALUES USED FOR THIS PREDICTION")
+        with pd.option_context(
+            "display.max_columns", None,
+            "display.width", 10000,
+            "display.max_colwidth", 80,
+        ):
+            print(categorical_values.to_string(index=False, na_rep="NULL"))
     columns = [
         "display_rank", "runner_number", "runner_name", "fluc2",
         f"{args.ranking}_rank",

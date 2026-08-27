@@ -12,7 +12,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shlex
 import sqlite3
+import subprocess
+import sys
+import tempfile
 import warnings
 from pathlib import Path
 from typing import Any
@@ -36,7 +41,13 @@ from src.winner_ranker import (
 )
 
 
-def parse_args() -> argparse.Namespace:
+TRAINING_WEEKDAYS = (
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+    "Sunday",
+)
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--race-id", required=True, type=int)
     parser.add_argument(
@@ -64,6 +75,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--top-features", type=int, default=20)
     parser.add_argument(
+        "--minimum-strict-models",
+        type=int,
+        default=2,
+        help=(
+            "Minimum inspected model groups that must use, positively back, and "
+            "uniquely rank the winner first for a final feature (default: 2)."
+        ),
+    )
+    parser.add_argument(
         "--output-csv",
         type=Path,
         help="Save the complete selected-versus-comparison SHAP delta table.",
@@ -73,7 +93,69 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Optionally save every raw tree node for every ensemble member.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--feature-manifest",
+        type=Path,
+        default=Path("winner_ranker_features.json"),
+        help="Feature manifest updated with the final winner-backing model.",
+    )
+    parser.add_argument(
+        "--backing-model-name",
+        default="winner_backing",
+        help=(
+            "Model group created/replaced in --feature-manifest from the final "
+            "winner-backing feature list (default: winner_backing)."
+        ),
+    )
+    parser.add_argument(
+        "--no-update-feature-manifest",
+        action="store_true",
+        help="Only print the final list without updating the feature manifest.",
+    )
+    parser.add_argument(
+        "--train-and-repredict",
+        action="store_true",
+        help=(
+            "After updating the manifest, cross-fit/refit the winner-backing "
+            "model and inspect this race again with final and OOF rankings."
+        ),
+    )
+    parser.add_argument(
+        "--training-output-dir",
+        type=Path,
+        help=(
+            "Output directory for --train-and-repredict. Defaults to "
+            "outputs/winner_backing_race_<race-id>."
+        ),
+    )
+    parser.add_argument(
+        "--training-competition-id",
+        type=int,
+        help=(
+            "Competition cohort for the new model. By default, inherit "
+            "training_competition_id from the inspected bundle when present."
+        ),
+    )
+    parser.add_argument(
+        "--training-weekday",
+        choices=TRAINING_WEEKDAYS,
+        help=(
+            "UTC weekday cohort for the new model. By default, inherit the "
+            "inspected bundle's training weekday when present."
+        ),
+    )
+    parser.add_argument(
+        "--trainer-args",
+        nargs=argparse.REMAINDER,
+        default=[],
+        metavar="ARG",
+        help=(
+            "Additional train_tune_all_finished_winner_ranker.py arguments. "
+            "This option must be last; for example --trainer-args --folds 5 "
+            "--max-estimators 700."
+        ),
+    )
+    return parser.parse_args(argv)
 
 
 def model_features_from_bundle(bundle: dict[str, Any], label: str) -> list[str]:
@@ -214,19 +296,22 @@ def winner_backing_feature_table(
     winner: int,
     other: int,
 ) -> pd.DataFrame:
-    """List features whose evidence pointed to the actual winner over ``other``.
+    """Evaluate every model feature's evidence for the winner over ``other``.
 
     ``winner_field_rank`` ranks the winner's raw value within the field in the
-    direction the model rewards (sign of the value/SHAP correlation); rank 1
-    means ranking the race by this feature alone would have picked the winner.
+    direction the model rewards (sign of the value/SHAP correlation). A feature
+    is a correct solo pick only when the winner is rank 1 without a tie.
     """
     feature_shap = member_contributions[:, :, :-1].mean(axis=0)
     winner_delta = feature_shap[winner] - feature_shap[other]
     values = matrix.to_numpy(dtype=np.float64)
     field_ranks = np.full(len(matrix.columns), np.nan)
+    field_unique_values = np.zeros(len(matrix.columns), dtype=np.int64)
+    winner_top_tie_counts = np.zeros(len(matrix.columns), dtype=np.int64)
     solo_correct = np.zeros(len(matrix.columns), dtype=bool)
     for index, feature in enumerate(matrix.columns):
         column = pd.to_numeric(matrix[feature], errors="coerce")
+        field_unique_values[index] = int(column.nunique(dropna=True))
         with warnings.catch_warnings():
             # Constant columns produce an undefined correlation by design.
             warnings.simplefilter("ignore", RuntimeWarning)
@@ -237,18 +322,23 @@ def winner_backing_feature_table(
             ascending=correlation < 0, method="min", na_option="bottom"
         )
         field_ranks[index] = rank.iloc[winner]
-        solo_correct[index] = field_ranks[index] == 1
+        if field_ranks[index] == 1:
+            winner_top_tie_counts[index] = int(rank.eq(1).sum())
+            solo_correct[index] = winner_top_tie_counts[index] == 1
     table = pd.DataFrame({
         "feature": list(matrix.columns),
         "winner_value": values[winner],
         "other_value": values[other],
         "winner_shap_minus_other": winner_delta,
         "winner_field_rank": field_ranks,
+        "field_unique_values": field_unique_values,
+        "winner_top_tie_count": winner_top_tie_counts,
         "solo_pick_correct": solo_correct,
+        "backs_winner": winner_delta > 0,
     })
-    table = table.loc[table["winner_shap_minus_other"] > 0]
     return table.sort_values(
-        "winner_shap_minus_other", ascending=False, kind="stable", ignore_index=True
+        ["backs_winner", "winner_shap_minus_other"],
+        ascending=False, kind="stable", ignore_index=True,
     )
 
 
@@ -420,7 +510,7 @@ def inspect_model(
     label: str,
     paths: list[str],
     multiple: bool,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     features = model_features_from_bundle(bundle, label)
     frame = load_finished_race(args.db, args.race_id, features)
     expected_versions = [
@@ -491,22 +581,6 @@ def inspect_model(
 
     other = selected if selected != winner else comparison
     backing = winner_backing_feature_table(matrix, member_contributions, winner, other)
-    other_row = frame.iloc[other]
-    print("\nFEATURES THAT WOULD HAVE PREDICTED THE RACE CORRECTLY")
-    print(
-        f"winner={winner_row['runner_number']} {winner_row['runner_name']} "
-        f"other={other_row['runner_number']} {other_row['runner_name']}\n"
-        f"features_backing_winner={len(backing)}/{len(features)} "
-        f"solo_pick_correct={int(backing['solo_pick_correct'].sum())} "
-        "(winner_field_rank=1 means ranking by that feature alone picks the "
-        "winner)"
-    )
-    if backing.empty:
-        print("no features favoured the actual winner over the other runner")
-    else:
-        print(backing.head(args.top_features).to_string(
-            index=False, float_format=lambda value: f"{value:.6f}"
-        ))
     print("\nGLOBAL GAIN IMPORTANCE")
     gain = global_gain_table(models)
     print(gain.head(args.top_features).to_string(
@@ -593,13 +667,436 @@ def inspect_model(
             tree_parts.append(trees)
         pd.concat(tree_parts, ignore_index=True).to_csv(path, index=False)
         print(f"saved_trees={path}")
-    return gain
+    return gain, backing
+
+
+def combined_winner_backing_table(
+    backing_tables: dict[str, pd.DataFrame],
+    model_feature_sets: dict[str, list[str]] | None = None,
+    minimum_models: int = 2,
+) -> pd.DataFrame:
+    """Aggregate backing and strict unique-winner evidence across model groups."""
+    if minimum_models < 1:
+        raise ValueError("minimum_models must be positive")
+    columns = [
+        "feature", "mean_winner_shap_minus_other", "models_using_feature",
+        "models_backing_winner", "unique_solo_pick_models",
+        "mean_winner_field_rank", "field_unique_values", "strictly_eligible",
+        "strict_rejection_reason",
+    ]
+    if not backing_tables:
+        return pd.DataFrame(columns=columns)
+    configured = model_feature_sets or {
+        label: table["feature"].astype(str).tolist()
+        for label, table in backing_tables.items()
+    }
+    features = sorted({
+        str(feature)
+        for model_features in configured.values()
+        for feature in model_features
+    })
+    indexed = {
+        label: table.set_index("feature") for label, table in backing_tables.items()
+    }
+    rows = []
+    for feature in features:
+        deltas = []
+        models_using = 0
+        models_backing = 0
+        unique_solo_correct = 0
+        ranks = []
+        unique_values = []
+        for label in backing_tables:
+            uses_feature = feature in configured.get(label, [])
+            models_using += int(uses_feature)
+            table = indexed[label]
+            if uses_feature and feature in table.index:
+                row = table.loc[feature]
+                delta = float(row["winner_shap_minus_other"])
+                deltas.append(delta)
+                models_backing += int(bool(row.get("backs_winner", delta > 0)))
+                unique_solo_correct += int(bool(row["solo_pick_correct"]))
+                rank = row["winner_field_rank"]
+                if np.isfinite(rank):
+                    ranks.append(float(rank))
+                unique_values.append(int(row.get("field_unique_values", 0)))
+            else:
+                deltas.append(0.0)
+        field_unique_count = max(unique_values, default=0)
+        strictly_eligible = bool(
+            models_using >= minimum_models
+            and field_unique_count > 1
+            and models_backing == models_using
+            and unique_solo_correct == models_using
+        )
+        if models_using < minimum_models:
+            rejection_reason = "insufficient_model_support"
+        elif field_unique_count <= 1:
+            rejection_reason = "constant_or_all_missing"
+        elif models_backing < models_using:
+            rejection_reason = "not_winner_backing_in_every_model"
+        elif unique_solo_correct < models_using:
+            rejection_reason = "does_not_uniquely_rank_winner_first_in_every_model"
+        else:
+            rejection_reason = "eligible"
+        rows.append({
+            "feature": feature,
+            "mean_winner_shap_minus_other": float(np.mean(deltas)),
+            "models_using_feature": models_using,
+            "models_backing_winner": models_backing,
+            "unique_solo_pick_models": unique_solo_correct,
+            "mean_winner_field_rank": (
+                float(np.mean(ranks)) if ranks else float("nan")
+            ),
+            "field_unique_values": field_unique_count,
+            "strictly_eligible": strictly_eligible,
+            "strict_rejection_reason": rejection_reason,
+        })
+    return pd.DataFrame(rows, columns=columns).sort_values(
+        [
+            "strictly_eligible", "unique_solo_pick_models",
+            "models_backing_winner", "mean_winner_shap_minus_other",
+        ],
+        ascending=False, kind="stable", ignore_index=True,
+    )
+
+
+def strict_winner_features(table: pd.DataFrame, limit: int) -> list[str]:
+    """Return only features meeting every strict target-race eligibility rule."""
+    if limit < 1:
+        raise ValueError("feature limit must be positive")
+    if table.empty or "strictly_eligible" not in table:
+        return []
+    return table.loc[
+        table["strictly_eligible"].astype(bool), "feature"
+    ].head(limit).astype(str).tolist()
+
+
+def update_feature_manifest_model(
+    manifest_path: Path,
+    model_name: str,
+    features: list[str],
+    *,
+    race_id: int,
+    top_features: int,
+    minimum_models: int = 2,
+) -> Path:
+    """Atomically create or replace one model group in the feature manifest."""
+    resolved = manifest_path.resolve()
+    if not resolved.is_file():
+        raise ValueError(f"Feature manifest does not exist: {resolved}")
+    if not model_name.strip():
+        raise ValueError("--backing-model-name must not be empty")
+    selected = list(dict.fromkeys(map(str, features)))
+    if not selected:
+        raise ValueError("Cannot update feature manifest with no selected features")
+    payload = json.loads(resolved.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Feature manifest must contain a JSON object: {resolved}")
+    models = payload.setdefault("models", {})
+    if not isinstance(models, dict):
+        raise ValueError("Feature manifest models must be a JSON object")
+    models[model_name] = {
+        "features": selected,
+        "selection": {
+            "method": "inspect_winner_ranker_strict_unique_winner_backing",
+            "race_id": race_id,
+            "feature_count": len(selected),
+            "top_features": top_features,
+            "minimum_model_groups": minimum_models,
+            "requires_within_race_variation": True,
+            "requires_positive_backing_in_every_using_model": True,
+            "requires_unique_solo_winner_in_every_using_model": True,
+        },
+    }
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{resolved.name}.", suffix=".tmp", dir=resolved.parent
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as temporary:
+            json.dump(payload, temporary, indent=2, sort_keys=False)
+            temporary.write("\n")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_name, resolved)
+    except BaseException:
+        try:
+            os.unlink(temporary_name)
+        except FileNotFoundError:
+            pass
+        raise
+    return resolved
+
+
+def load_suggested_feature_values(
+    database: Path,
+    race_id: int,
+    features: list[str],
+) -> pd.DataFrame:
+    """Reload one race and expose raw DB values for the suggested features."""
+    selected = list(dict.fromkeys(map(str, features)))
+    if not selected:
+        return pd.DataFrame()
+    frame = load_finished_race(database, race_id, selected)
+    matrix = model_feature_matrix(frame, selected)
+    table = frame[[
+        "runner_number", "runner_name", "is_winner",
+    ]].copy()
+    for feature in selected:
+        table[feature] = (
+            matrix[feature]
+            if feature in MARKET_ENGINEERED_FEATURES
+            else frame[feature]
+        )
+    return table
+
+
+def print_suggested_feature_values(
+    database: Path,
+    race_id: int,
+    features: list[str],
+) -> pd.DataFrame:
+    """Query and display every active runner's final suggested feature values."""
+    table = load_suggested_feature_values(database, race_id, features)
+    database_features = [
+        feature for feature in features if feature not in MARKET_ENGINEERED_FEATURES
+    ]
+    engineered_features = [
+        feature for feature in features if feature in MARKET_ENGINEERED_FEATURES
+    ]
+    print("\nSUGGESTED FEATURE VALUES FROM DATABASE")
+    print(
+        f"database={database.resolve()} source=race_runners "
+        f"race_id={race_id} active_runners={len(table)}\n"
+        f"database_features={json.dumps(database_features)}"
+    )
+    if engineered_features:
+        print(
+            "model_engineered_features=" + json.dumps(engineered_features)
+        )
+    print(table.to_string(
+        index=False,
+        na_rep="NULL",
+        float_format=lambda value: f"{value:.6f}",
+    ))
+    return table
+
+
+RESERVED_TRAINER_OPTIONS = {
+    "--competition-id",
+    "--db",
+    "--features-json",
+    "--models",
+    "--output-dir",
+    "--race-models-manifest",
+    "--retune-only",
+    "--reuse-unselected-models",
+    "--training-weekday",
+}
+
+
+def inherited_trainer_arguments(bundle: dict[str, Any]) -> list[str]:
+    """Reuse the inspected bundle's recorded cross-fit settings when possible."""
+    crossfit = bundle.get("all_finished_crossfit", {})
+    if not isinstance(crossfit, dict):
+        crossfit = {}
+    arguments: list[str] = []
+    objective = crossfit.get("objective")
+    if objective in {"top1", "mrr", "top3", "composite"}:
+        arguments.extend(["--objective", str(objective)])
+    integer_options = (
+        ("--folds", "crossfit_folds"),
+        ("--max-estimators", "tree_count_max_estimators"),
+        ("--early-stopping-rounds", "tree_count_early_stopping_rounds"),
+        (
+            "--tree-count-validation-races",
+            "tree_count_maximum_inner_validation_races",
+        ),
+    )
+    for option, key in integer_options:
+        value = crossfit.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            arguments.extend([option, str(value)])
+    coverage = crossfit.get("minimum_feature_coverage")
+    if isinstance(coverage, (int, float)) and not isinstance(coverage, bool):
+        if 0.0 <= float(coverage) <= 1.0:
+            arguments.extend(["--minimum-feature-coverage", str(float(coverage))])
+    ensemble_size = crossfit.get("ensemble_size")
+    if not (
+        isinstance(ensemble_size, int)
+        and not isinstance(ensemble_size, bool)
+        and ensemble_size > 0
+    ):
+        model_paths = bundle.get("models", {})
+        ensemble_size = next((
+            len(paths)
+            for paths in model_paths.values()
+            if isinstance(paths, list) and paths
+        ), None) if isinstance(model_paths, dict) else None
+    if ensemble_size:
+        arguments.extend(["--ensemble-size", str(ensemble_size)])
+    return arguments
+
+
+def validate_extra_trainer_arguments(arguments: list[str]) -> None:
+    """Keep orchestration-owned trainer paths and model selection unambiguous."""
+    conflicts = sorted({
+        token.split("=", 1)[0]
+        for token in arguments
+        if token.split("=", 1)[0] in RESERVED_TRAINER_OPTIONS
+    })
+    if conflicts:
+        raise ValueError(
+            "--trainer-args cannot override orchestration options: "
+            + ", ".join(conflicts)
+        )
+
+
+def build_training_command(
+    *,
+    database: Path,
+    output_dir: Path,
+    manifest_path: Path,
+    model_name: str,
+    bundle: dict[str, Any],
+    competition_id: int | None,
+    training_weekday: str | None,
+    extra_arguments: list[str],
+    python_executable: str = sys.executable,
+) -> list[str]:
+    """Build the isolated winner-backing cross-fit/refit command."""
+    validate_extra_trainer_arguments(extra_arguments)
+    command = [
+        python_executable,
+        str(Path(__file__).resolve().with_name(
+            "train_tune_all_finished_winner_ranker.py"
+        )),
+        "--db", str(database.resolve()),
+        "--output-dir", str(output_dir.resolve()),
+        "--features-json", str(manifest_path.resolve()),
+        "--models", model_name,
+        *inherited_trainer_arguments(bundle),
+    ]
+    if competition_id is not None:
+        command.extend(["--competition-id", str(competition_id)])
+    if training_weekday is not None:
+        command.extend(["--training-weekday", training_weekday])
+    command.extend(extra_arguments)
+    return command
+
+
+def build_reprediction_command(
+    *,
+    database: Path,
+    output_dir: Path,
+    manifest_path: Path,
+    model_name: str,
+    race_id: int,
+    top_features: int,
+    python_executable: str = sys.executable,
+) -> list[str]:
+    """Build a second inspection using the newly fitted bundle and OOF scores."""
+    resolved_output = output_dir.resolve()
+    return [
+        python_executable,
+        str(Path(__file__).resolve()),
+        "--race-id", str(race_id),
+        "--model", model_name,
+        "--db", str(database.resolve()),
+        "--bundle", str(resolved_output / "winner_ranker_bundle.json"),
+        "--oof-predictions",
+        str(resolved_output / "all_finished_oof_predictions.csv"),
+        "--feature-manifest", str(manifest_path.resolve()),
+        "--top-features", str(top_features),
+        "--no-update-feature-manifest",
+    ]
+
+
+def train_and_repredict(
+    args: argparse.Namespace,
+    bundle: dict[str, Any],
+    manifest_path: Path,
+) -> None:
+    """Train the final feature group, then show its final and OOF race ranking."""
+    output_dir = (
+        args.training_output_dir
+        if args.training_output_dir is not None
+        else Path("outputs") / f"winner_backing_race_{args.race_id}"
+    )
+    competition_id = (
+        args.training_competition_id
+        if args.training_competition_id is not None
+        else bundle.get("training_competition_id")
+    )
+    if competition_id is not None:
+        competition_id = int(competition_id)
+    training_weekday = (
+        args.training_weekday
+        if args.training_weekday is not None
+        else bundle.get("training_weekday_utc")
+    )
+    training_command = build_training_command(
+        database=args.db,
+        output_dir=output_dir,
+        manifest_path=manifest_path,
+        model_name=args.backing_model_name,
+        bundle=bundle,
+        competition_id=competition_id,
+        training_weekday=training_weekday,
+        extra_arguments=list(args.trainer_args),
+    )
+    reprediction_command = build_reprediction_command(
+        database=args.db,
+        output_dir=output_dir,
+        manifest_path=manifest_path,
+        model_name=args.backing_model_name,
+        race_id=args.race_id,
+        top_features=args.top_features,
+    )
+    print(
+        "\nTRAINING WINNER-BACKING MODEL\n"
+        "WARNING these features were selected using this race's known winner. "
+        "The OOF score excludes the race from model fitting, but feature selection "
+        "still used hindsight; the final refit also includes the race.\n"
+        f"train_command={shlex.join(training_command)}",
+        flush=True,
+    )
+    subprocess.run(training_command, check=True)
+    print(
+        "\nREPREDICTING RACE WITH NEW MODEL\n"
+        "The runner table includes the final refit ranking and, when this race is "
+        "inside the training cohort, its cross-fit OOF ranking.\n"
+        f"repredict_command={shlex.join(reprediction_command)}",
+        flush=True,
+    )
+    subprocess.run(reprediction_command, check=True)
 
 
 def main() -> None:
     args = parse_args()
     if args.top_features < 1:
         raise ValueError("top-features must be positive")
+    if args.minimum_strict_models < 1:
+        raise ValueError("--minimum-strict-models must be positive")
+    if (
+        args.training_competition_id is not None
+        and args.training_competition_id < 1
+    ):
+        raise ValueError("--training-competition-id must be positive")
+    if args.train_and_repredict and args.no_update_feature_manifest:
+        raise ValueError(
+            "--train-and-repredict requires updating the feature manifest"
+        )
+    training_only_options_used = bool(
+        args.training_output_dir
+        or args.training_competition_id is not None
+        or args.training_weekday
+        or args.trainer_args
+    )
+    if training_only_options_used and not args.train_and_repredict:
+        raise ValueError(
+            "Training options require --train-and-repredict"
+        )
     bundle_path = args.bundle.resolve()
     bundle = load_bundle(bundle_path)
     available = bundle.get("models", {})
@@ -617,18 +1114,80 @@ def main() -> None:
         raise ValueError("Bundle contains no available models")
     multiple = len(labels) > 1
     gain_tables: dict[str, pd.DataFrame] = {}
+    backing_tables: dict[str, pd.DataFrame] = {}
+    inspected_feature_sets = {
+        label: model_features_from_bundle(bundle, label) for label in labels
+    }
     for index, label in enumerate(labels):
         if index:
             print("\n" + "=" * 100 + "\n")
-        gain_tables[label] = inspect_model(
+        gain, backing = inspect_model(
             args, bundle, bundle_path, label, list(available[label]), multiple
         )
+        gain_tables[label] = gain
+        backing_tables[label] = backing
     if multiple:
         print("\n" + "=" * 100)
         print("\nFINAL GLOBAL GAIN IMPORTANCE ACROSS ALL MODELS")
         print(combined_global_gain_table(gain_tables).head(args.top_features).to_string(
             index=False, float_format=lambda value: f"{value:.6f}"
         ))
+    print("\n" + "=" * 100)
+    print("\nSTRICT WINNER-BACKING FEATURES (HINDSIGHT DIAGNOSTIC)")
+    print(
+        "Eligible features must vary within the race, positively back the winner "
+        "in every inspected model using them, and uniquely rank the winner first "
+        "without a tie in every such model. "
+        f"minimum_model_groups={args.minimum_strict_models}"
+    )
+    combined_backing = combined_winner_backing_table(
+        backing_tables, inspected_feature_sets, args.minimum_strict_models
+    )
+    final_features = strict_winner_features(combined_backing, args.top_features)
+    if combined_backing.empty:
+        print("no features favoured the actual winner in any model")
+    else:
+        eligible = combined_backing.loc[combined_backing["strictly_eligible"]]
+        if eligible.empty:
+            print("no features passed the strict unique-winner rules")
+        else:
+            print(eligible.head(args.top_features).drop(columns=[
+                "strictly_eligible", "strict_rejection_reason",
+            ]).to_string(
+                index=False, float_format=lambda value: f"{value:.6f}"
+            ))
+        rejected = combined_backing.loc[~combined_backing["strictly_eligible"]]
+        if not rejected.empty:
+            print("\nREJECTED WINNER-BACKING FEATURES")
+            print(rejected.head(args.top_features)[[
+                "feature", "models_using_feature", "models_backing_winner",
+                "unique_solo_pick_models", "mean_winner_field_rank",
+                "field_unique_values", "strict_rejection_reason",
+            ]].to_string(
+                index=False, float_format=lambda value: f"{value:.6f}"
+            ))
+    if args.no_update_feature_manifest:
+        if final_features:
+            print_suggested_feature_values(args.db, args.race_id, final_features)
+        return
+    if not final_features:
+        print("feature manifest not updated: no winner-backing features")
+        return
+    manifest_path = update_feature_manifest_model(
+        args.feature_manifest,
+        args.backing_model_name,
+        final_features,
+        race_id=args.race_id,
+        top_features=args.top_features,
+        minimum_models=args.minimum_strict_models,
+    )
+    print(
+        f"feature_manifest_updated={manifest_path} "
+        f"model={args.backing_model_name} features={len(final_features)}"
+    )
+    print_suggested_feature_values(args.db, args.race_id, final_features)
+    if args.train_and_repredict:
+        train_and_repredict(args, bundle, manifest_path)
 
 
 if __name__ == "__main__":

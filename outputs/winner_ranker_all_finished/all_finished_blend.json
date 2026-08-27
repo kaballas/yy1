@@ -1,9 +1,12 @@
 {
   "blend": "all_finished_crossfit_dynamic_model_groups",
-  "crossfit_folds": 50,
+  "competition_scope": "competition_id=999",
+  "crossfit_folds": 3,
   "deployment_tree_count_selection": "full_history_chronological_tail_early_stopping",
-  "eligible_finished_races": 8496,
-  "eligible_finished_rows": 82658,
+  "eligible_finished_races": 2560,
+  "eligible_finished_rows": 27995,
+  "ensemble_size": 3,
+  "minimum_feature_coverage": 0.01,
   "model_labels": [
     "a0",
     "a1",
@@ -15,358 +18,836 @@
     "b3",
     "b4",
     "b5",
-    "b6"
+    "b6",
+    "x1",
+    "x2",
+    "x3",
+    "x4",
+    "x5",
+    "x6",
+    "x7",
+    "x8",
+    "x9",
+    "x10",
+    "x11",
+    "x12",
+    "x13",
+    "x14",
+    "x15",
+    "t1",
+    "t2"
   ],
   "model_oof_metrics": {
     "a0": {
-      "mean_winner_rank": 2.7790136534839927,
-      "mrr": 0.5732416393852764,
-      "race_logloss": 2.00002362861961,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3586393596986817,
-      "top3_hit_rate": 0.7264595103578154
+      "mean_winner_rank": 4.1033203125,
+      "mrr": 0.43556490895521904,
+      "race_logloss": 2.2331675386247065,
+      "races": 2560.0,
+      "top1_hit_rate": 0.23359375,
+      "top3_hit_rate": 0.49140625
     },
     "a1": {
-      "mean_winner_rank": 3.6917372881355934,
-      "mrr": 0.4613383698988065,
-      "race_logloss": 2.102578280704653,
-      "races": 8496.0,
-      "top1_hit_rate": 0.24470338983050846,
-      "top3_hit_rate": 0.5659133709981168
+      "mean_winner_rank": 4.9103515625,
+      "mrr": 0.35401235862712294,
+      "race_logloss": 2.310193291664288,
+      "races": 2560.0,
+      "top1_hit_rate": 0.147265625,
+      "top3_hit_rate": 0.394921875
     },
     "b1": {
-      "mean_winner_rank": 3.1872645951035783,
-      "mrr": 0.536361846817326,
-      "race_logloss": 2.0449575372038935,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3316854990583804,
-      "top3_hit_rate": 0.6563088512241054
+      "mean_winner_rank": 4.4712890625,
+      "mrr": 0.4010020444535264,
+      "race_logloss": 2.265483535805735,
+      "races": 2560.0,
+      "top1_hit_rate": 0.180859375,
+      "top3_hit_rate": 0.45625
     },
     "b2": {
-      "mean_winner_rank": 2.932026836158192,
-      "mrr": 0.5581764787122334,
-      "race_logloss": 2.017327744951667,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3469868173258004,
-      "top3_hit_rate": 0.7009180790960452
+      "mean_winner_rank": 4.298046875,
+      "mrr": 0.4261895870375539,
+      "race_logloss": 2.2522444631726457,
+      "races": 2560.0,
+      "top1_hit_rate": 0.22421875,
+      "top3_hit_rate": 0.488671875
     },
     "b3": {
-      "mean_winner_rank": 2.9351459510357816,
-      "mrr": 0.5581587262279697,
-      "race_logloss": 2.018019205936499,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3485169491525424,
-      "top3_hit_rate": 0.6992702448210922
+      "mean_winner_rank": 4.2818359375,
+      "mrr": 0.42348318165351123,
+      "race_logloss": 2.2519971326910913,
+      "races": 2560.0,
+      "top1_hit_rate": 0.22265625,
+      "top3_hit_rate": 0.48359375
     },
     "b4": {
-      "mean_winner_rank": 3.422963747645951,
-      "mrr": 0.4907785783373638,
-      "race_logloss": 2.0729779415416942,
-      "races": 8496.0,
-      "top1_hit_rate": 0.2737758945386064,
-      "top3_hit_rate": 0.6094632768361582
+      "mean_winner_rank": 4.6892578125,
+      "mrr": 0.37330742864625244,
+      "race_logloss": 2.292806064261197,
+      "races": 2560.0,
+      "top1_hit_rate": 0.1625,
+      "top3_hit_rate": 0.421875
     },
     "b5": {
-      "mean_winner_rank": 2.9366760828625234,
-      "mrr": 0.5531143244358795,
-      "race_logloss": 2.0192355460753624,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3388653483992467,
-      "top3_hit_rate": 0.7019774011299436
+      "mean_winner_rank": 4.3072265625,
+      "mrr": 0.4191761132625185,
+      "race_logloss": 2.2523717399931984,
+      "races": 2560.0,
+      "top1_hit_rate": 0.21953125,
+      "top3_hit_rate": 0.475
     },
     "b6": {
-      "mean_winner_rank": 3.0762711864406778,
-      "mrr": 0.5452230199002837,
-      "race_logloss": 2.032701069209448,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3380414312617702,
-      "top3_hit_rate": 0.6727871939736346
+      "mean_winner_rank": 4.39921875,
+      "mrr": 0.4135967296489671,
+      "race_logloss": 2.2588121103294627,
+      "races": 2560.0,
+      "top1_hit_rate": 0.20625,
+      "top3_hit_rate": 0.473046875
     },
     "c1": {
-      "mean_winner_rank": 3.661723163841808,
-      "mrr": 0.46176491446084783,
-      "race_logloss": 2.1001051640066226,
-      "races": 8496.0,
-      "top1_hit_rate": 0.2443502824858757,
-      "top3_hit_rate": 0.5657956685499058
+      "mean_winner_rank": 4.86015625,
+      "mrr": 0.35462691666492263,
+      "race_logloss": 2.3073469416224848,
+      "races": 2560.0,
+      "top1_hit_rate": 0.1390625,
+      "top3_hit_rate": 0.397265625
     },
     "c2": {
-      "mean_winner_rank": 3.488759416195857,
-      "mrr": 0.48522567892625973,
-      "race_logloss": 2.080430415188014,
-      "races": 8496.0,
-      "top1_hit_rate": 0.2716572504708098,
-      "top3_hit_rate": 0.60075329566855
+      "mean_winner_rank": 4.7333984375,
+      "mrr": 0.3679319236250148,
+      "race_logloss": 2.2943017994749035,
+      "races": 2560.0,
+      "top1_hit_rate": 0.15859375,
+      "top3_hit_rate": 0.4171875
     },
     "c3": {
-      "mean_winner_rank": 3.514536252354049,
-      "mrr": 0.4821194932690279,
-      "race_logloss": 2.08284441180163,
-      "races": 8496.0,
-      "top1_hit_rate": 0.2662429378531073,
-      "top3_hit_rate": 0.5948681732580038
+      "mean_winner_rank": 4.1029296875,
+      "mrr": 0.43381371067021435,
+      "race_logloss": 2.233312239722826,
+      "races": 2560.0,
+      "top1_hit_rate": 0.230859375,
+      "top3_hit_rate": 0.49765625
+    },
+    "t1": {
+      "mean_winner_rank": 4.20078125,
+      "mrr": 0.4239835468222985,
+      "race_logloss": 2.247096959717724,
+      "races": 2560.0,
+      "top1_hit_rate": 0.216015625,
+      "top3_hit_rate": 0.479296875
+    },
+    "t2": {
+      "mean_winner_rank": 4.1134765625,
+      "mrr": 0.4369401189112182,
+      "race_logloss": 2.233200290923465,
+      "races": 2560.0,
+      "top1_hit_rate": 0.2390625,
+      "top3_hit_rate": 0.495703125
+    },
+    "x1": {
+      "mean_winner_rank": 4.523828125,
+      "mrr": 0.38670388901544356,
+      "race_logloss": 2.278120197586902,
+      "races": 2560.0,
+      "top1_hit_rate": 0.171875,
+      "top3_hit_rate": 0.4484375
+    },
+    "x10": {
+      "mean_winner_rank": 5.2306640625,
+      "mrr": 0.33723888705471694,
+      "race_logloss": 2.3381637150995953,
+      "races": 2560.0,
+      "top1_hit_rate": 0.133203125,
+      "top3_hit_rate": 0.37265625
+    },
+    "x11": {
+      "mean_winner_rank": 4.8361328125,
+      "mrr": 0.3609911015330952,
+      "race_logloss": 2.3074697955990544,
+      "races": 2560.0,
+      "top1_hit_rate": 0.1515625,
+      "top3_hit_rate": 0.4046875
+    },
+    "x12": {
+      "mean_winner_rank": 4.89375,
+      "mrr": 0.34706118398153707,
+      "race_logloss": 2.310920193968215,
+      "races": 2560.0,
+      "top1_hit_rate": 0.12890625,
+      "top3_hit_rate": 0.391015625
+    },
+    "x13": {
+      "mean_winner_rank": 5.0556640625,
+      "mrr": 0.34156397179144926,
+      "race_logloss": 2.3267757299458696,
+      "races": 2560.0,
+      "top1_hit_rate": 0.13203125,
+      "top3_hit_rate": 0.383203125
+    },
+    "x14": {
+      "mean_winner_rank": 4.70234375,
+      "mrr": 0.3747624122648293,
+      "race_logloss": 2.2918908765089605,
+      "races": 2560.0,
+      "top1_hit_rate": 0.16640625,
+      "top3_hit_rate": 0.426171875
+    },
+    "x15": {
+      "mean_winner_rank": 5.322265625,
+      "mrr": 0.3298541170945387,
+      "race_logloss": 2.3455809499403757,
+      "races": 2560.0,
+      "top1_hit_rate": 0.129296875,
+      "top3_hit_rate": 0.35234375
+    },
+    "x2": {
+      "mean_winner_rank": 4.966796875,
+      "mrr": 0.34427206723284176,
+      "race_logloss": 2.318258025758252,
+      "races": 2560.0,
+      "top1_hit_rate": 0.124609375,
+      "top3_hit_rate": 0.394921875
+    },
+    "x3": {
+      "mean_winner_rank": 4.9076171875,
+      "mrr": 0.34541537876016964,
+      "race_logloss": 2.3129302283782383,
+      "races": 2560.0,
+      "top1_hit_rate": 0.13046875,
+      "top3_hit_rate": 0.3875
+    },
+    "x4": {
+      "mean_winner_rank": 4.7537109375,
+      "mrr": 0.3645968291938666,
+      "race_logloss": 2.2971023068076057,
+      "races": 2560.0,
+      "top1_hit_rate": 0.151171875,
+      "top3_hit_rate": 0.4140625
+    },
+    "x5": {
+      "mean_winner_rank": 4.9197265625,
+      "mrr": 0.35889534167958326,
+      "race_logloss": 2.31333961411677,
+      "races": 2560.0,
+      "top1_hit_rate": 0.15078125,
+      "top3_hit_rate": 0.401171875
+    },
+    "x6": {
+      "mean_winner_rank": 4.4517578125,
+      "mrr": 0.40761272387778347,
+      "race_logloss": 2.2641748404898063,
+      "races": 2560.0,
+      "top1_hit_rate": 0.20078125,
+      "top3_hit_rate": 0.463671875
+    },
+    "x7": {
+      "mean_winner_rank": 4.6921875,
+      "mrr": 0.36748703369003116,
+      "race_logloss": 2.290878395424982,
+      "races": 2560.0,
+      "top1_hit_rate": 0.147265625,
+      "top3_hit_rate": 0.427734375
+    },
+    "x8": {
+      "mean_winner_rank": 4.315625,
+      "mrr": 0.421939044503678,
+      "race_logloss": 2.25536188722509,
+      "races": 2560.0,
+      "top1_hit_rate": 0.219921875,
+      "top3_hit_rate": 0.48515625
+    },
+    "x9": {
+      "mean_winner_rank": 5.2263671875,
+      "mrr": 0.33705304809354864,
+      "race_logloss": 2.3399244662684353,
+      "races": 2560.0,
+      "top1_hit_rate": 0.138671875,
+      "top3_hit_rate": 0.358203125
     }
   },
   "objective": "top3",
   "oof_market_deviation": {
-    "market_losses_corrected": 179.0,
-    "market_wins_damaged": 221.0,
-    "net_winners_gained": -42.0,
-    "races": 8496.0,
-    "top_pick_change_rate": 0.0940442561205273,
-    "top_pick_changes": 799.0
+    "market_losses_corrected": 99.0,
+    "market_wins_damaged": 94.0,
+    "net_winners_gained": 5.0,
+    "races": 2560.0,
+    "top_pick_change_rate": 0.216796875,
+    "top_pick_changes": 555.0
   },
   "oof_median_tree_counts": {
     "a0": [
-      18,
-      20,
-      19
+      7,
+      11,
+      12
     ],
     "a1": [
-      31,
-      30,
-      25
+      7,
+      2,
+      13
     ],
     "b1": [
-      612,
-      598,
-      585
+      2,
+      5,
+      11
     ],
     "b2": [
-      566,
-      548,
-      588
+      6,
+      22,
+      4
     ],
     "b3": [
-      451,
-      418,
-      418
+      8,
+      10,
+      26
     ],
     "b4": [
-      422,
-      417,
-      437
+      9,
+      22,
+      31
     ],
     "b5": [
-      532,
-      541,
-      537
+      17,
+      20,
+      18
     ],
     "b6": [
-      422,
-      527,
-      509
+      9,
+      7,
+      4
     ],
     "c1": [
-      126,
-      166,
-      161
+      13,
+      11,
+      8
     ],
     "c2": [
-      68,
-      127,
-      75
+      18,
+      2,
+      13
     ],
     "c3": [
-      44,
-      44,
-      44
+      28,
+      11,
+      5
+    ],
+    "t1": [
+      2,
+      1,
+      1
+    ],
+    "t2": [
+      14,
+      12,
+      11
+    ],
+    "x1": [
+      5,
+      1,
+      11
+    ],
+    "x10": [
+      3,
+      6,
+      3
+    ],
+    "x11": [
+      1,
+      36,
+      10
+    ],
+    "x12": [
+      2,
+      4,
+      14
+    ],
+    "x13": [
+      13,
+      14,
+      1
+    ],
+    "x14": [
+      11,
+      7,
+      11
+    ],
+    "x15": [
+      11,
+      4,
+      15
+    ],
+    "x2": [
+      2,
+      12,
+      2
+    ],
+    "x3": [
+      9,
+      15,
+      6
+    ],
+    "x4": [
+      7,
+      24,
+      13
+    ],
+    "x5": [
+      4,
+      4,
+      1
+    ],
+    "x6": [
+      2,
+      11,
+      11
+    ],
+    "x7": [
+      16,
+      11,
+      6
+    ],
+    "x8": [
+      16,
+      33,
+      14
+    ],
+    "x9": [
+      30,
+      12,
+      2
     ]
   },
   "oof_metrics": {
     "a0_only": {
-      "mean_winner_rank": 2.7790136534839927,
-      "mrr": 0.5732416393852764,
-      "race_logloss": 2.00002362861961,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3586393596986817,
-      "top3_hit_rate": 0.7264595103578154
+      "mean_winner_rank": 4.1033203125,
+      "mrr": 0.43556490895521904,
+      "race_logloss": 2.2331675386247065,
+      "races": 2560.0,
+      "top1_hit_rate": 0.23359375,
+      "top3_hit_rate": 0.49140625
     },
     "a1_only": {
-      "mean_winner_rank": 3.6917372881355934,
-      "mrr": 0.4613383698988065,
-      "race_logloss": 2.102578280704653,
-      "races": 8496.0,
-      "top1_hit_rate": 0.24470338983050846,
-      "top3_hit_rate": 0.5659133709981168
+      "mean_winner_rank": 4.9103515625,
+      "mrr": 0.35401235862712294,
+      "race_logloss": 2.310193291664288,
+      "races": 2560.0,
+      "top1_hit_rate": 0.147265625,
+      "top3_hit_rate": 0.394921875
     },
     "b1_only": {
-      "mean_winner_rank": 3.1872645951035783,
-      "mrr": 0.536361846817326,
-      "race_logloss": 2.0449575372038935,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3316854990583804,
-      "top3_hit_rate": 0.6563088512241054
+      "mean_winner_rank": 4.4712890625,
+      "mrr": 0.4010020444535264,
+      "race_logloss": 2.265483535805735,
+      "races": 2560.0,
+      "top1_hit_rate": 0.180859375,
+      "top3_hit_rate": 0.45625
     },
     "b2_only": {
-      "mean_winner_rank": 2.932026836158192,
-      "mrr": 0.5581764787122334,
-      "race_logloss": 2.017327744951667,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3469868173258004,
-      "top3_hit_rate": 0.7009180790960452
+      "mean_winner_rank": 4.298046875,
+      "mrr": 0.4261895870375539,
+      "race_logloss": 2.2522444631726457,
+      "races": 2560.0,
+      "top1_hit_rate": 0.22421875,
+      "top3_hit_rate": 0.488671875
     },
     "b3_only": {
-      "mean_winner_rank": 2.9351459510357816,
-      "mrr": 0.5581587262279697,
-      "race_logloss": 2.018019205936499,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3485169491525424,
-      "top3_hit_rate": 0.6992702448210922
+      "mean_winner_rank": 4.2818359375,
+      "mrr": 0.42348318165351123,
+      "race_logloss": 2.2519971326910913,
+      "races": 2560.0,
+      "top1_hit_rate": 0.22265625,
+      "top3_hit_rate": 0.48359375
     },
     "b4_only": {
-      "mean_winner_rank": 3.422963747645951,
-      "mrr": 0.4907785783373638,
-      "race_logloss": 2.0729779415416942,
-      "races": 8496.0,
-      "top1_hit_rate": 0.2737758945386064,
-      "top3_hit_rate": 0.6094632768361582
+      "mean_winner_rank": 4.6892578125,
+      "mrr": 0.37330742864625244,
+      "race_logloss": 2.292806064261197,
+      "races": 2560.0,
+      "top1_hit_rate": 0.1625,
+      "top3_hit_rate": 0.421875
     },
     "b5_only": {
-      "mean_winner_rank": 2.9366760828625234,
-      "mrr": 0.5531143244358795,
-      "race_logloss": 2.0192355460753624,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3388653483992467,
-      "top3_hit_rate": 0.7019774011299436
+      "mean_winner_rank": 4.3072265625,
+      "mrr": 0.4191761132625185,
+      "race_logloss": 2.2523717399931984,
+      "races": 2560.0,
+      "top1_hit_rate": 0.21953125,
+      "top3_hit_rate": 0.475
     },
     "b6_only": {
-      "mean_winner_rank": 3.0762711864406778,
-      "mrr": 0.5452230199002837,
-      "race_logloss": 2.032701069209448,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3380414312617702,
-      "top3_hit_rate": 0.6727871939736346
+      "mean_winner_rank": 4.39921875,
+      "mrr": 0.4135967296489671,
+      "race_logloss": 2.2588121103294627,
+      "races": 2560.0,
+      "top1_hit_rate": 0.20625,
+      "top3_hit_rate": 0.473046875
     },
     "c1_only": {
-      "mean_winner_rank": 3.661723163841808,
-      "mrr": 0.46176491446084783,
-      "race_logloss": 2.1001051640066226,
-      "races": 8496.0,
-      "top1_hit_rate": 0.2443502824858757,
-      "top3_hit_rate": 0.5657956685499058
+      "mean_winner_rank": 4.86015625,
+      "mrr": 0.35462691666492263,
+      "race_logloss": 2.3073469416224848,
+      "races": 2560.0,
+      "top1_hit_rate": 0.1390625,
+      "top3_hit_rate": 0.397265625
     },
     "c2_only": {
-      "mean_winner_rank": 3.488759416195857,
-      "mrr": 0.48522567892625973,
-      "race_logloss": 2.080430415188014,
-      "races": 8496.0,
-      "top1_hit_rate": 0.2716572504708098,
-      "top3_hit_rate": 0.60075329566855
+      "mean_winner_rank": 4.7333984375,
+      "mrr": 0.3679319236250148,
+      "race_logloss": 2.2943017994749035,
+      "races": 2560.0,
+      "top1_hit_rate": 0.15859375,
+      "top3_hit_rate": 0.4171875
     },
     "c3_only": {
-      "mean_winner_rank": 3.514536252354049,
-      "mrr": 0.4821194932690279,
-      "race_logloss": 2.08284441180163,
-      "races": 8496.0,
-      "top1_hit_rate": 0.2662429378531073,
-      "top3_hit_rate": 0.5948681732580038
+      "mean_winner_rank": 4.1029296875,
+      "mrr": 0.43381371067021435,
+      "race_logloss": 2.233312239722826,
+      "races": 2560.0,
+      "top1_hit_rate": 0.230859375,
+      "top3_hit_rate": 0.49765625
     },
     "equal_dynamic_blend": {
-      "mean_winner_rank": 2.9997057438794728,
-      "mrr": 0.5442616222884792,
-      "race_logloss": 2.0399499961632115,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3300376647834275,
-      "top3_hit_rate": 0.6851459510357816
+      "mean_winner_rank": 4.187109375,
+      "mrr": 0.4291169464216339,
+      "race_logloss": 2.2677654714258746,
+      "races": 2560.0,
+      "top1_hit_rate": 0.22890625,
+      "top3_hit_rate": 0.502734375
     },
     "raw_market_benchmark": {
-      "mean_winner_rank": 2.776895009416196,
-      "mrr": 0.5724911985838741,
-      "race_logloss": 2.0001307666059165,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3546374764595104,
-      "top3_hit_rate": 0.7199858757062146
+      "mean_winner_rank": 4.067578125,
+      "mrr": 0.440314779006583,
+      "race_logloss": 2.229335531000396,
+      "races": 2560.0,
+      "top1_hit_rate": 0.2359375,
+      "top3_hit_rate": 0.505078125
+    },
+    "t1_only": {
+      "mean_winner_rank": 4.20078125,
+      "mrr": 0.4239835468222985,
+      "race_logloss": 2.247096959717724,
+      "races": 2560.0,
+      "top1_hit_rate": 0.216015625,
+      "top3_hit_rate": 0.479296875
+    },
+    "t2_only": {
+      "mean_winner_rank": 4.1134765625,
+      "mrr": 0.4369401189112182,
+      "race_logloss": 2.233200290923465,
+      "races": 2560.0,
+      "top1_hit_rate": 0.2390625,
+      "top3_hit_rate": 0.495703125
     },
     "tuned_dynamic_blend": {
-      "mean_winner_rank": 2.787252824858757,
-      "mrr": 0.5712568968748348,
-      "race_logloss": 2.0113962528965943,
-      "races": 8496.0,
-      "top1_hit_rate": 0.3586393596986817,
-      "top3_hit_rate": 0.7305790960451978
+      "mean_winner_rank": 4.051171875,
+      "mrr": 0.44500598576770456,
+      "race_logloss": 2.2344286394824473,
+      "races": 2560.0,
+      "top1_hit_rate": 0.245703125,
+      "top3_hit_rate": 0.52421875
+    },
+    "x10_only": {
+      "mean_winner_rank": 5.2306640625,
+      "mrr": 0.33723888705471694,
+      "race_logloss": 2.3381637150995953,
+      "races": 2560.0,
+      "top1_hit_rate": 0.133203125,
+      "top3_hit_rate": 0.37265625
+    },
+    "x11_only": {
+      "mean_winner_rank": 4.8361328125,
+      "mrr": 0.3609911015330952,
+      "race_logloss": 2.3074697955990544,
+      "races": 2560.0,
+      "top1_hit_rate": 0.1515625,
+      "top3_hit_rate": 0.4046875
+    },
+    "x12_only": {
+      "mean_winner_rank": 4.89375,
+      "mrr": 0.34706118398153707,
+      "race_logloss": 2.310920193968215,
+      "races": 2560.0,
+      "top1_hit_rate": 0.12890625,
+      "top3_hit_rate": 0.391015625
+    },
+    "x13_only": {
+      "mean_winner_rank": 5.0556640625,
+      "mrr": 0.34156397179144926,
+      "race_logloss": 2.3267757299458696,
+      "races": 2560.0,
+      "top1_hit_rate": 0.13203125,
+      "top3_hit_rate": 0.383203125
+    },
+    "x14_only": {
+      "mean_winner_rank": 4.70234375,
+      "mrr": 0.3747624122648293,
+      "race_logloss": 2.2918908765089605,
+      "races": 2560.0,
+      "top1_hit_rate": 0.16640625,
+      "top3_hit_rate": 0.426171875
+    },
+    "x15_only": {
+      "mean_winner_rank": 5.322265625,
+      "mrr": 0.3298541170945387,
+      "race_logloss": 2.3455809499403757,
+      "races": 2560.0,
+      "top1_hit_rate": 0.129296875,
+      "top3_hit_rate": 0.35234375
+    },
+    "x1_only": {
+      "mean_winner_rank": 4.523828125,
+      "mrr": 0.38670388901544356,
+      "race_logloss": 2.278120197586902,
+      "races": 2560.0,
+      "top1_hit_rate": 0.171875,
+      "top3_hit_rate": 0.4484375
+    },
+    "x2_only": {
+      "mean_winner_rank": 4.966796875,
+      "mrr": 0.34427206723284176,
+      "race_logloss": 2.318258025758252,
+      "races": 2560.0,
+      "top1_hit_rate": 0.124609375,
+      "top3_hit_rate": 0.394921875
+    },
+    "x3_only": {
+      "mean_winner_rank": 4.9076171875,
+      "mrr": 0.34541537876016964,
+      "race_logloss": 2.3129302283782383,
+      "races": 2560.0,
+      "top1_hit_rate": 0.13046875,
+      "top3_hit_rate": 0.3875
+    },
+    "x4_only": {
+      "mean_winner_rank": 4.7537109375,
+      "mrr": 0.3645968291938666,
+      "race_logloss": 2.2971023068076057,
+      "races": 2560.0,
+      "top1_hit_rate": 0.151171875,
+      "top3_hit_rate": 0.4140625
+    },
+    "x5_only": {
+      "mean_winner_rank": 4.9197265625,
+      "mrr": 0.35889534167958326,
+      "race_logloss": 2.31333961411677,
+      "races": 2560.0,
+      "top1_hit_rate": 0.15078125,
+      "top3_hit_rate": 0.401171875
+    },
+    "x6_only": {
+      "mean_winner_rank": 4.4517578125,
+      "mrr": 0.40761272387778347,
+      "race_logloss": 2.2641748404898063,
+      "races": 2560.0,
+      "top1_hit_rate": 0.20078125,
+      "top3_hit_rate": 0.463671875
+    },
+    "x7_only": {
+      "mean_winner_rank": 4.6921875,
+      "mrr": 0.36748703369003116,
+      "race_logloss": 2.290878395424982,
+      "races": 2560.0,
+      "top1_hit_rate": 0.147265625,
+      "top3_hit_rate": 0.427734375
+    },
+    "x8_only": {
+      "mean_winner_rank": 4.315625,
+      "mrr": 0.421939044503678,
+      "race_logloss": 2.25536188722509,
+      "races": 2560.0,
+      "top1_hit_rate": 0.219921875,
+      "top3_hit_rate": 0.48515625
+    },
+    "x9_only": {
+      "mean_winner_rank": 5.2263671875,
+      "mrr": 0.33705304809354864,
+      "race_logloss": 2.3399244662684353,
+      "races": 2560.0,
+      "top1_hit_rate": 0.138671875,
+      "top3_hit_rate": 0.358203125
     }
   },
   "raw_market_weight_fixed": 0.0,
   "schema_version": 2,
   "sealed_test_available": false,
   "selected_weights": {
-    "a0": 0.818,
-    "a1": 0.0,
+    "a0": 0.409,
+    "a1": 0.003,
     "b1": 0.0,
     "b2": 0.0,
     "b3": 0.0,
-    "b4": 0.044,
+    "b4": 0.0,
     "b5": 0.0,
-    "b6": 0.001,
-    "c1": 0.137,
+    "b6": 0.003,
+    "c1": 0.0,
     "c2": 0.0,
-    "c3": 0.0,
-    "market": 0.0
+    "c3": 0.29,
+    "market": 0.0,
+    "t1": 0.004,
+    "t2": 0.0,
+    "x1": 0.0,
+    "x10": 0.0,
+    "x11": 0.0,
+    "x12": 0.0,
+    "x13": 0.0,
+    "x14": 0.0,
+    "x15": 0.0,
+    "x2": 0.0,
+    "x3": 0.0,
+    "x4": 0.0,
+    "x5": 0.001,
+    "x6": 0.0,
+    "x7": 0.0,
+    "x8": 0.29,
+    "x9": 0.0
   },
-  "selection_cohort": "all_eligible_finished_races_grouped_oof",
+  "selection_cohort": "eligible_finished_races_competition_grouped_oof",
   "top3_failure_focus": null,
+  "training_competition_id": 999,
   "training_weekday_utc": null,
-  "tree_count_early_stopping_rounds": 2000,
-  "tree_count_max_estimators": 700,
-  "tree_count_maximum_inner_validation_races": 1000,
+  "tree_count_early_stopping_rounds": 15,
+  "tree_count_max_estimators": 100,
+  "tree_count_maximum_inner_validation_races": 2000,
   "tree_count_selection": "nested_early_stopping",
   "tree_count_selection_metric": "ndcg@3",
   "tuned_model_tree_counts": {
     "a0": [
-      59,
-      22,
-      8
+      1,
+      3,
+      13
     ],
     "a1": [
-      16,
-      29,
-      73
+      9,
+      23,
+      15
     ],
     "b1": [
-      664,
-      672,
-      673
+      7,
+      3,
+      21
     ],
     "b2": [
-      310,
-      286,
-      411
+      23,
+      20,
+      46
     ],
     "b3": [
-      691,
-      631,
-      185
+      34,
+      6,
+      13
     ],
     "b4": [
-      270,
-      446,
-      651
+      2,
+      6,
+      3
     ],
     "b5": [
-      612,
-      432,
-      634
+      31,
+      51,
+      7
     ],
     "b6": [
-      234,
-      583,
-      476
+      16,
+      8,
+      3
     ],
     "c1": [
-      622,
-      380,
-      336
+      1,
+      24,
+      9
     ],
     "c2": [
-      278,
-      5,
-      38
+      13,
+      2,
+      18
     ],
     "c3": [
-      29,
       5,
-      507
+      9,
+      35
+    ],
+    "t1": [
+      1,
+      1,
+      8
+    ],
+    "t2": [
+      26,
+      2,
+      6
+    ],
+    "x1": [
+      2,
+      34,
+      1
+    ],
+    "x10": [
+      10,
+      23,
+      2
+    ],
+    "x11": [
+      11,
+      22,
+      10
+    ],
+    "x12": [
+      8,
+      44,
+      20
+    ],
+    "x13": [
+      25,
+      1,
+      15
+    ],
+    "x14": [
+      3,
+      61,
+      54
+    ],
+    "x15": [
+      1,
+      36,
+      1
+    ],
+    "x2": [
+      1,
+      21,
+      15
+    ],
+    "x3": [
+      14,
+      5,
+      2
+    ],
+    "x4": [
+      10,
+      3,
+      10
+    ],
+    "x5": [
+      1,
+      1,
+      1
+    ],
+    "x6": [
+      3,
+      19,
+      25
+    ],
+    "x7": [
+      1,
+      17,
+      17
+    ],
+    "x8": [
+      5,
+      17,
+      5
+    ],
+    "x9": [
+      24,
+      4,
+      28
     ]
-  }
+  },
+  "weight_step": 0.001
 }

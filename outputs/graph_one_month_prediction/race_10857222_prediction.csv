@@ -1,0 +1,6 @@
+display,runner_number,runner_name,graph_a_score,graph_a_rank,graph_b_score,graph_b_rank,graph_c_score,graph_c_rank,graph_d_score,graph_d_rank,graph_e_score,graph_e_rank,selected_score,selected_rank
+1,2,Tenenbaum,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+2,6,Sprightly Affair,0.5,3.0,0.5,3.0,0.5,3.0,0.75,2.0,0.5,3.0,0.75,2.0
+3,4,Unhinged,0.75,2.0,0.75,2.0,0.75,2.0,0.5,3.0,0.75,2.0,0.5,3.0
+4,8,Leonessa,0.25,4.0,0.25,4.0,0.0,5.0,0.25,4.0,0.25,4.0,0.25,4.0
+5,7,Yangzi River,0.0,5.0,0.0,5.0,0.25,4.0,0.0,5.0,0.0,5.0,0.0,5.0
