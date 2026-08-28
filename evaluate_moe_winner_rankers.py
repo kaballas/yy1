@@ -18,6 +18,7 @@ from src.race_moe_data import numeric_matrix, race_indices
 from src.race_moe_evaluation import collapse_warnings, evaluate_model
 from src.race_moe_snapshot import (
     audit_live_database_against_snapshot, load_split_snapshot,
+    resolve_snapshot_manifest,
 )
 from src.raceformer_preprocessing import transform_raceformer
 
@@ -106,7 +107,9 @@ def main() -> None:
         raise ValueError(
             "Baseline has no immutable feature snapshot; live-database evaluation is refused"
         )
-    snapshot_manifest_path = Path(reference_snapshot["manifest"])
+    snapshot_manifest_path = resolve_snapshot_manifest(
+        reference_snapshot, paths[0],
+    )
     snapshot_frames, snapshot_manifest = load_split_snapshot(snapshot_manifest_path)
     if args.audit_live_db:
         audit_live_database_against_snapshot(snapshot_manifest_path, args.db)

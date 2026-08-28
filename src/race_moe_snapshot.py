@@ -21,6 +21,41 @@ SNAPSHOT_BASE_COLUMNS = (
 )
 
 
+def snapshot_manifest_reference(manifest_path: Path, checkpoint_path: Path) -> str:
+    """Return a manifest path portable with the checkpoint directory."""
+    return Path(os.path.relpath(
+        manifest_path.resolve(), start=checkpoint_path.resolve().parent,
+    )).as_posix()
+
+
+def resolve_snapshot_manifest(
+    snapshot_metadata: Mapping[str, Any], checkpoint_path: Path,
+) -> Path:
+    """Resolve new relative references and legacy absolute checkpoint paths."""
+    reference = Path(str(snapshot_metadata["manifest"]))
+    checkpoint_directory = checkpoint_path.resolve().parent
+    candidates: list[Path] = []
+    if reference.is_absolute():
+        candidates.append(reference)
+    else:
+        candidates.extend((checkpoint_directory / reference, Path.cwd() / reference))
+
+    # Legacy checkpoints stored the creator's absolute workspace path. Their
+    # snapshots were saved beside the checkpoints in a `snapshot` directory.
+    candidates.append(checkpoint_directory / "snapshot" / reference.name)
+    checked: list[str] = []
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if str(resolved) in checked:
+            continue
+        checked.append(str(resolved))
+        if resolved.is_file():
+            return resolved
+    raise FileNotFoundError(
+        "Immutable snapshot manifest is unavailable. Checked: " + ", ".join(checked)
+    )
+
+
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 

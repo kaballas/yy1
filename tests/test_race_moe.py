@@ -10,7 +10,10 @@ from src.model.race_moe import (
 )
 from src.race_moe_data import chronological_race_ids, market_blind_features
 from src.race_moe_evaluation import collapse_warnings, routing_diagnostics
-from src.race_moe_snapshot import create_split_snapshot, load_split_snapshot
+from src.race_moe_snapshot import (
+    create_split_snapshot, load_split_snapshot, resolve_snapshot_manifest,
+    snapshot_manifest_reference,
+)
 
 
 def test_moe_forward_contract_and_sparse_top_k():
@@ -168,6 +171,21 @@ def test_snapshot_hash_verification_rejects_changed_file(tmp_path):
     test_file.write_bytes(test_file.read_bytes() + b"changed")
     with pytest.raises(ValueError, match="HASH MISMATCH"):
         load_split_snapshot(manifest)
+
+
+def test_snapshot_reference_is_checkpoint_relative_and_legacy_paths_fall_back(tmp_path):
+    checkpoint = tmp_path / "experiment" / "baseline.pt"
+    manifest = checkpoint.parent / "snapshot" / "manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("{}")
+    assert snapshot_manifest_reference(manifest, checkpoint) == "snapshot/manifest.json"
+    assert resolve_snapshot_manifest(
+        {"manifest": "snapshot/manifest.json"}, checkpoint,
+    ) == manifest.resolve()
+    assert resolve_snapshot_manifest(
+        {"manifest": "/old/machine/project/outputs/run/snapshot/manifest.json"},
+        checkpoint,
+    ) == manifest.resolve()
 
 
 def test_chronological_split_is_consecutive_and_sealed():

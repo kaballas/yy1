@@ -25,7 +25,9 @@ from src.race_moe_data import (
     market_blind_features, numeric_matrix, pad_batch, race_indices,
 )
 from src.race_moe_evaluation import collapse_warnings, evaluate_model
-from src.race_moe_snapshot import create_split_snapshot, load_split_snapshot
+from src.race_moe_snapshot import (
+    create_split_snapshot, load_split_snapshot, snapshot_manifest_reference,
+)
 from src.raceformer_preprocessing import (
     fit_raceformer_preprocessor, model_feature_columns, transform_raceformer,
 )
@@ -432,6 +434,7 @@ def main(argv: list[str] | None = None) -> None:
         "validation": _split_range(frame, validation_ids),
         "test": _split_range(frame, test_ids),
     }
+    output = args.output.resolve()
     checkpoint = {
         "checkpoint_type": "race_winner_moe",
         "checkpoint_version": 1,
@@ -446,7 +449,10 @@ def main(argv: list[str] | None = None) -> None:
         "market_features_enabled": args.include_market_features,
         "feature_snapshot": (
             {
-                "manifest": str(snapshot_manifest_path),
+                "manifest": snapshot_manifest_reference(
+                    snapshot_manifest_path, output,
+                ),
+                "manifest_relative_to": "checkpoint_directory",
                 "splits": snapshot_metadata["splits"],
                 "identity_columns": snapshot_metadata["identity_columns"],
             }
@@ -477,7 +483,7 @@ def main(argv: list[str] | None = None) -> None:
         "history": history, "metrics": results, "router_diagnostics": diagnostics,
         "training_config": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
     }
-    output = args.output.resolve(); output.parent.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f".{output.name}.tmp")
     torch.save(checkpoint, temporary); temporary.replace(output)
     report_path = output.with_suffix(".report.json")
