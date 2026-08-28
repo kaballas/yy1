@@ -73,8 +73,14 @@ class OOFCohortMismatchError(ValueError):
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--db", type=Path, default=DEFAULT_DB,
+        help="SQLite database of race/runner training data.",
+    )
     parser.add_argument(
         "--competition-id",
         type=int,
@@ -87,6 +93,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=Path,
         default=Path("outputs/winner_ranker_all_finished"),
+        help="Directory for saved models, bundle, OOF predictions, and blends.",
     )
     parser.add_argument(
         "--source-bundle",
@@ -118,9 +125,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "and keep only races where no model exactly matches top3_mask."
         ),
     )
-    parser.add_argument("--folds", type=int, default=5)
-    parser.add_argument("--minimum-runners", type=int, default=4)
-    parser.add_argument("--minimum-feature-coverage", type=float, default=0.20)
+    parser.add_argument("--folds", type=int, default=5, help="Cross-fit fold count.")
+    parser.add_argument(
+        "--minimum-runners", type=int, default=4,
+        help="Exclude races with fewer active runners than this.",
+    )
+    parser.add_argument(
+        "--minimum-feature-coverage", type=float, default=0.20,
+        help="Minimum non-missing fraction required to keep a feature.",
+    )
     parser.add_argument(
         "--native-categorical",
         action="store_true",
@@ -137,7 +150,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
         help="Train only races whose UTC start_time_iso falls on this weekday.",
     )
-    parser.add_argument("--ensemble-size", type=int, default=3)
+    parser.add_argument(
+        "--ensemble-size", type=int, default=3,
+        help="Number of XGBoost models per model group (bagged ensemble).",
+    )
     parser.add_argument(
         "--default-form-estimators",
         type=int,
@@ -150,8 +166,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=50,
         help="Market-aware fallback used only with --no-tune-tree-counts.",
     )
-    parser.add_argument("--max-estimators", type=int, default=700)
-    parser.add_argument("--early-stopping-rounds", type=int, default=60)
+    parser.add_argument(
+        "--max-estimators", type=int, default=700,
+        help="Maximum XGBoost trees per fit; early stopping may use fewer.",
+    )
+    parser.add_argument(
+        "--early-stopping-rounds", type=int, default=60,
+        help="Stop tree-count tuning if the validation metric does not "
+             "improve for this many rounds.",
+    )
     parser.add_argument(
         "--tree-count-validation-races",
         type=int,
@@ -178,14 +201,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "threads."
         ),
     )
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Base random seed for model training.",
+    )
     parser.add_argument(
         "--objective", choices=("top1", "mrr", "top3", "composite"),
         default="top1",
+        help="Tree-count and blend-weight selection objective.",
     )
-    parser.add_argument("--weight-step", type=float, default=0.001)
-    parser.add_argument("--minimum-form-weight", type=float, default=0.0)
-    parser.add_argument("--skip-feature-update", action="store_true")
+    parser.add_argument(
+        "--weight-step", type=float, default=0.001,
+        help="Grid step size for the dynamic model-blend weight search.",
+    )
+    parser.add_argument(
+        "--minimum-form-weight", type=float, default=0.0,
+        help="Lower bound on the form model's weight in the tuned blend.",
+    )
+    parser.add_argument(
+        "--skip-feature-update", action="store_true",
+        help="Skip running update_derived_racing_features.py before training.",
+    )
     parser.add_argument(
         "--ranker-diagnostics", action="store_true",
         help=(

@@ -96,12 +96,22 @@ def select_historical_cohort(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--race-id", required=True, type=int)
-    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--race-id", required=True, type=int,
+        help="Database race_id of the active race to rank.",
+    )
+    parser.add_argument(
+        "--db", type=Path, default=DEFAULT_DB,
+        help="SQLite database containing the active race's runners.",
+    )
     parser.add_argument(
         "--bundle", type=Path,
         default=Path("outputs/winner_ranker/winner_ranker_bundle.json"),
+        help="Winner-ranker bundle JSON produced by a training pipeline.",
     )
     parser.add_argument(
         "--ranking",
@@ -129,8 +139,8 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help=(
             "Maximum individual model columns/results to print when using a "
-            "race-model manifest (default: 10). All models still contribute to "
-            "consensus. Use 0 to display every model."
+            "race-model manifest. All models still contribute to consensus. "
+            "Use 0 to display every model."
         ),
     )
     parser.add_argument(
@@ -169,7 +179,10 @@ def parse_args() -> argparse.Namespace:
             "beside --blend-config."
         ),
     )
-    parser.add_argument("--output-csv", type=Path)
+    parser.add_argument(
+        "--output-csv", type=Path,
+        help="Optional path to save the full ranked output table as CSV.",
+    )
     parser.add_argument(
         "--no-recent-model-selection",
         "--no-today-model-selection",

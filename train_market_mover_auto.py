@@ -58,21 +58,41 @@ def parse_competition_ids(value: str) -> list[int]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
-    parser.add_argument("--features-json", type=Path, default=Path("test.json"))
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--db", type=Path, default=DEFAULT_DB,
+        help="SQLite database of race/runner training data.",
+    )
+    parser.add_argument(
+        "--features-json", type=Path, default=Path("test.json"),
+        help=(
+            "Model feature manifest JSON. In ablation mode, defines base "
+            "features plus one tested feature per model. In --forward-select "
+            "mode, also supplies the base_features/excluded_features pool."
+        ),
+    )
     parser.add_argument(
         "--results-json", type=Path,
         default=Path("outputs/market_mover_test_results.json"),
+        help="Output path for incrementally saved run results (JSON).",
     )
-    parser.add_argument("--validation-races", type=int, default=1000)
+    parser.add_argument(
+        "--validation-races", type=int, default=1000,
+        help=(
+            "Latest chronological races (after excluding --test-races) used "
+            "to score each candidate feature/model during selection."
+        ),
+    )
     parser.add_argument(
         "--test-races",
         type=int,
         default=200,
         help=(
             "Latest chronological races reserved for one sealed evaluation "
-            "after forward selection (default: 200)."
+            "after forward selection."
         ),
     )
     parser.add_argument(
@@ -85,9 +105,19 @@ def parse_args() -> argparse.Namespace:
             "Accepts one ID or a comma-separated list."
         ),
     )
-    parser.add_argument("--minimum-runners", type=int, default=4)
-    parser.add_argument("--max-estimators", type=int, default=300)
-    parser.add_argument("--early-stopping-rounds", type=int, default=40)
+    parser.add_argument(
+        "--minimum-runners", type=int, default=4,
+        help="Exclude races with fewer active runners than this.",
+    )
+    parser.add_argument(
+        "--max-estimators", type=int, default=300,
+        help="Maximum XGBoost trees per fit; early stopping may use fewer.",
+    )
+    parser.add_argument(
+        "--early-stopping-rounds", type=int, default=40,
+        help="Stop training if the validation metric does not improve for "
+             "this many rounds.",
+    )
     parser.add_argument(
         "--jobs",
         type=int,
@@ -97,7 +127,10 @@ def parse_args() -> argparse.Namespace:
             "threads."
         ),
     )
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Base random seed for model training.",
+    )
     parser.add_argument(
         "--selection-objective",
         choices=("winner", "top3"),
@@ -113,7 +146,7 @@ def parse_args() -> argparse.Namespace:
         default=0.01,
         help=(
             "Minimum absolute primary-metric change in the selected direction "
-            "required to add a feature (default: 0.01, or one percentage point)."
+            "required to add a feature (0.01 is one percentage point)."
         ),
     )
     parser.add_argument(
@@ -124,7 +157,11 @@ def parse_args() -> argparse.Namespace:
             "they are excluded so the selected model remains market-free."
         ),
     )
-    parser.add_argument("--top", type=int, default=20)
+    parser.add_argument(
+        "--top", type=int, default=20,
+        help="Number of top-ranked ablation models to print in the summary "
+             "table (ignored in --forward-select mode).",
+    )
     parser.add_argument(
         "--forward-select",
         action="store_true",

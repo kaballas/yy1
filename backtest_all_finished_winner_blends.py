@@ -126,12 +126,29 @@ def parse_args() -> argparse.Namespace:
         metavar="NUMBER[,NUMBER...]",
         help="Limit the backtest to one or more comma-separated race numbers.",
     )
-    parser.add_argument("--from-date", help="Inclusive UTC date/time filter.")
-    parser.add_argument("--to-date", help="Inclusive UTC date/time filter.")
+    parser.add_argument(
+        "--from-date",
+        help=(
+            "Inclusive UTC date/time filter (start_time_iso). Without "
+            "--predict-db or --predictions, providing --from-date and/or "
+            "--to-date runs fitted bundle database inference over that date "
+            "range, the same way --date does for a single day."
+        ),
+    )
+    parser.add_argument(
+        "--to-date",
+        help=(
+            "Inclusive UTC date/time filter (start_time_iso). See --from-date."
+        ),
+    )
     parser.add_argument(
         "--date",
         type=parse_date,
-        help="Limit the backtest to this UTC date from start_time_iso (YYYY-MM-DD).",
+        help=(
+            "Limit the backtest to this single UTC date from start_time_iso "
+            "(YYYY-MM-DD). Cannot be combined with --from-date/--to-date; use "
+            "those for a date range instead."
+        ),
     )
     parser.add_argument(
         "--train-per-race",
@@ -458,6 +475,50 @@ def load_finished_date_rows(
     return rows_for_races(dated, races["race_id"].astype(int).tolist())
 
 
+def load_finished_date_range_rows(
+    database: Path,
+    from_date: str | None,
+    to_date: str | None,
+    categorical_columns: list[str] | None = None,
+) -> pd.DataFrame:
+    """Load eligible finished race rows across an inclusive UTC date/time range."""
+    from src.winner_ranker import (
+        database_numeric_columns,
+        eligible_races,
+        load_training_rows,
+        rows_for_races,
+    )
+    if from_date is None and to_date is None:
+        raise ValueError("At least one of --from-date or --to-date is required")
+    resolved_database = database.resolve()
+    if not resolved_database.is_file():
+        raise ValueError(f"Database does not exist: {resolved_database}")
+    numeric_columns = database_numeric_columns(resolved_database)
+    all_finished = load_training_rows(
+        resolved_database,
+        numeric_columns,
+        categorical_columns=categorical_columns or [],
+    )
+    times = pd.to_datetime(
+        all_finished["start_time_iso"], errors="coerce", utc=True
+    )
+    if times.isna().any():
+        raise ValueError("Database contains invalid start_time_iso values")
+    keep = pd.Series(True, index=all_finished.index)
+    if from_date is not None:
+        keep &= times >= pd.to_datetime(from_date, errors="raise", utc=True)
+    if to_date is not None:
+        keep &= times <= pd.to_datetime(to_date, errors="raise", utc=True)
+    ranged = all_finished.loc[keep].copy()
+    races = eligible_races(ranged)
+    if races.empty:
+        raise ValueError(
+            "No eligible status=finished database races exist between "
+            f"from_date={from_date or '(open)'} and to_date={to_date or '(open)'}"
+        )
+    return rows_for_races(ranged, races["race_id"].astype(int).tolist())
+
+
 def load_finished_database_rows(
     database: Path,
     categorical_columns: list[str] | None = None,
@@ -482,6 +543,7 @@ def load_finished_database_rows(
     if races.empty:
         raise ValueError("Database contains no eligible finished races")
     return rows_for_races(all_finished, races["race_id"].astype(int).tolist())
+
 
 
 def score_finished_rows_from_bundle(
@@ -1522,6 +1584,8 @@ def main() -> None:
         raise ValueError("--train-per-race cannot be combined with --predict-db")
     if args.predict_db and args.predictions is not None:
         raise ValueError("--predict-db cannot be combined with --predictions")
+    if args.date is not None and (args.from_date is not None or args.to_date is not None):
+        raise ValueError("--date cannot be combined with --from-date or --to-date")
     if args.per_race_feature_trials < 1:
         raise ValueError("--per-race-feature-trials must be positive")
     if not 1 <= args.per_race_blend_members <= 6:
@@ -1560,21 +1624,27 @@ def main() -> None:
     predictions_path = args.predictions or (
         args.blend_config.parent / "all_finished_oof_predictions.csv"
     )
-    database_inference = args.predict_db or args.date is not None
+    database_range_requested = args.from_date is not None or args.to_date is not None
+    database_inference = (
+        args.predict_db or args.date is not None or database_range_requested
+    )
     evaluation_mode = "saved_out_of_fold_predictions"
     if database_inference:
-        database_rows = (
-            load_finished_date_rows(
-                args.db,
-                args.date,
-                [str(feature) for feature in bundle.get("categorical_features", [])],
+        categorical_columns = [
+            str(feature) for feature in bundle.get("categorical_features", [])
+        ]
+        if args.date is not None and not args.predict_db:
+            database_rows = load_finished_date_rows(
+                args.db, args.date, categorical_columns,
             )
-            if args.date is not None and not args.predict_db
-            else load_finished_database_rows(
-                args.db,
-                [str(feature) for feature in bundle.get("categorical_features", [])],
+        elif database_range_requested and not args.predict_db:
+            database_rows = load_finished_date_range_rows(
+                args.db, args.from_date, args.to_date, categorical_columns,
             )
-        )
+        else:
+            database_rows = load_finished_database_rows(
+                args.db, categorical_columns,
+            )
         database_rows = filter_complete_races(
             database_rows,
             args.competition_id,
@@ -1679,7 +1749,16 @@ def main() -> None:
         f"evaluation_mode={evaluation_mode}\n"
         + (
             f"database={args.db.resolve()}"
-            + (f" date_utc={args.date}" if args.date is not None else "")
+            + (
+                f" date_utc={args.date}"
+                if args.date is not None
+                else (
+                    f" date_range_utc={args.from_date or '(open)'}.."
+                    f"{args.to_date or '(open)'}"
+                    if database_range_requested
+                    else ""
+                )
+            )
             + "\n"
             if database_inference
             else f"predictions={predictions_path.resolve()}\n"
