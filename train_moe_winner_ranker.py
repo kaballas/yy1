@@ -25,6 +25,7 @@ from src.race_moe_data import (
     market_blind_features, numeric_matrix, pad_batch, race_indices,
 )
 from src.race_moe_evaluation import collapse_warnings, evaluate_model
+from src.race_moe_snapshot import create_split_snapshot, load_split_snapshot
 from src.raceformer_preprocessing import (
     fit_raceformer_preprocessor, model_feature_columns, transform_raceformer,
 )
@@ -66,6 +67,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--split-checkpoint", type=Path,
         help="Freeze train/validation/test race IDs from an existing checkpoint.",
+    )
+    snapshot = parser.add_mutually_exclusive_group()
+    snapshot.add_argument(
+        "--snapshot-dir", type=Path,
+        help="Create a new immutable training/validation/test feature snapshot.",
+    )
+    snapshot.add_argument(
+        "--snapshot-manifest", type=Path,
+        help="Train only from an existing hash-verified immutable snapshot.",
     )
     parser.add_argument("--max-training-races", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=30)
@@ -128,6 +138,10 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("fixed-uniform routing requires --model-type moe")
     if args.split_checkpoint is not None and args.max_training_races:
         raise ValueError("--split-checkpoint cannot be combined with --max-training-races")
+    if args.snapshot_manifest is not None and args.split_checkpoint is not None:
+        raise ValueError("A snapshot manifest already defines the frozen split")
+    if args.snapshot_manifest is not None and args.max_training_races:
+        raise ValueError("A snapshot manifest cannot be combined with a race limit")
 
 
 def _selection(metrics: dict[str, float | int]) -> tuple[float, float, float]:
@@ -186,8 +200,39 @@ def main(argv: list[str] | None = None) -> None:
         configured_features, include_market=args.include_market_features
     )
     zeroed = [name for name in configured_zeroed if name in features]
-    frame = load_finished_winner_rows(args.db, features)
-    if args.split_checkpoint is not None:
+    snapshot_manifest_path: Path | None = None
+    snapshot_metadata: dict[str, Any] | None = None
+    if args.snapshot_manifest is not None:
+        partitions, snapshot_metadata = load_split_snapshot(args.snapshot_manifest)
+        snapshot_manifest_path = args.snapshot_manifest.resolve()
+        snapshot_features = list(snapshot_metadata["feature_columns"])
+        forbidden = [
+            name for name in snapshot_features
+            if name not in set(features)
+        ]
+        if forbidden:
+            raise ValueError(
+                "Snapshot violates the current market-blind/identifier contract: "
+                + ", ".join(forbidden)
+            )
+        features = snapshot_features
+        zeroed = [name for name in zeroed if name in features]
+        unavailable_features = [
+            name for name in snapshot_metadata.get("excluded_features", [])
+            if name not in set(market_excluded)
+        ]
+        train_ids = list(map(int, partitions["training"]["race_id"].drop_duplicates()))
+        validation_ids = list(map(int, partitions["validation"]["race_id"].drop_duplicates()))
+        test_ids = list(map(int, partitions["test"]["race_id"].drop_duplicates()))
+        frame = pd.concat(partitions.values(), ignore_index=True)
+        print(
+            f"immutable_snapshot={snapshot_manifest_path} hash_verification=passed "
+            f"training_races={len(train_ids):,} validation_races={len(validation_ids):,} "
+            f"test_races={len(test_ids):,}", flush=True,
+        )
+    else:
+        frame = load_finished_winner_rows(args.db, features)
+    if args.snapshot_manifest is None and args.split_checkpoint is not None:
         split_source = torch.load(
             args.split_checkpoint.resolve(), map_location="cpu", weights_only=False
         )
@@ -210,33 +255,58 @@ def main(argv: list[str] | None = None) -> None:
             f"training_races={len(train_ids):,} validation_races={len(validation_ids):,} "
             f"test_races={len(test_ids):,}", flush=True,
         )
-    else:
+    elif args.snapshot_manifest is None:
         train_ids, validation_ids, test_ids = chronological_race_ids(
             frame, args.validation_races, args.test_races
         )
-    if args.max_training_races:
+    if args.snapshot_manifest is None and args.max_training_races:
         train_ids = train_ids[-args.max_training_races:]
-    partitions = {
-        "training": frame.loc[frame["race_id"].isin(train_ids)].copy(),
-        "validation": frame.loc[frame["race_id"].isin(validation_ids)].copy(),
-        "test": frame.loc[frame["race_id"].isin(test_ids)].copy(),
-    }
-    unavailable_features = [
-        name for name in features
-        if not pd.to_numeric(
-            partitions["training"][name], errors="coerce"
-        ).notna().any()
-    ]
-    if unavailable_features:
-        unavailable_set = set(unavailable_features)
-        features = [name for name in features if name not in unavailable_set]
-        zeroed = [name for name in zeroed if name in features]
-        print(
-            f"unavailable_training_features_excluded={len(unavailable_features)} "
-            + json.dumps(unavailable_features), flush=True,
-        )
+    if args.snapshot_manifest is None:
+        partitions = {
+            "training": frame.loc[frame["race_id"].isin(train_ids)].copy(),
+            "validation": frame.loc[frame["race_id"].isin(validation_ids)].copy(),
+            "test": frame.loc[frame["race_id"].isin(test_ids)].copy(),
+        }
+        unavailable_features = [
+            name for name in features
+            if not pd.to_numeric(
+                partitions["training"][name], errors="coerce"
+            ).notna().any()
+        ]
+        if unavailable_features:
+            unavailable_set = set(unavailable_features)
+            features = [name for name in features if name not in unavailable_set]
+            zeroed = [name for name in zeroed if name in features]
+            print(
+                f"unavailable_training_features_excluded={len(unavailable_features)} "
+                + json.dumps(unavailable_features), flush=True,
+            )
     if not features:
         raise ValueError("No numerical features have training coverage")
+    if args.snapshot_dir is not None:
+        snapshot_partitions = dict(partitions)
+        used_ids = set(train_ids) | set(validation_ids) | set(test_ids)
+        test_end = partitions["test"]["start_time_iso"].max()
+        newer = frame.loc[
+            (frame["start_time_iso"] > test_end)
+            & ~frame["race_id"].isin(used_ids)
+        ].copy()
+        if not newer.empty:
+            snapshot_partitions["test2"] = newer
+            print(
+                f"snapshot_additional_test2_races={newer['race_id'].nunique():,} "
+                "selection_use=never", flush=True,
+            )
+        snapshot_manifest_path = create_split_snapshot(
+            args.snapshot_dir, snapshot_partitions, features, database=args.db,
+            excluded_features=[*market_excluded, *unavailable_features],
+        )
+        partitions, snapshot_metadata = load_split_snapshot(snapshot_manifest_path)
+        frame = pd.concat(partitions.values(), ignore_index=True)
+        print(
+            f"immutable_snapshot_created={snapshot_manifest_path} "
+            "hash_verification=passed", flush=True,
+        )
     raw = {name: numeric_matrix(part, features) for name, part in partitions.items()}
     preprocessing = fit_raceformer_preprocessor(
         raw["training"], features, clip=args.standardized_clip,
@@ -294,8 +364,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     print(
         f"trainable_parameters={model.trainable_parameter_count():,} "
-        f"approximate_forward_active_parameters="
-        f"{model.approximate_active_parameter_count():,}", flush=True,
+        f"executed_forward_parameters={model.executed_parameter_count():,} "
+        f"contributing_parameters={model.contributing_parameter_count():,}", flush=True,
     )
     print(
         f"market_features_excluded={len(market_excluded)} "
@@ -374,6 +444,15 @@ def main(argv: list[str] | None = None) -> None:
         "market_features_excluded": market_excluded,
         "unavailable_training_features_excluded": unavailable_features,
         "market_features_enabled": args.include_market_features,
+        "feature_snapshot": (
+            {
+                "manifest": str(snapshot_manifest_path),
+                "splits": snapshot_metadata["splits"],
+                "identity_columns": snapshot_metadata["identity_columns"],
+            }
+            if snapshot_manifest_path is not None and snapshot_metadata is not None
+            else None
+        ),
         "zeroed_features": zeroed, "preprocessing": preprocessing,
         "branch_configuration": {"runner_encoder": "shared_mlp", "race_context": "masked_mean_plus_max"},
         "router_architecture": {
@@ -392,7 +471,8 @@ def main(argv: list[str] | None = None) -> None:
         "best_epoch": best_epoch, "best_selection": best_selection,
         "parameter_count": {
             "trainable": model.trainable_parameter_count(),
-            "approximate_forward_active": model.approximate_active_parameter_count(),
+            "executed_forward": model.executed_parameter_count(),
+            "contributing": model.contributing_parameter_count(),
         },
         "history": history, "metrics": results, "router_diagnostics": diagnostics,
         "training_config": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},

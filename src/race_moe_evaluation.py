@@ -88,14 +88,14 @@ def _expert_prediction_diagnostics(
         for weights in race_dense_weights
     ) and experts > 1
     if uniform:
-        routed_hit_rate = None
-        routed_experts = None
+        race_dominant_hit_rate = None
+        race_dominant_experts = None
     else:
-        routed_experts = np.asarray([
+        race_dominant_experts = np.asarray([
             weights.mean(axis=0).argmax() for weights in race_dense_weights
         ], dtype=np.int64)
-        routed_picks = picks[np.arange(len(picks)), routed_experts]
-        routed_hit_rate = float(np.mean(routed_picks == winners))
+        race_dominant_picks = picks[np.arange(len(picks)), race_dominant_experts]
+        race_dominant_hit_rate = float(np.mean(race_dominant_picks == winners))
     return {
         "top1_selection_agreement": agreement.tolist(),
         "top1_selection_disagreement": (1.0 - agreement).tolist(),
@@ -103,12 +103,13 @@ def _expert_prediction_diagnostics(
         "unique_top1_winner_race_rate_per_expert": unique_winner_rates,
         "winner_hit_rate_given_unique_top1_per_expert": unique_winner_given_unique,
         "expert_specific_winner_hit_rate": expert_hits,
-        "router_selected_expert_winner_hit_rate": routed_hit_rate,
-        "router_selected_expert_frequency": (
-            None if routed_experts is None else
-            (np.bincount(routed_experts, minlength=experts) / len(routed_experts)).tolist()
+        "race_dominant_gate_expert_winner_hit_rate": race_dominant_hit_rate,
+        "race_dominant_gate_expert_frequency": (
+            None if race_dominant_experts is None else
+            (np.bincount(race_dominant_experts, minlength=experts)
+             / len(race_dominant_experts)).tolist()
         ),
-        "router_selection_available": not uniform,
+        "race_dominant_gate_diagnostic_available": not uniform,
     }
 
 
@@ -226,7 +227,7 @@ def routing_diagnostics(
         "dominant_expert_rate": float(top_frequency.max()),
         "average_number_of_active_experts": float(selected.sum(axis=1).mean()),
         "router_balance_loss": balance,
-        "router_selection_available": not fixed_uniform,
+        "race_dominant_gate_diagnostic_available": not fixed_uniform,
         "pairwise_expert_logit_correlations": correlations,
         "pairwise_expert_logit_pearson": correlations,
         "pairwise_expert_logit_spearman": spearman,

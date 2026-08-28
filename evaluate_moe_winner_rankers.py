@@ -14,8 +14,11 @@ import torch
 
 from src.config import DEFAULT_DB
 from src.model.race_moe import build_race_winner_model
-from src.race_moe_data import load_finished_winner_rows, numeric_matrix, race_indices
+from src.race_moe_data import numeric_matrix, race_indices
 from src.race_moe_evaluation import collapse_warnings, evaluate_model
+from src.race_moe_snapshot import (
+    audit_live_database_against_snapshot, load_split_snapshot,
+)
 from src.raceformer_preprocessing import transform_raceformer
 
 
@@ -24,6 +27,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--moe", "--challengers", type=Path, nargs="+", required=True)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument(
+        "--audit-live-db", action="store_true",
+        help="Fail if current database values differ from the immutable snapshot.",
+    )
     parser.add_argument("--races-per-batch", type=int, default=64)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--collapse-threshold", type=float, default=0.80)
@@ -90,11 +97,27 @@ def main() -> None:
     args = parse_args(); device = torch.device(args.device)
     paths = [args.baseline, *args.moe]
     loaded = [(path, *load(path, device)) for path in paths]
+    checkpoint_by_label = {path.stem: checkpoint for path, _, checkpoint in loaded}
     reference = loaded[0][2]
     if reference["model_config"]["model_type"] != "baseline":
         raise ValueError("--baseline checkpoint is not a baseline model")
+    reference_snapshot = reference.get("feature_snapshot")
+    if not reference_snapshot or not reference_snapshot.get("manifest"):
+        raise ValueError(
+            "Baseline has no immutable feature snapshot; live-database evaluation is refused"
+        )
+    snapshot_manifest_path = Path(reference_snapshot["manifest"])
+    snapshot_frames, snapshot_manifest = load_split_snapshot(snapshot_manifest_path)
+    if args.audit_live_db:
+        audit_live_database_against_snapshot(snapshot_manifest_path, args.db)
+        print("live_database_snapshot_audit=passed", flush=True)
     contract_keys = ("raw_feature_columns", "model_feature_columns", "zeroed_features")
     for path, _, checkpoint in loaded[1:]:
+        candidate_snapshot = checkpoint.get("feature_snapshot")
+        if not candidate_snapshot:
+            raise ValueError(f"{path} has no immutable feature snapshot")
+        if candidate_snapshot.get("splits") != reference_snapshot.get("splits"):
+            raise ValueError(f"{path} does not use identical snapshot hashes")
         for key in contract_keys:
             if list(checkpoint[key]) != list(reference[key]):
                 raise ValueError(f"{path} does not use identical {key}")
@@ -119,29 +142,16 @@ def main() -> None:
             if checkpoint["model_config"][key] != reference["model_config"][key]:
                 raise ValueError(f"{path} differs from baseline architecture at {key}")
     features = list(reference["raw_feature_columns"])
-    frame = load_finished_winner_rows(args.db, features)
-    test_end = reference["partition"]["ranges"]["test"]["end_time"]
-    test2_frame = frame.loc[frame["start_time_iso"] > test_end].copy()
-    old_ids = set(
-        reference["partition"]["training_race_ids"]
-        + reference["partition"]["validation_race_ids"]
-        + reference["partition"]["test_race_ids"]
-    )
-    test2_ids = [
-        int(value) for value in test2_frame["race_id"].drop_duplicates()
-        if int(value) not in old_ids
-    ]
-    cohorts = {
-        "validation": reference["partition"]["validation_race_ids"],
-        "test": reference["partition"]["test_race_ids"],
-    }
-    if test2_ids:
-        cohorts["test2"] = test2_ids
+    if features != list(snapshot_manifest["feature_columns"]):
+        raise ValueError("Checkpoint feature list differs from immutable snapshot")
+    cohorts = {name: frame for name, frame in snapshot_frames.items() if name != "training"}
+    if "test2" in cohorts:
+        test2_frame = cohorts["test2"]
         print(
-            f"TEST-2 untouched_newer_races={len(test2_ids)} "
+            f"TEST-2 snapshotted_races={test2_frame['race_id'].nunique()} "
             f"start={test2_frame['start_time_iso'].min()} "
             f"end={test2_frame['start_time_iso'].max()} "
-            "used_for_selection=no WARNING=small_cohort",
+            "used_for_selection=no WARNING=previously_inspected_small_cohort",
             flush=True,
         )
     rows = [] ; detail = {}
@@ -150,10 +160,11 @@ def main() -> None:
         detail[label] = {}
         detail[label]["parameter_count"] = {
             "trainable": model.trainable_parameter_count(),
-            "approximate_forward_active": model.approximate_active_parameter_count(),
+            "executed_forward": model.executed_parameter_count(),
+            "contributing": model.contributing_parameter_count(),
         }
-        for split, ids in cohorts.items():
-            part = frame.loc[frame["race_id"].isin(ids)].copy()
+        for split, snapshot_frame in cohorts.items():
+            part = snapshot_frame.copy()
             raw = numeric_matrix(part, features)
             race_id_array = part["race_id"].to_numpy(dtype=np.int64)
             x = transform_raceformer(
@@ -171,12 +182,13 @@ def main() -> None:
             }
             rows.append((label, checkpoint["model_config"]["model_type"], split, metrics))
     print("MODEL COMPARISON (complete chronological cohorts; Top-1 is primary)")
-    print("model                         type       split        params     active     top1     top2     top3      mrr  logloss  avg_winner_p")
+    print("model                         type       split        params   executed contributing     top1     top2     top3      mrr  logloss  avg_winner_p")
     for label, model_type, split, metric in rows:
         count = detail[label]["parameter_count"]
         print(
             f"{label:<29} {model_type:<10} {split:<10} "
-            f"{count['trainable']:>9,} {count['approximate_forward_active']:>10,} "
+            f"{count['trainable']:>9,} {count['executed_forward']:>10,} "
+            f"{count['contributing']:>12,} "
             f"{metric['top1_hit_rate']:>7.2%} {metric['top2_containment']:>8.2%} "
             f"{metric['top3_containment']:>8.2%} {metric['mrr']:>8.4f} "
             f"{metric['race_logloss']:>8.4f} {metric['average_winner_probability']:>13.4f}"
@@ -209,6 +221,43 @@ def main() -> None:
                 f"mcnemar_p={result['mcnemar_exact_p_value']:.6f} "
                 f"bootstrap95=[{low:+.2%},{high:+.2%}]"
             )
+    matched_labels = [
+        path.stem for path, _, checkpoint in loaded[1:]
+        if checkpoint["model_config"]["model_type"] == "baseline"
+    ]
+    matched_paired = {}
+    matched_label = matched_labels[0] if len(matched_labels) == 1 else None
+    if matched_label is not None:
+        for path, _, checkpoint in loaded[1:]:
+            label = path.stem
+            if checkpoint["model_config"]["model_type"] != "moe":
+                continue
+            matched_paired[label] = {}
+            for split in cohorts:
+                matched_predictions = pd.DataFrame(
+                    detail[matched_label][split]["predictions"]
+                )
+                challenger_predictions = pd.DataFrame(
+                    detail[label][split]["predictions"]
+                )
+                matched_paired[label][split] = paired_comparison(
+                    matched_predictions, challenger_predictions,
+                    args.bootstrap_samples, args.bootstrap_seed,
+                )
+        detail["paired_against_parameter_matched_mlp"] = matched_paired
+        print(f"\nPAIRED TOP-1 COMPARISONS AGAINST {matched_label}")
+        for label, splits in matched_paired.items():
+            for split, result in splits.items():
+                low, high = result["paired_bootstrap_95_ci"]
+                print(
+                    f"{label} {split}: both_correct={result['both_correct']} "
+                    f"matched_only={result['baseline_only_correct']} "
+                    f"challenger_only={result['challenger_only_correct']} "
+                    f"both_wrong={result['both_wrong']} "
+                    f"delta={result['top1_difference']:+.2%} "
+                    f"mcnemar_p={result['mcnemar_exact_p_value']:.6f} "
+                    f"bootstrap95=[{low:+.2%},{high:+.2%}]"
+                )
     print("\nCHALLENGER ROUTER / EXPERT DIAGNOSTICS")
     for path in paths[1:]:
         label = path.stem
@@ -236,7 +285,22 @@ def main() -> None:
                 )
         for warning in dict.fromkeys(warnings):
             print("  WARNING: " + warning)
-        retain = validation_delta > 0 and test_delta >= 0 and not warnings
+        significant_over_baseline = all(
+            paired[label][split]["paired_bootstrap_95_ci"][0] > 0
+            for split in ("validation", "test")
+        )
+        significant_over_matched = (
+            label in matched_paired
+            and all(
+                matched_paired[label][split]["paired_bootstrap_95_ci"][0] > 0
+                for split in ("validation", "test")
+            )
+        )
+        retain = (
+            checkpoint_by_label[label]["model_config"]["model_type"] == "moe"
+            and significant_over_baseline and significant_over_matched
+            and not warnings
+        )
         print(
             "  recommendation=" + ("RETAIN for further controlled testing" if retain else "DISCARD as an improvement over baseline")
         )
@@ -254,7 +318,7 @@ def main() -> None:
                 "unique_top1_winner_race_rate_per_expert",
                 "winner_hit_rate_given_unique_top1_per_expert",
                 "expert_specific_winner_hit_rate",
-                "router_selected_expert_winner_hit_rate",
+                "race_dominant_gate_expert_winner_hit_rate",
             )
             print(json.dumps({key: diagnostic.get(key) for key in matrix_keys}, indent=2))
     if args.output_json:

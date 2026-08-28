@@ -203,8 +203,8 @@ class RaceMixtureOfExperts(nn.Module):
     def trainable_parameter_count(self) -> int:
         return sum(parameter.numel() for parameter in self.parameters() if parameter.requires_grad)
 
-    def approximate_active_parameter_count(self) -> int:
-        """Parameters participating in one forward pass under configured routing."""
+    def contributing_parameter_count(self) -> int:
+        """Parameters whose outputs contribute to the configured final mixture."""
         encoder = sum(parameter.numel() for parameter in self.encoder.parameters())
         router = (
             sum(parameter.numel() for parameter in self.router.parameters())
@@ -221,6 +221,10 @@ class RaceMixtureOfExperts(nn.Module):
         else:
             active_experts = sorted(expert_counts, reverse=True)[:self.model_config.top_k]
         return encoder + router + sum(active_experts)
+
+    def executed_parameter_count(self) -> int:
+        """Parameters actually executed; v1 computes every expert before masking."""
+        return self.trainable_parameter_count()
 
 
 def race_softmax_nll(

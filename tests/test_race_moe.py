@@ -10,6 +10,7 @@ from src.model.race_moe import (
 )
 from src.race_moe_data import chronological_race_ids, market_blind_features
 from src.race_moe_evaluation import collapse_warnings, routing_diagnostics
+from src.race_moe_snapshot import create_split_snapshot, load_split_snapshot
 
 
 def test_moe_forward_contract_and_sparse_top_k():
@@ -104,7 +105,8 @@ def test_fixed_uniform_routing_averages_all_experts_without_router():
     assert model.router is None
     assert torch.allclose(output["router_weights"], torch.full((1, 5, 4), 0.25))
     assert torch.allclose(output["logits"], output["expert_logits"].mean(dim=-1))
-    assert model.approximate_active_parameter_count() == model.trainable_parameter_count()
+    assert model.executed_parameter_count() == model.trainable_parameter_count()
+    assert model.contributing_parameter_count() == model.trainable_parameter_count()
 
 
 def test_market_blind_filter_rejects_direct_and_indirect_prices():
@@ -117,6 +119,55 @@ def test_market_blind_filter_rejects_direct_and_indirect_prices():
         "marketWinPrice", "recent_1_starting_price", "fluc2",
         "market_implied_prob_change_open_to_fluc2",
     }
+
+
+def test_market_blind_filter_rejects_consensus_overlay_signal_and_identifiers():
+    forbidden = [
+        "race_consensus_score", "race_consensus_rank", "race_overlay_score",
+        "race_overlay_rank", "race_signal_agreement_score",
+        "race_signal_agreement_rank", "competition_id",
+    ]
+    retained, excluded = market_blind_features(["age", *forbidden, "career_starts"])
+    assert retained == ["age", "career_starts"]
+    assert excluded == forbidden
+
+
+def test_top2_reports_all_parameters_executed_but_only_two_experts_contributing():
+    model = RaceMixtureOfExperts(RaceWinnerModelConfig(
+        feature_count=10, model_type="moe", num_experts=4, top_k=2,
+    ))
+    assert model.executed_parameter_count() == model.trainable_parameter_count()
+    assert model.contributing_parameter_count() < model.executed_parameter_count()
+
+
+def test_snapshot_hash_verification_rejects_changed_file(tmp_path):
+    rows = []
+    for race_id in range(1, 4):
+        for runner in range(1, 5):
+            rows.append({
+                "race_id": race_id, "runner_number": runner,
+                "start_time_iso": f"2026-01-0{race_id}T00:00:00+00:00",
+                "competition_id": 99, "is_winner": int(runner == 1),
+                "finish_place": runner, "distance_m": 1200,
+                "class_name": "BM", "field_size": 4, "active_field_size": 4,
+                "track_status": "Good", "career_starts": 3,
+                "runner_name": f"R{runner}", "age": float(runner),
+            })
+    frame = pd.DataFrame(rows)
+    frames = {name: frame.loc[frame["race_id"] == race].copy() for name, race in (
+        ("training", 1), ("validation", 2), ("test", 3),
+    )}
+    manifest = create_split_snapshot(
+        tmp_path / "snapshot", frames, ["age"], database=tmp_path / "db.sqlite",
+        excluded_features=["competition_id"],
+    )
+    loaded, metadata = load_split_snapshot(manifest)
+    assert metadata["identity_columns"] == ["race_id", "runner_number"]
+    assert len(loaded["validation"]) == 4
+    test_file = manifest.parent / metadata["splits"]["test"]["path"]
+    test_file.write_bytes(test_file.read_bytes() + b"changed")
+    with pytest.raises(ValueError, match="HASH MISMATCH"):
+        load_split_snapshot(manifest)
 
 
 def test_chronological_split_is_consecutive_and_sealed():

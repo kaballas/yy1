@@ -26,18 +26,37 @@ MARKET_FEATURE_RE = re.compile(
     r"implied_prob|steam|sp_rank|rank_minus_market|market_rank)", re.IGNORECASE,
 )
 
+CURRENT_RACE_MARKET_DERIVED_FEATURES = {
+    "race_consensus_score", "race_consensus_rank",
+    "race_overlay_score", "race_overlay_rank",
+    "race_signal_agreement_score", "race_signal_agreement_rank",
+}
+
+IDENTIFIER_FEATURES = {
+    "race_id", "competition_id", "selection_id", "runner_number",
+}
+
 
 def is_market_feature(name: str) -> bool:
     compact = name.replace(" ", "_")
-    return bool(MARKET_FEATURE_RE.search(compact)) or compact.lower() in {
+    lowered = compact.lower()
+    return (
+        lowered in CURRENT_RACE_MARKET_DERIVED_FEATURES
+        or bool(MARKET_FEATURE_RE.search(compact))
+        or lowered in {
         "marketwinprice", "marketplaceprice", "open_price", "starting_price",
-    }
+        }
+    )
 
 
 def market_blind_features(
     features: Sequence[str], *, include_market: bool = False,
 ) -> tuple[list[str], list[str]]:
-    excluded = [] if include_market else [name for name in features if is_market_feature(name)]
+    excluded = [
+        name for name in features
+        if name.lower() in IDENTIFIER_FEATURES
+        or (not include_market and is_market_feature(name))
+    ]
     retained = [name for name in features if name not in set(excluded)]
     if not retained:
         raise ValueError("Market filtering removed every configured feature")
