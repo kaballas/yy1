@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 import torch
 
+from evaluate_moe_winner_rankers import paired_comparison
 from src.model.race_moe import (
     RaceMixtureOfExperts, RaceWinnerModelConfig, build_race_winner_model,
     race_softmax_nll, router_balance_loss,
@@ -141,3 +142,19 @@ def test_diagnostics_warn_for_router_and_output_collapse():
     warnings = collapse_warnings(diagnostics, 0.8, 0.98)
     assert diagnostics["dominant_expert_rate"] == 1.0
     assert len(warnings) == 2
+
+
+def test_paired_comparison_counts_discordance_and_bootstrap_interval():
+    baseline = pd.DataFrame({
+        "race_id": [1, 2, 3, 4], "winner_rank": [1, 1, 2, 2],
+    })
+    challenger = pd.DataFrame({
+        "race_id": [1, 2, 3, 4], "winner_rank": [1, 2, 1, 2],
+    })
+    result = paired_comparison(baseline, challenger, samples=500, seed=4)
+    assert result["both_correct"] == 1
+    assert result["baseline_only_correct"] == 1
+    assert result["challenger_only_correct"] == 1
+    assert result["both_wrong"] == 1
+    assert result["top1_difference"] == 0.0
+    assert result["mcnemar_exact_p_value"] == 1.0
