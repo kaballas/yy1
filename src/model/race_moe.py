@@ -23,6 +23,7 @@ class RaceWinnerModelConfig:
     expert_hidden_dims: tuple[int, ...] = (64,)
     router_hidden_dim: int = 64
     expert_context_conditioning: bool = False
+    routing_mode: str = "learned"
 
 
 class MoEExpert(nn.Module):
@@ -89,6 +90,8 @@ class RaceMixtureOfExperts(nn.Module):
         super().__init__()
         if config.model_type not in {"baseline", "moe"}:
             raise ValueError("model_type must be baseline or moe")
+        if config.routing_mode not in {"learned", "fixed_uniform"}:
+            raise ValueError("routing_mode must be learned or fixed_uniform")
         if config.feature_count < 1 or config.num_experts < 1:
             raise ValueError("feature_count and num_experts must be positive")
         if config.gate_temperature <= 0:
@@ -98,6 +101,8 @@ class RaceMixtureOfExperts(nn.Module):
             raise ValueError("top_k must be between 1 and num_experts")
         if config.model_type == "baseline" and config.num_experts != 1:
             raise ValueError("baseline must use exactly one expert")
+        if config.model_type == "baseline" and config.routing_mode != "learned":
+            raise ValueError("baseline does not support fixed_uniform routing")
         self.model_config = config
         self.encoder = RunnerEncoder(
             config.feature_count, config.encoder_hidden_dim,
@@ -113,7 +118,7 @@ class RaceMixtureOfExperts(nn.Module):
         router_input_dim = 3 * config.representation_dim
         self.router = MoERouter(
             router_input_dim, config.router_hidden_dim, config.num_experts
-        ) if config.model_type == "moe" else None
+        ) if config.model_type == "moe" and config.routing_mode == "learned" else None
 
     def config(self) -> dict[str, Any]:
         result = asdict(self.model_config)
@@ -139,9 +144,16 @@ class RaceMixtureOfExperts(nn.Module):
             [expert(expert_input) for expert in self.experts], dim=-1
         )
 
-        if self.router is None:
+        if self.model_config.model_type == "baseline":
             router_logits = torch.zeros_like(expert_logits)
             dense_weights = torch.ones_like(expert_logits)
+            router_weights = dense_weights
+            selected = torch.ones_like(expert_logits, dtype=torch.bool)
+        elif self.router is None:
+            router_logits = torch.zeros_like(expert_logits)
+            dense_weights = torch.full_like(
+                expert_logits, 1.0 / self.model_config.num_experts
+            )
             router_weights = dense_weights
             selected = torch.ones_like(expert_logits, dtype=torch.bool)
         else:
@@ -187,6 +199,28 @@ class RaceMixtureOfExperts(nn.Module):
             "representation": representation.masked_fill(~valid_mask.unsqueeze(-1), 0.0),
             "race_context": race_context,
         }
+
+    def trainable_parameter_count(self) -> int:
+        return sum(parameter.numel() for parameter in self.parameters() if parameter.requires_grad)
+
+    def approximate_active_parameter_count(self) -> int:
+        """Parameters participating in one forward pass under configured routing."""
+        encoder = sum(parameter.numel() for parameter in self.encoder.parameters())
+        router = (
+            sum(parameter.numel() for parameter in self.router.parameters())
+            if self.router is not None else 0
+        )
+        expert_counts = [
+            sum(parameter.numel() for parameter in expert.parameters())
+            for expert in self.experts
+        ]
+        if self.model_config.model_type == "baseline":
+            active_experts = expert_counts[:1]
+        elif self.model_config.routing_mode == "fixed_uniform" or self.model_config.top_k is None:
+            active_experts = expert_counts
+        else:
+            active_experts = sorted(expert_counts, reverse=True)[:self.model_config.top_k]
+        return encoder + router + sum(active_experts)
 
 
 def race_softmax_nll(

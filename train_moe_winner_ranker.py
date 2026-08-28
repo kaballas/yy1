@@ -63,6 +63,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--include-market-features", action="store_true")
     parser.add_argument("--validation-races", type=int, default=1000)
     parser.add_argument("--test-races", type=int, default=1000)
+    parser.add_argument(
+        "--split-checkpoint", type=Path,
+        help="Freeze train/validation/test race IDs from an existing checkpoint.",
+    )
     parser.add_argument("--max-training-races", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--races-per-batch", type=int, default=32)
@@ -77,8 +81,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--moe-top-k", type=_top_k, default=2)
     parser.add_argument("--moe-gate-temperature", type=float, default=1.0)
     parser.add_argument("--moe-router-balance-weight", type=float, default=0.01)
-    parser.add_argument("--moe-expert-hidden-dims", type=_dims, default=(64,))
+    parser.add_argument(
+        "--moe-expert-hidden-dims", "--expert-hidden-dims",
+        type=_dims, default=(64,),
+    )
     parser.add_argument("--moe-router-hidden-dim", type=int, default=64)
+    parser.add_argument(
+        "--moe-routing-mode", choices=("learned", "fixed_uniform"),
+        default="learned",
+    )
     parser.add_argument(
         "--moe-expert-context-conditioning",
         action=argparse.BooleanOptionalAction, default=False,
@@ -113,6 +124,10 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("collapse threshold must be in (0, 1]")
     if not 0 < args.moe_correlation_threshold <= 1:
         raise ValueError("correlation threshold must be in (0, 1]")
+    if args.model_type == "baseline" and args.moe_routing_mode != "learned":
+        raise ValueError("fixed-uniform routing requires --model-type moe")
+    if args.split_checkpoint is not None and args.max_training_races:
+        raise ValueError("--split-checkpoint cannot be combined with --max-training-races")
 
 
 def _selection(metrics: dict[str, float | int]) -> tuple[float, float, float]:
@@ -172,9 +187,33 @@ def main(argv: list[str] | None = None) -> None:
     )
     zeroed = [name for name in configured_zeroed if name in features]
     frame = load_finished_winner_rows(args.db, features)
-    train_ids, validation_ids, test_ids = chronological_race_ids(
-        frame, args.validation_races, args.test_races
-    )
+    if args.split_checkpoint is not None:
+        split_source = torch.load(
+            args.split_checkpoint.resolve(), map_location="cpu", weights_only=False
+        )
+        source_partition = split_source.get("partition", {})
+        train_ids = list(map(int, source_partition.get("training_race_ids") or []))
+        validation_ids = list(map(int, source_partition.get("validation_race_ids") or []))
+        test_ids = list(map(int, source_partition.get("test_race_ids") or []))
+        if not train_ids or not validation_ids or not test_ids:
+            raise ValueError("--split-checkpoint has no complete three-way race split")
+        available_ids = set(map(int, frame["race_id"]))
+        missing_ids = sorted(
+            (set(train_ids) | set(validation_ids) | set(test_ids)) - available_ids
+        )
+        if missing_ids:
+            raise ValueError(
+                f"Database is missing {len(missing_ids)} frozen split races"
+            )
+        print(
+            f"frozen_split_checkpoint={args.split_checkpoint.resolve()} "
+            f"training_races={len(train_ids):,} validation_races={len(validation_ids):,} "
+            f"test_races={len(test_ids):,}", flush=True,
+        )
+    else:
+        train_ids, validation_ids, test_ids = chronological_race_ids(
+            frame, args.validation_races, args.test_races
+        )
     if args.max_training_races:
         train_ids = train_ids[-args.max_training_races:]
     partitions = {
@@ -220,7 +259,10 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     num_experts = 1 if args.model_type == "baseline" else args.moe_num_experts
-    top_k = 1 if args.model_type == "baseline" else args.moe_top_k
+    top_k = (
+        1 if args.model_type == "baseline" else
+        None if args.moe_routing_mode == "fixed_uniform" else args.moe_top_k
+    )
     config = RaceWinnerModelConfig(
         feature_count=len(expanded_features), model_type=args.model_type,
         encoder_hidden_dim=args.encoder_hidden_dim,
@@ -230,6 +272,7 @@ def main(argv: list[str] | None = None) -> None:
         expert_hidden_dims=args.moe_expert_hidden_dims,
         router_hidden_dim=args.moe_router_hidden_dim,
         expert_context_conditioning=args.moe_expert_context_conditioning,
+        routing_mode=args.moe_routing_mode,
     )
     model = RaceMixtureOfExperts(config).to(device)
     optimizer = torch.optim.AdamW(
@@ -243,10 +286,16 @@ def main(argv: list[str] | None = None) -> None:
         f"train_races={len(train_ids):,} validation_races={len(validation_ids):,} "
         f"sealed_test_races={len(test_ids):,} device={device}\n"
         f"num_experts={num_experts} top_k={top_k if top_k is not None else 'all'} "
+        f"routing_mode={config.routing_mode} "
         f"temperature={args.moe_gate_temperature:g} "
         f"balance_weight={args.moe_router_balance_weight:g} "
         f"expert_hidden_dims={list(args.moe_expert_hidden_dims)}",
         flush=True,
+    )
+    print(
+        f"trainable_parameters={model.trainable_parameter_count():,} "
+        f"approximate_forward_active_parameters="
+        f"{model.approximate_active_parameter_count():,}", flush=True,
     )
     print(
         f"market_features_excluded={len(market_excluded)} "
@@ -334,9 +383,17 @@ def main(argv: list[str] | None = None) -> None:
         },
         "expert_architecture": {"hidden_dims": list(args.moe_expert_hidden_dims), "activation": "GELU", "dropout": args.dropout},
         "partition": {"method": "complete_races_chronological_three_way", "ranges": split_ranges,
+                      "split_checkpoint": (
+                          str(args.split_checkpoint.resolve())
+                          if args.split_checkpoint is not None else None
+                      ),
                       "training_race_ids": train_ids, "validation_race_ids": validation_ids,
                       "test_race_ids": test_ids, "test_used_for_checkpoint_selection": False},
         "best_epoch": best_epoch, "best_selection": best_selection,
+        "parameter_count": {
+            "trainable": model.trainable_parameter_count(),
+            "approximate_forward_active": model.approximate_active_parameter_count(),
+        },
         "history": history, "metrics": results, "router_diagnostics": diagnostics,
         "training_config": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
     }

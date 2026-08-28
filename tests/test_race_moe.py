@@ -93,6 +93,19 @@ def test_config_round_trip_reconstructs_model():
     assert rebuilt.config() == model.config()
 
 
+def test_fixed_uniform_routing_averages_all_experts_without_router():
+    model = RaceMixtureOfExperts(RaceWinnerModelConfig(
+        feature_count=4, model_type="moe", num_experts=4, top_k=None,
+        routing_mode="fixed_uniform", dropout=0.0,
+    )).eval()
+    x = torch.randn(1, 5, 4); valid = torch.ones((1, 5), dtype=torch.bool)
+    output = model(x, valid, return_diagnostics=True)
+    assert model.router is None
+    assert torch.allclose(output["router_weights"], torch.full((1, 5, 4), 0.25))
+    assert torch.allclose(output["logits"], output["expert_logits"].mean(dim=-1))
+    assert model.approximate_active_parameter_count() == model.trainable_parameter_count()
+
+
 def test_market_blind_filter_rejects_direct_and_indirect_prices():
     retained, excluded = market_blind_features([
         "age", "marketWinPrice", "recent_1_starting_price", "fluc2",
