@@ -1,0 +1,1456 @@
+{
+  "metadata": {
+    "git_commit_sha": "1055edc42c221a8ae2dd881177053dbb0221197d",
+    "snapshot_manifest": "/home/theo/yy1/outputs/moe_winner_experiment_market_blind_v2/snapshot/manifest.json",
+    "snapshot_content_hashes": {
+      "training": "de337da7bc74c96064481cfb706d93123c91278226c31e6f8e6bec9a98bf25e0",
+      "validation": "933161f04049671f4fe4641e687a8d73138d1d0a3dfd13ec2179230278b4e6e0",
+      "test": "0098fba30ff96c1783aebc4aad61b5101f852c87a67d8cbaa5a31e852a9a3528",
+      "test2": "26815e36a5ee17bffa3e5b20cc26d490da1a20cc4529446225ee6932cfde7390"
+    },
+    "snapshot_file_hashes": {
+      "training": "47752e8314a0cca6d7b30f52a5c344b32fd530fbd2ef7047cf8dcbf66b612e86",
+      "validation": "8c39a5b4a23d4788d9f03e1d79b8743f825df8fcb43761cb937496ae7dd03931",
+      "test": "b458153f6f86bdad4836019d0d56fada717209ed51caf2aee408ca67e4c49a3a",
+      "test2": "3032c9bd869f12131e1b9cb19e223671db4d5c0f4d1c26a1530cf049c6a597fb"
+    },
+    "snapshot_excluded_features": [
+      "recent_2_starting_price",
+      "recent_3_starting_price",
+      "open_price",
+      "fluc1",
+      "fluc2",
+      "competition_id",
+      "recent_4_starting_price",
+      "recent_5_starting_price",
+      "recent_6_starting_price",
+      "recent_avg_starting_price",
+      "market_open_to_fluc1_move",
+      "market_open_to_fluc2_move",
+      "market_fluc1_to_fluc2_move",
+      "market_open_to_fluc1_move_pct",
+      "market_open_to_fluc2_move_pct",
+      "market_fluc1_to_fluc2_move_pct",
+      "market_total_abs_movement",
+      "market_price_range_pct",
+      "market_implied_prob_change_open_to_fluc2",
+      "market_implied_prob_change_fluc1_to_fluc2",
+      "recent_market_edge_weighted",
+      "open_price_rank",
+      "fluc1_price_rank",
+      "fluc2_price_rank",
+      "market_steam_rank",
+      "recent_market_edge_rank",
+      "race_consensus_score",
+      "race_consensus_rank",
+      "race_overlay_score",
+      "race_overlay_rank",
+      "race_signal_agreement_score",
+      "race_signal_agreement_rank",
+      "recent_1_starting_price",
+      "historical_market_overperformance_last1",
+      "historical_market_overperformance_avg_3",
+      "historical_market_overperformance_avg_6",
+      "historical_market_overperformance_weighted_3",
+      "historical_market_overperformance_weighted_6",
+      "historical_market_overperformance_best_3",
+      "historical_market_overperformance_slope_3",
+      "historical_implied_probability_weighted_3",
+      "historical_implied_probability_weighted_6",
+      "historical_market_overperformance_weighted_3_rank_in_race",
+      "historical_market_overperformance_weighted_3_pct_in_race",
+      "historical_market_overperformance_weighted_3_minus_race_mean",
+      "historical_market_overperformance_weighted_3_minus_race_median",
+      "historical_market_overperformance_weighted_3_zscore_in_race",
+      "historical_market_overperformance_weighted_3_gap_to_best",
+      "finish_rank_minus_market_rank",
+      "finish_market_rank_abs_gap",
+      "margin_rank_minus_market_rank",
+      "margin_market_rank_abs_gap",
+      "distance_speed_rank_minus_market_rank",
+      "distance_speed_market_rank_abs_gap",
+      "jockey_rank_minus_market_rank",
+      "jockey_market_rank_abs_gap",
+      "career_rank_minus_market_rank",
+      "career_market_rank_abs_gap",
+      "prize_money_rank_minus_market_rank",
+      "prize_money_market_rank_abs_gap",
+      "recent3_vs_career_finish_percentile",
+      "recent6_vs_career_finish_percentile"
+    ],
+    "reference_checkpoint": "/home/theo/yy1/outputs/moe_winner_experiment_market_blind_v2/baseline_mlp.pt",
+    "reference_zeroed_base_features": [
+      "distance_m",
+      "weight_kg",
+      "trackFamiliarity",
+      "distanceFamiliarity",
+      "weight_change_from_last_run",
+      "weight_change_vs_recent_avg",
+      "large_weight_drop_flag",
+      "last3_win_percentage",
+      "last3_place_percentage",
+      "place_percentage",
+      "distance_starts",
+      "distance_wins",
+      "track_starts",
+      "horse_jockey_starts",
+      "horse_jockey_wins",
+      "recent_3_total_runners",
+      "recent_same_distance_runs",
+      "recent_weighted_avg_margin_rank",
+      "recent_best_margin",
+      "trackExpert",
+      "race_number",
+      "field_size",
+      "speed_rating",
+      "wet_rating",
+      "prize_money",
+      "good_wins",
+      "soft_wins",
+      "first_up_starts",
+      "first_up_wins",
+      "second_up_starts",
+      "second_up_wins",
+      "recent_1_place",
+      "recent_1_distance_m",
+      "recent_1_weight_kg",
+      "recent_1_barrier",
+      "recent_1_track_status_value",
+      "recent_1_total_runners",
+      "recent_2_place",
+      "recent_2_distance_m",
+      "recent_2_barrier",
+      "recent_2_track_status_value",
+      "recent_2_margin",
+      "recent_2_total_runners",
+      "recent_3_place",
+      "recent_3_weight_kg",
+      "recent_3_barrier",
+      "recent_3_track_status_value",
+      "recent_3_margin",
+      "recent_4_place",
+      "recent_4_distance_m",
+      "recent_4_weight_kg",
+      "recent_4_margin",
+      "recent_5_place",
+      "recent_5_distance_m",
+      "recent_5_weight_kg",
+      "recent_5_track_status_value",
+      "recent_5_margin",
+      "recent_5_total_runners",
+      "recent_6_place",
+      "recent_6_distance_m",
+      "recent_6_weight_kg",
+      "recent_6_track_status_value",
+      "recent_6_margin",
+      "recent_6_total_runners",
+      "recent_runs_count",
+      "recent_places",
+      "recent_avg_place_3",
+      "recent_avg_place_5",
+      "recent_win_rate_5",
+      "recent_top3_rate_5",
+      "recent_avg_margin",
+      "recent_avg_margin_3",
+      "softGroundPro",
+      "heavyGroundPro",
+      "freshWinner",
+      "winningPartnership",
+      "hotStreak",
+      "recentPodium",
+      "recent_avg_speed_mps",
+      "recent_best_similar_distance_speed_mps",
+      "recent_avg_similar_distance_speed_mps",
+      "recent_weighted_avg_margin",
+      "recent_weighted_win_rate",
+      "recent_weighted_top3_rate",
+      "recent_finish_percentile_weighted",
+      "recent_avg_weight_kg",
+      "recent_min_weight_kg",
+      "recent_max_weight_kg",
+      "weight_drop_after_close_run_flag",
+      "last3_win_percentage_rank",
+      "last3_place_percentage_rank",
+      "recent_similar_distance_speed_rank",
+      "recent_weighted_win_rate_rank",
+      "wet_rating_rank",
+      "distance_win_rate_rank",
+      "track_win_rate_rank",
+      "second_up_win_rate_rank",
+      "sectional_last600_seconds_weighted_3",
+      "sectional_last600_seconds_weighted_6",
+      "sectional_last600_std_6",
+      "sectional_closing_speed_ratio_weighted_6",
+      "current_class_level",
+      "form_class_level_weighted_3",
+      "class_change_vs_recent_3",
+      "class_drop_from_recent_best",
+      "jockey_history_starts",
+      "trainer_history_starts",
+      "jockey_trainer_history_starts",
+      "jockey_trainer_recent_top3_excess",
+      "recent_finish_percentile_last1",
+      "recent_finish_percentile_avg_3",
+      "recent_finish_percentile_avg_6",
+      "recent_finish_percentile_weighted_3",
+      "recent_finish_percentile_weighted_6",
+      "recent_finish_percentile_best_3",
+      "recent_finish_percentile_best_6",
+      "recent_finish_percentile_std_6",
+      "recent_finish_percentile_slope_3",
+      "recent_finish_percentile_slope_6",
+      "recent_finish_percentile_last_minus_avg3",
+      "recent_finish_percentile_avg3_minus_avg6",
+      "recent_margin_avg_3",
+      "recent_margin_avg_6",
+      "recent_margin_weighted_3",
+      "recent_margin_weighted_6",
+      "recent_margin_best_3",
+      "recent_margin_best_6",
+      "recent_margin_std_6",
+      "recent_margin_slope_3",
+      "recent_margin_slope_6",
+      "recent_margin_last_minus_avg3",
+      "recent_margin_quality_last1",
+      "recent_margin_quality_avg_3",
+      "recent_margin_quality_avg_6",
+      "recent_margin_quality_weighted_3",
+      "recent_margin_quality_weighted_6",
+      "recent_margin_quality_best_3",
+      "recent_margin_quality_slope_3",
+      "distance_change_last_run",
+      "abs_distance_change_last_run",
+      "distance_change_pct_last_run",
+      "distance_minus_recent_avg",
+      "distance_minus_recent_weighted_avg",
+      "abs_distance_minus_recent_weighted_avg",
+      "similar_distance_runs",
+      "similar_distance_finish_percentile_avg",
+      "similar_distance_finish_percentile_weighted",
+      "similar_distance_margin_quality_avg",
+      "similar_distance_margin_quality_weighted",
+      "similar_distance_top3_rate",
+      "distance_step_up_m",
+      "distance_step_down_m",
+      "distance_step_up_pct",
+      "distance_step_down_pct",
+      "historical_step_up_finish_percentile",
+      "historical_step_up_observations",
+      "historical_step_down_finish_percentile",
+      "historical_step_down_observations",
+      "recent_barrier_percentile_last1",
+      "recent_barrier_percentile_avg_3",
+      "recent_barrier_percentile_weighted_6",
+      "recent_barrier_percentile_std_6",
+      "current_barrier_percentile",
+      "current_minus_recent_barrier_percentile",
+      "current_weight_minus_last",
+      "current_weight_minus_recent_avg",
+      "current_weight_minus_recent_weighted_avg",
+      "current_weight_change_pct",
+      "best_finish_percentile_at_equal_or_higher_weight",
+      "best_margin_quality_at_equal_or_higher_weight",
+      "form_ceiling_finish_percentile_6",
+      "form_average_finish_percentile_6",
+      "form_consistency_finish_percentile_6",
+      "form_ceiling_minus_average",
+      "margin_quality_ceiling_6",
+      "margin_quality_average_6",
+      "margin_quality_consistency_6",
+      "best_run_recency_index",
+      "second_best_run_recency_index",
+      "best_run_is_last_start",
+      "best_run_within_last_2",
+      "best_run_within_last_3",
+      "recent3_vs_career_place_rate",
+      "recent6_vs_career_place_rate",
+      "recent_form_vs_career_form",
+      "same_track_runs",
+      "same_track_finish_percentile",
+      "same_track_margin_quality",
+      "same_track_top3_rate",
+      "same_track_distance_runs",
+      "same_track_distance_finish_percentile",
+      "same_track_distance_margin_quality",
+      "same_track_distance_top3_rate",
+      "condition_runs",
+      "condition_win_rate_smoothed",
+      "condition_top3_rate_smoothed",
+      "condition_finish_percentile",
+      "condition_margin_quality",
+      "recent_last600_avg_3",
+      "recent_last600_avg_6",
+      "recent_last600_weighted_3",
+      "recent_last600_weighted_6",
+      "recent_last600_best_3",
+      "recent_last600_best_6",
+      "recent_last600_std_6",
+      "recent_last600_slope_3",
+      "recent_last600_slope_6",
+      "historical_run_quality_last1",
+      "historical_run_quality_avg_3",
+      "historical_run_quality_weighted_3",
+      "historical_run_quality_weighted_6",
+      "historical_run_quality_best_3",
+      "historical_run_quality_slope_3",
+      "hidden_sectional_run_last1",
+      "hidden_sectional_run_avg_3",
+      "hidden_sectional_run_best_3",
+      "sectional_ceiling_6",
+      "sectional_average_6",
+      "sectional_consistency_6",
+      "class_change_last_run",
+      "class_step_up",
+      "class_step_down",
+      "recent_class_avg_3",
+      "recent_class_weighted_6",
+      "recent_best_class",
+      "performance_at_current_or_stronger_class",
+      "best_finish_percentile_at_stronger_class",
+      "best_margin_quality_at_stronger_class",
+      "class_adjusted_finish_percentile_last1",
+      "class_adjusted_finish_percentile_weighted_3",
+      "class_adjusted_finish_percentile_weighted_6",
+      "class_adjusted_margin_quality_weighted_3",
+      "class_adjusted_margin_quality_weighted_6",
+      "jockey_trainer_history_runs",
+      "jockey_trainer_history_wins",
+      "jockey_trainer_history_top3",
+      "jockey_trainer_history_win_rate",
+      "jockey_trainer_history_top3_rate",
+      "jockey_trainer_history_smoothed_win_rate",
+      "jockey_trainer_history_smoothed_top3_rate",
+      "jockey_trainer_history_win_excess",
+      "jockey_trainer_synergy",
+      "current_form_strength",
+      "recent_finish_percentile_weighted_3_rank_in_race",
+      "recent_finish_percentile_weighted_3_pct_in_race",
+      "recent_finish_percentile_weighted_3_minus_race_mean",
+      "recent_finish_percentile_weighted_3_minus_race_median",
+      "recent_finish_percentile_weighted_3_zscore_in_race",
+      "recent_finish_percentile_weighted_3_gap_to_best",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "recent_finish_percentile_weighted_6_pct_in_race",
+      "recent_finish_percentile_weighted_6_minus_race_mean",
+      "recent_finish_percentile_weighted_6_minus_race_median",
+      "recent_finish_percentile_weighted_6_zscore_in_race",
+      "recent_finish_percentile_weighted_6_gap_to_best",
+      "recent_margin_quality_weighted_3_rank_in_race",
+      "recent_margin_quality_weighted_3_pct_in_race",
+      "recent_margin_quality_weighted_3_minus_race_mean",
+      "recent_margin_quality_weighted_3_minus_race_median",
+      "recent_margin_quality_weighted_3_zscore_in_race",
+      "recent_margin_quality_weighted_3_gap_to_best",
+      "hidden_sectional_run_best_3_rank_in_race",
+      "hidden_sectional_run_best_3_pct_in_race",
+      "hidden_sectional_run_best_3_minus_race_mean",
+      "hidden_sectional_run_best_3_minus_race_median",
+      "hidden_sectional_run_best_3_zscore_in_race",
+      "hidden_sectional_run_best_3_gap_to_best",
+      "similar_distance_finish_percentile_weighted_rank_in_race",
+      "similar_distance_finish_percentile_weighted_pct_in_race",
+      "similar_distance_finish_percentile_weighted_minus_race_mean",
+      "similar_distance_finish_percentile_weighted_minus_race_median",
+      "similar_distance_finish_percentile_weighted_zscore_in_race",
+      "similar_distance_finish_percentile_weighted_gap_to_best",
+      "class_adjusted_finish_percentile_weighted_3_rank_in_race",
+      "class_adjusted_finish_percentile_weighted_3_pct_in_race",
+      "class_adjusted_finish_percentile_weighted_3_minus_race_mean",
+      "class_adjusted_finish_percentile_weighted_3_minus_race_median",
+      "class_adjusted_finish_percentile_weighted_3_zscore_in_race",
+      "class_adjusted_finish_percentile_weighted_3_gap_to_best",
+      "jockey_trainer_history_smoothed_top3_rate_rank_in_race",
+      "jockey_trainer_history_smoothed_top3_rate_pct_in_race",
+      "jockey_trainer_history_smoothed_top3_rate_minus_race_mean",
+      "jockey_trainer_history_smoothed_top3_rate_minus_race_median",
+      "jockey_trainer_history_smoothed_top3_rate_zscore_in_race",
+      "jockey_trainer_history_smoothed_top3_rate_gap_to_best",
+      "current_form_strength_rank_in_race",
+      "current_form_strength_pct_in_race",
+      "current_form_strength_minus_race_mean",
+      "current_form_strength_minus_race_median",
+      "current_form_strength_zscore_in_race",
+      "current_form_strength_gap_to_best",
+      "total_prize_money",
+      "race_field_avg_prize_money",
+      "race_field_max_prize_money",
+      "race_field_avg_speed_rating",
+      "race_field_max_speed_rating",
+      "weight_vs_field_mean",
+      "num_scratchings",
+      "preparation_run_number",
+      "runs_this_preparation_before_race",
+      "first_up_flag",
+      "second_up_flag",
+      "third_up_flag"
+    ],
+    "nonzero_raw_base_features": [
+      "active_field_size",
+      "draw_number",
+      "career_starts",
+      "career_wins",
+      "career_seconds",
+      "career_thirds",
+      "weight_change_vs_recent_weighted_avg",
+      "win_percentage",
+      "track_wins",
+      "recent_avg_place",
+      "recent_best_place",
+      "recent_same_track_runs",
+      "recent_same_condition_runs",
+      "recent_days_since_last_run",
+      "dry_rating_rank",
+      "recent_finish_percentile_rank",
+      "form_barrier_percentile_weighted_6",
+      "sectional_last600_best_6",
+      "trainer_recent_top3_excess",
+      "age",
+      "dry_rating",
+      "good_starts",
+      "soft_starts",
+      "heavy_starts",
+      "heavy_wins",
+      "recent_1_margin",
+      "recent_2_weight_kg",
+      "recent_3_distance_m",
+      "recent_4_barrier",
+      "recent_4_track_status_value",
+      "recent_4_total_runners",
+      "recent_5_barrier",
+      "recent_6_barrier",
+      "recent_wins",
+      "goodGroundPro",
+      "secondUpWinner",
+      "recent_best_speed_mps",
+      "recent_weighted_avg_place",
+      "recent_weighted_avg_weight_kg",
+      "recent_weight_range_kg",
+      "speed_rating_rank",
+      "win_percentage_rank",
+      "place_percentage_rank",
+      "recent_weighted_avg_place_rank",
+      "recent_weighted_top3_rate_rank",
+      "prize_money_rank",
+      "career_win_rate_rank",
+      "career_place_rate_rank",
+      "first_up_win_rate_rank",
+      "horse_jockey_win_rate_rank",
+      "sectional_last600_trend",
+      "sectional_closing_speed_ratio_weighted_3",
+      "form_class_level_weighted_6",
+      "jockey_history_top3_excess",
+      "jockey_recent_top3_excess",
+      "recent_best_speed_rank",
+      "trainer_history_top3_excess",
+      "jockey_trainer_history_top3_excess"
+    ],
+    "exact_feature_list": [
+      "distance_m",
+      "active_field_size",
+      "draw_number",
+      "weight_kg",
+      "career_starts",
+      "career_wins",
+      "career_seconds",
+      "career_thirds",
+      "trackFamiliarity",
+      "distanceFamiliarity",
+      "weight_change_from_last_run",
+      "weight_change_vs_recent_avg",
+      "weight_change_vs_recent_weighted_avg",
+      "large_weight_drop_flag",
+      "last3_win_percentage",
+      "last3_place_percentage",
+      "win_percentage",
+      "place_percentage",
+      "distance_starts",
+      "distance_wins",
+      "track_starts",
+      "track_wins",
+      "horse_jockey_starts",
+      "horse_jockey_wins",
+      "recent_3_total_runners",
+      "recent_avg_place",
+      "recent_best_place",
+      "recent_same_distance_runs",
+      "recent_same_track_runs",
+      "recent_same_condition_runs",
+      "recent_days_since_last_run",
+      "recent_weighted_avg_margin_rank",
+      "dry_rating_rank",
+      "recent_finish_percentile_rank",
+      "recent_best_margin",
+      "form_barrier_percentile_weighted_6",
+      "sectional_last600_best_6",
+      "trainer_recent_top3_excess",
+      "trackExpert",
+      "age",
+      "race_number",
+      "field_size",
+      "speed_rating",
+      "dry_rating",
+      "wet_rating",
+      "prize_money",
+      "good_starts",
+      "good_wins",
+      "soft_starts",
+      "soft_wins",
+      "heavy_starts",
+      "heavy_wins",
+      "first_up_starts",
+      "first_up_wins",
+      "second_up_starts",
+      "second_up_wins",
+      "recent_1_place",
+      "recent_1_distance_m",
+      "recent_1_weight_kg",
+      "recent_1_barrier",
+      "recent_1_track_status_value",
+      "recent_1_margin",
+      "recent_1_total_runners",
+      "recent_2_place",
+      "recent_2_distance_m",
+      "recent_2_weight_kg",
+      "recent_2_barrier",
+      "recent_2_track_status_value",
+      "recent_2_margin",
+      "recent_2_total_runners",
+      "recent_3_place",
+      "recent_3_distance_m",
+      "recent_3_weight_kg",
+      "recent_3_barrier",
+      "recent_3_track_status_value",
+      "recent_3_margin",
+      "recent_4_place",
+      "recent_4_distance_m",
+      "recent_4_weight_kg",
+      "recent_4_barrier",
+      "recent_4_track_status_value",
+      "recent_4_margin",
+      "recent_4_total_runners",
+      "recent_5_place",
+      "recent_5_distance_m",
+      "recent_5_weight_kg",
+      "recent_5_barrier",
+      "recent_5_track_status_value",
+      "recent_5_margin",
+      "recent_5_total_runners",
+      "recent_6_place",
+      "recent_6_distance_m",
+      "recent_6_weight_kg",
+      "recent_6_barrier",
+      "recent_6_track_status_value",
+      "recent_6_margin",
+      "recent_6_total_runners",
+      "recent_runs_count",
+      "recent_wins",
+      "recent_places",
+      "recent_avg_place_3",
+      "recent_avg_place_5",
+      "recent_win_rate_5",
+      "recent_top3_rate_5",
+      "recent_avg_margin",
+      "recent_avg_margin_3",
+      "goodGroundPro",
+      "softGroundPro",
+      "heavyGroundPro",
+      "freshWinner",
+      "secondUpWinner",
+      "winningPartnership",
+      "hotStreak",
+      "recentPodium",
+      "recent_best_speed_mps",
+      "recent_avg_speed_mps",
+      "recent_best_similar_distance_speed_mps",
+      "recent_avg_similar_distance_speed_mps",
+      "recent_weighted_avg_place",
+      "recent_weighted_avg_margin",
+      "recent_weighted_win_rate",
+      "recent_weighted_top3_rate",
+      "recent_finish_percentile_weighted",
+      "recent_avg_weight_kg",
+      "recent_weighted_avg_weight_kg",
+      "recent_min_weight_kg",
+      "recent_max_weight_kg",
+      "recent_weight_range_kg",
+      "weight_drop_after_close_run_flag",
+      "speed_rating_rank",
+      "win_percentage_rank",
+      "place_percentage_rank",
+      "last3_win_percentage_rank",
+      "last3_place_percentage_rank",
+      "recent_similar_distance_speed_rank",
+      "recent_weighted_avg_place_rank",
+      "recent_weighted_win_rate_rank",
+      "recent_weighted_top3_rate_rank",
+      "wet_rating_rank",
+      "prize_money_rank",
+      "career_win_rate_rank",
+      "career_place_rate_rank",
+      "distance_win_rate_rank",
+      "track_win_rate_rank",
+      "first_up_win_rate_rank",
+      "second_up_win_rate_rank",
+      "horse_jockey_win_rate_rank",
+      "sectional_last600_seconds_weighted_3",
+      "sectional_last600_seconds_weighted_6",
+      "sectional_last600_std_6",
+      "sectional_last600_trend",
+      "sectional_closing_speed_ratio_weighted_3",
+      "sectional_closing_speed_ratio_weighted_6",
+      "current_class_level",
+      "form_class_level_weighted_3",
+      "form_class_level_weighted_6",
+      "class_change_vs_recent_3",
+      "class_drop_from_recent_best",
+      "jockey_history_starts",
+      "jockey_history_top3_excess",
+      "jockey_recent_top3_excess",
+      "trainer_history_starts",
+      "recent_best_speed_rank",
+      "trainer_history_top3_excess",
+      "jockey_trainer_history_starts",
+      "jockey_trainer_history_top3_excess",
+      "jockey_trainer_recent_top3_excess",
+      "recent_finish_percentile_last1",
+      "recent_finish_percentile_avg_3",
+      "recent_finish_percentile_avg_6",
+      "recent_finish_percentile_weighted_3",
+      "recent_finish_percentile_weighted_6",
+      "recent_finish_percentile_best_3",
+      "recent_finish_percentile_best_6",
+      "recent_finish_percentile_std_6",
+      "recent_finish_percentile_slope_3",
+      "recent_finish_percentile_slope_6",
+      "recent_finish_percentile_last_minus_avg3",
+      "recent_finish_percentile_avg3_minus_avg6",
+      "recent_margin_avg_3",
+      "recent_margin_avg_6",
+      "recent_margin_weighted_3",
+      "recent_margin_weighted_6",
+      "recent_margin_best_3",
+      "recent_margin_best_6",
+      "recent_margin_std_6",
+      "recent_margin_slope_3",
+      "recent_margin_slope_6",
+      "recent_margin_last_minus_avg3",
+      "recent_margin_quality_last1",
+      "recent_margin_quality_avg_3",
+      "recent_margin_quality_avg_6",
+      "recent_margin_quality_weighted_3",
+      "recent_margin_quality_weighted_6",
+      "recent_margin_quality_best_3",
+      "recent_margin_quality_slope_3",
+      "distance_change_last_run",
+      "abs_distance_change_last_run",
+      "distance_change_pct_last_run",
+      "distance_minus_recent_avg",
+      "distance_minus_recent_weighted_avg",
+      "abs_distance_minus_recent_weighted_avg",
+      "similar_distance_runs",
+      "similar_distance_finish_percentile_avg",
+      "similar_distance_finish_percentile_weighted",
+      "similar_distance_margin_quality_avg",
+      "similar_distance_margin_quality_weighted",
+      "similar_distance_top3_rate",
+      "distance_step_up_m",
+      "distance_step_down_m",
+      "distance_step_up_pct",
+      "distance_step_down_pct",
+      "historical_step_up_finish_percentile",
+      "historical_step_up_observations",
+      "historical_step_down_finish_percentile",
+      "historical_step_down_observations",
+      "recent_barrier_percentile_last1",
+      "recent_barrier_percentile_avg_3",
+      "recent_barrier_percentile_weighted_6",
+      "recent_barrier_percentile_std_6",
+      "current_barrier_percentile",
+      "current_minus_recent_barrier_percentile",
+      "current_weight_minus_last",
+      "current_weight_minus_recent_avg",
+      "current_weight_minus_recent_weighted_avg",
+      "current_weight_change_pct",
+      "best_finish_percentile_at_equal_or_higher_weight",
+      "best_margin_quality_at_equal_or_higher_weight",
+      "form_ceiling_finish_percentile_6",
+      "form_average_finish_percentile_6",
+      "form_consistency_finish_percentile_6",
+      "form_ceiling_minus_average",
+      "margin_quality_ceiling_6",
+      "margin_quality_average_6",
+      "margin_quality_consistency_6",
+      "best_run_recency_index",
+      "second_best_run_recency_index",
+      "best_run_is_last_start",
+      "best_run_within_last_2",
+      "best_run_within_last_3",
+      "recent3_vs_career_place_rate",
+      "recent6_vs_career_place_rate",
+      "recent_form_vs_career_form",
+      "same_track_runs",
+      "same_track_finish_percentile",
+      "same_track_margin_quality",
+      "same_track_top3_rate",
+      "same_track_distance_runs",
+      "same_track_distance_finish_percentile",
+      "same_track_distance_margin_quality",
+      "same_track_distance_top3_rate",
+      "condition_runs",
+      "condition_win_rate_smoothed",
+      "condition_top3_rate_smoothed",
+      "condition_finish_percentile",
+      "condition_margin_quality",
+      "recent_last600_avg_3",
+      "recent_last600_avg_6",
+      "recent_last600_weighted_3",
+      "recent_last600_weighted_6",
+      "recent_last600_best_3",
+      "recent_last600_best_6",
+      "recent_last600_std_6",
+      "recent_last600_slope_3",
+      "recent_last600_slope_6",
+      "historical_run_quality_last1",
+      "historical_run_quality_avg_3",
+      "historical_run_quality_weighted_3",
+      "historical_run_quality_weighted_6",
+      "historical_run_quality_best_3",
+      "historical_run_quality_slope_3",
+      "hidden_sectional_run_last1",
+      "hidden_sectional_run_avg_3",
+      "hidden_sectional_run_best_3",
+      "sectional_ceiling_6",
+      "sectional_average_6",
+      "sectional_consistency_6",
+      "class_change_last_run",
+      "class_step_up",
+      "class_step_down",
+      "recent_class_avg_3",
+      "recent_class_weighted_6",
+      "recent_best_class",
+      "performance_at_current_or_stronger_class",
+      "best_finish_percentile_at_stronger_class",
+      "best_margin_quality_at_stronger_class",
+      "class_adjusted_finish_percentile_last1",
+      "class_adjusted_finish_percentile_weighted_3",
+      "class_adjusted_finish_percentile_weighted_6",
+      "class_adjusted_margin_quality_weighted_3",
+      "class_adjusted_margin_quality_weighted_6",
+      "jockey_trainer_history_runs",
+      "jockey_trainer_history_wins",
+      "jockey_trainer_history_top3",
+      "jockey_trainer_history_win_rate",
+      "jockey_trainer_history_top3_rate",
+      "jockey_trainer_history_smoothed_win_rate",
+      "jockey_trainer_history_smoothed_top3_rate",
+      "jockey_trainer_history_win_excess",
+      "jockey_trainer_synergy",
+      "current_form_strength",
+      "recent_finish_percentile_weighted_3_rank_in_race",
+      "recent_finish_percentile_weighted_3_pct_in_race",
+      "recent_finish_percentile_weighted_3_minus_race_mean",
+      "recent_finish_percentile_weighted_3_minus_race_median",
+      "recent_finish_percentile_weighted_3_zscore_in_race",
+      "recent_finish_percentile_weighted_3_gap_to_best",
+      "recent_finish_percentile_weighted_6_rank_in_race",
+      "recent_finish_percentile_weighted_6_pct_in_race",
+      "recent_finish_percentile_weighted_6_minus_race_mean",
+      "recent_finish_percentile_weighted_6_minus_race_median",
+      "recent_finish_percentile_weighted_6_zscore_in_race",
+      "recent_finish_percentile_weighted_6_gap_to_best",
+      "recent_margin_quality_weighted_3_rank_in_race",
+      "recent_margin_quality_weighted_3_pct_in_race",
+      "recent_margin_quality_weighted_3_minus_race_mean",
+      "recent_margin_quality_weighted_3_minus_race_median",
+      "recent_margin_quality_weighted_3_zscore_in_race",
+      "recent_margin_quality_weighted_3_gap_to_best",
+      "hidden_sectional_run_best_3_rank_in_race",
+      "hidden_sectional_run_best_3_pct_in_race",
+      "hidden_sectional_run_best_3_minus_race_mean",
+      "hidden_sectional_run_best_3_minus_race_median",
+      "hidden_sectional_run_best_3_zscore_in_race",
+      "hidden_sectional_run_best_3_gap_to_best",
+      "similar_distance_finish_percentile_weighted_rank_in_race",
+      "similar_distance_finish_percentile_weighted_pct_in_race",
+      "similar_distance_finish_percentile_weighted_minus_race_mean",
+      "similar_distance_finish_percentile_weighted_minus_race_median",
+      "similar_distance_finish_percentile_weighted_zscore_in_race",
+      "similar_distance_finish_percentile_weighted_gap_to_best",
+      "class_adjusted_finish_percentile_weighted_3_rank_in_race",
+      "class_adjusted_finish_percentile_weighted_3_pct_in_race",
+      "class_adjusted_finish_percentile_weighted_3_minus_race_mean",
+      "class_adjusted_finish_percentile_weighted_3_minus_race_median",
+      "class_adjusted_finish_percentile_weighted_3_zscore_in_race",
+      "class_adjusted_finish_percentile_weighted_3_gap_to_best",
+      "jockey_trainer_history_smoothed_top3_rate_rank_in_race",
+      "jockey_trainer_history_smoothed_top3_rate_pct_in_race",
+      "jockey_trainer_history_smoothed_top3_rate_minus_race_mean",
+      "jockey_trainer_history_smoothed_top3_rate_minus_race_median",
+      "jockey_trainer_history_smoothed_top3_rate_zscore_in_race",
+      "jockey_trainer_history_smoothed_top3_rate_gap_to_best",
+      "current_form_strength_rank_in_race",
+      "current_form_strength_pct_in_race",
+      "current_form_strength_minus_race_mean",
+      "current_form_strength_minus_race_median",
+      "current_form_strength_zscore_in_race",
+      "current_form_strength_gap_to_best",
+      "total_prize_money",
+      "race_field_avg_prize_money",
+      "race_field_max_prize_money",
+      "race_field_avg_speed_rating",
+      "race_field_max_speed_rating",
+      "weight_vs_field_mean",
+      "num_scratchings",
+      "preparation_run_number",
+      "runs_this_preparation_before_race",
+      "first_up_flag",
+      "second_up_flag",
+      "third_up_flag"
+    ],
+    "seeds": [
+      11,
+      29,
+      42,
+      73,
+      101
+    ],
+    "objective": "race_softmax_nll",
+    "development_splits": [
+      "training",
+      "validation"
+    ],
+    "prohibited_development_splits": [
+      "test",
+      "test2",
+      "test3"
+    ],
+    "immutable_historical_reference": {
+      "validation_top1": 0.309,
+      "inspected_test_top1": 0.269,
+      "inspected_test_usage": "historical_evidence_only"
+    },
+    "reference_model_architecture": {
+      "feature_count": 390,
+      "model_type": "baseline",
+      "encoder_hidden_dim": 128,
+      "representation_dim": 64,
+      "dropout": 0.2,
+      "num_experts": 1,
+      "top_k": 1,
+      "gate_temperature": 1.0,
+      "expert_hidden_dims": [
+        64
+      ],
+      "router_hidden_dim": 64,
+      "expert_context_conditioning": false,
+      "routing_mode": "learned"
+    },
+    "reference_trainable_parameters": 62785,
+    "training_parameters": {
+      "epochs": 15,
+      "races_per_batch": 64,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.001,
+      "max_grad_norm": 1.0,
+      "early_stopping_patience": 4,
+      "dropout": 0.2,
+      "standardized_clip": 5.0
+    },
+    "preprocessing": {
+      "implementation": "src.raceformer_preprocessing",
+      "standardized_clip": 5.0,
+      "layoff_bucket_mode": "none"
+    },
+    "reference_preprocessing_relative_features": [
+      "draw_number",
+      "weight_kg",
+      "career_starts",
+      "career_wins",
+      "career_seconds",
+      "career_thirds",
+      "trackFamiliarity",
+      "distanceFamiliarity",
+      "last3_win_percentage",
+      "last3_place_percentage",
+      "win_percentage",
+      "place_percentage",
+      "distance_starts",
+      "distance_wins",
+      "track_starts",
+      "track_wins",
+      "horse_jockey_starts",
+      "horse_jockey_wins",
+      "recent_3_total_runners",
+      "recent_avg_place",
+      "recent_best_place",
+      "recent_same_distance_runs",
+      "recent_same_track_runs",
+      "recent_same_condition_runs",
+      "recent_days_since_last_run",
+      "recent_best_margin",
+      "form_barrier_percentile_weighted_6",
+      "sectional_last600_best_6",
+      "trainer_recent_top3_excess"
+    ]
+  },
+  "investigation_threshold": 0.995,
+  "exact_duplicate_columns": [
+    [
+      "weight_change_from_last_run",
+      "current_weight_minus_last"
+    ],
+    [
+      "dry_rating_rank",
+      "wet_rating_rank"
+    ],
+    [
+      "sectional_last600_best_6",
+      "recent_last600_best_6"
+    ],
+    [
+      "dry_rating",
+      "wet_rating"
+    ],
+    [
+      "sectional_last600_seconds_weighted_3",
+      "recent_last600_weighted_3"
+    ],
+    [
+      "sectional_last600_seconds_weighted_6",
+      "recent_last600_weighted_6"
+    ],
+    [
+      "sectional_last600_std_6",
+      "recent_last600_std_6"
+    ],
+    [
+      "form_class_level_weighted_6",
+      "recent_class_weighted_6"
+    ],
+    [
+      "recent_finish_percentile_avg_6",
+      "form_average_finish_percentile_6"
+    ],
+    [
+      "recent_finish_percentile_best_6",
+      "form_ceiling_finish_percentile_6"
+    ],
+    [
+      "recent_margin_quality_avg_6",
+      "margin_quality_average_6"
+    ],
+    [
+      "recent3_vs_career_place_rate",
+      "recent_form_vs_career_form"
+    ]
+  ],
+  "numerically_equivalent_pairs": [
+    [
+      "weight_change_from_last_run",
+      "current_weight_minus_last"
+    ],
+    [
+      "dry_rating_rank",
+      "wet_rating_rank"
+    ],
+    [
+      "sectional_last600_best_6",
+      "recent_last600_best_6"
+    ],
+    [
+      "dry_rating",
+      "wet_rating"
+    ],
+    [
+      "sectional_last600_seconds_weighted_3",
+      "recent_last600_weighted_3"
+    ],
+    [
+      "sectional_last600_seconds_weighted_6",
+      "recent_last600_weighted_6"
+    ],
+    [
+      "sectional_last600_std_6",
+      "recent_last600_std_6"
+    ],
+    [
+      "form_class_level_weighted_6",
+      "recent_class_weighted_6"
+    ],
+    [
+      "recent_finish_percentile_avg_6",
+      "form_average_finish_percentile_6"
+    ],
+    [
+      "recent_finish_percentile_best_6",
+      "form_ceiling_finish_percentile_6"
+    ],
+    [
+      "recent_margin_quality_avg_6",
+      "margin_quality_average_6"
+    ],
+    [
+      "recent3_vs_career_place_rate",
+      "recent_form_vs_career_form"
+    ]
+  ],
+  "constant_columns": [],
+  "near_constant_columns": [],
+  "pearson_pairs": [
+    {
+      "left": "weight_change_from_last_run",
+      "right": "current_weight_minus_last",
+      "correlation": 1.0
+    },
+    {
+      "left": "weight_change_from_last_run",
+      "right": "current_weight_change_pct",
+      "correlation": 0.9974285508367383
+    },
+    {
+      "left": "weight_change_vs_recent_avg",
+      "right": "current_weight_minus_recent_avg",
+      "correlation": 0.9999999999999859
+    },
+    {
+      "left": "recent_same_condition_runs",
+      "right": "condition_runs",
+      "correlation": 0.9995380552190876
+    },
+    {
+      "left": "dry_rating_rank",
+      "right": "wet_rating_rank",
+      "correlation": 1.0
+    },
+    {
+      "left": "sectional_last600_best_6",
+      "right": "recent_last600_best_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "dry_rating",
+      "right": "wet_rating",
+      "correlation": 1.0
+    },
+    {
+      "left": "recent_win_rate_5",
+      "right": "hotStreak",
+      "correlation": 0.9999999992986822
+    },
+    {
+      "left": "recent_top3_rate_5",
+      "right": "recentPodium",
+      "correlation": 0.9999999989961352
+    },
+    {
+      "left": "win_percentage_rank",
+      "right": "career_win_rate_rank",
+      "correlation": 1.0
+    },
+    {
+      "left": "place_percentage_rank",
+      "right": "career_place_rate_rank",
+      "correlation": 1.0
+    },
+    {
+      "left": "sectional_last600_seconds_weighted_3",
+      "right": "recent_last600_weighted_3",
+      "correlation": 1.0
+    },
+    {
+      "left": "sectional_last600_seconds_weighted_6",
+      "right": "recent_last600_weighted_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "sectional_last600_std_6",
+      "right": "recent_last600_std_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "form_class_level_weighted_6",
+      "right": "recent_class_weighted_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "jockey_trainer_history_starts",
+      "right": "jockey_trainer_history_runs",
+      "correlation": 0.9993452690535899
+    },
+    {
+      "left": "recent_finish_percentile_last1",
+      "right": "hidden_sectional_run_last1",
+      "correlation": -0.9951620739071676
+    },
+    {
+      "left": "recent_finish_percentile_avg_6",
+      "right": "form_average_finish_percentile_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "recent_finish_percentile_best_6",
+      "right": "form_ceiling_finish_percentile_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "recent_margin_quality_avg_6",
+      "right": "margin_quality_average_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "current_weight_minus_last",
+      "right": "current_weight_change_pct",
+      "correlation": 0.9974285508367383
+    },
+    {
+      "left": "recent3_vs_career_place_rate",
+      "right": "recent_form_vs_career_form",
+      "correlation": 1.0
+    },
+    {
+      "left": "preparation_run_number",
+      "right": "runs_this_preparation_before_race",
+      "correlation": 0.9999999999999994
+    }
+  ],
+  "spearman_pairs": [
+    {
+      "left": "weight_change_from_last_run",
+      "right": "current_weight_minus_last",
+      "correlation": 1.0
+    },
+    {
+      "left": "weight_change_from_last_run",
+      "right": "current_weight_change_pct",
+      "correlation": 0.9988992542974925
+    },
+    {
+      "left": "weight_change_vs_recent_avg",
+      "right": "current_weight_minus_recent_avg",
+      "correlation": 1.0
+    },
+    {
+      "left": "recent_same_condition_runs",
+      "right": "condition_runs",
+      "correlation": 0.9995891519207586
+    },
+    {
+      "left": "dry_rating_rank",
+      "right": "wet_rating_rank",
+      "correlation": 1.0
+    },
+    {
+      "left": "sectional_last600_best_6",
+      "right": "recent_last600_best_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "dry_rating",
+      "right": "wet_rating",
+      "correlation": 1.0
+    },
+    {
+      "left": "recent_win_rate_5",
+      "right": "hotStreak",
+      "correlation": 0.9999289744037493
+    },
+    {
+      "left": "recent_top3_rate_5",
+      "right": "recentPodium",
+      "correlation": 0.9997039897364021
+    },
+    {
+      "left": "win_percentage_rank",
+      "right": "career_win_rate_rank",
+      "correlation": 0.9998115994677693
+    },
+    {
+      "left": "place_percentage_rank",
+      "right": "career_place_rate_rank",
+      "correlation": 0.9999683739130664
+    },
+    {
+      "left": "sectional_last600_seconds_weighted_3",
+      "right": "recent_last600_weighted_3",
+      "correlation": 1.0
+    },
+    {
+      "left": "sectional_last600_seconds_weighted_6",
+      "right": "recent_last600_weighted_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "sectional_last600_std_6",
+      "right": "recent_last600_std_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "form_class_level_weighted_6",
+      "right": "recent_class_weighted_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "jockey_trainer_history_starts",
+      "right": "jockey_trainer_history_runs",
+      "correlation": 0.9978924573443259
+    },
+    {
+      "left": "recent_finish_percentile_last1",
+      "right": "hidden_sectional_run_last1",
+      "correlation": -0.9963567934001839
+    },
+    {
+      "left": "recent_finish_percentile_avg_6",
+      "right": "form_average_finish_percentile_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "recent_finish_percentile_best_6",
+      "right": "form_ceiling_finish_percentile_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "recent_finish_percentile_std_6",
+      "right": "form_consistency_finish_percentile_6",
+      "correlation": -0.9999999995184996
+    },
+    {
+      "left": "recent_margin_best_3",
+      "right": "recent_margin_quality_best_3",
+      "correlation": -1.0
+    },
+    {
+      "left": "recent_margin_best_6",
+      "right": "margin_quality_ceiling_6",
+      "correlation": -1.0
+    },
+    {
+      "left": "recent_margin_quality_avg_6",
+      "right": "margin_quality_average_6",
+      "correlation": 1.0
+    },
+    {
+      "left": "distance_step_down_m",
+      "right": "distance_step_down_pct",
+      "correlation": 0.9986575685332074
+    },
+    {
+      "left": "current_weight_minus_last",
+      "right": "current_weight_change_pct",
+      "correlation": 0.9988992542974925
+    },
+    {
+      "left": "recent3_vs_career_place_rate",
+      "right": "recent_form_vs_career_form",
+      "correlation": 1.0
+    },
+    {
+      "left": "preparation_run_number",
+      "right": "runs_this_preparation_before_race",
+      "correlation": 1.0
+    }
+  ],
+  "candidate_redundant_clusters": [
+    {
+      "cluster": 1,
+      "features": [
+        "weight_change_from_last_run",
+        "current_weight_minus_last",
+        "current_weight_change_pct"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 2,
+      "features": [
+        "weight_change_vs_recent_avg",
+        "current_weight_minus_recent_avg"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 3,
+      "features": [
+        "recent_same_condition_runs",
+        "condition_runs"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 4,
+      "features": [
+        "dry_rating_rank",
+        "wet_rating_rank"
+      ],
+      "contains_race_relative": true
+    },
+    {
+      "cluster": 5,
+      "features": [
+        "sectional_last600_best_6",
+        "recent_last600_best_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 6,
+      "features": [
+        "dry_rating",
+        "wet_rating"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 7,
+      "features": [
+        "recent_win_rate_5",
+        "hotStreak"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 8,
+      "features": [
+        "recent_top3_rate_5",
+        "recentPodium"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 9,
+      "features": [
+        "win_percentage_rank",
+        "career_win_rate_rank"
+      ],
+      "contains_race_relative": true
+    },
+    {
+      "cluster": 10,
+      "features": [
+        "place_percentage_rank",
+        "career_place_rate_rank"
+      ],
+      "contains_race_relative": true
+    },
+    {
+      "cluster": 11,
+      "features": [
+        "sectional_last600_seconds_weighted_3",
+        "recent_last600_weighted_3"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 12,
+      "features": [
+        "sectional_last600_seconds_weighted_6",
+        "recent_last600_weighted_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 13,
+      "features": [
+        "sectional_last600_std_6",
+        "recent_last600_std_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 14,
+      "features": [
+        "form_class_level_weighted_6",
+        "recent_class_weighted_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 15,
+      "features": [
+        "jockey_trainer_history_starts",
+        "jockey_trainer_history_runs"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 16,
+      "features": [
+        "recent_finish_percentile_last1",
+        "hidden_sectional_run_last1"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 17,
+      "features": [
+        "recent_finish_percentile_avg_6",
+        "form_average_finish_percentile_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 18,
+      "features": [
+        "recent_finish_percentile_best_6",
+        "form_ceiling_finish_percentile_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 19,
+      "features": [
+        "recent_finish_percentile_std_6",
+        "form_consistency_finish_percentile_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 20,
+      "features": [
+        "recent_margin_best_3",
+        "recent_margin_quality_best_3"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 21,
+      "features": [
+        "recent_margin_best_6",
+        "margin_quality_ceiling_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 22,
+      "features": [
+        "recent_margin_quality_avg_6",
+        "margin_quality_average_6"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 23,
+      "features": [
+        "distance_step_down_m",
+        "distance_step_down_pct"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 24,
+      "features": [
+        "recent3_vs_career_place_rate",
+        "recent_form_vs_career_form"
+      ],
+      "contains_race_relative": false
+    },
+    {
+      "cluster": 25,
+      "features": [
+        "preparation_run_number",
+        "runs_this_preparation_before_race"
+      ],
+      "contains_race_relative": false
+    }
+  ]
+}

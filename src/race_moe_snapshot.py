@@ -93,6 +93,7 @@ def _race_id_sha256(frame: pd.DataFrame) -> str:
 def create_split_snapshot(
     directory: Path, frames: Mapping[str, pd.DataFrame], features: Sequence[str],
     *, database: Path, excluded_features: Sequence[str],
+    required_splits: Sequence[str] = ("training", "validation", "test"),
 ) -> Path:
     """Create a new snapshot directory; existing manifests are never overwritten."""
     directory = directory.resolve()
@@ -105,7 +106,9 @@ def create_split_snapshot(
     split_metadata: dict[str, Any] = {}
     created_files: list[Path] = []
     try:
-        required = ("training", "validation", "test")
+        required = tuple(required_splits)
+        if not required:
+            raise ValueError("At least one required snapshot split is needed")
         for split in required:
             if split not in frames or frames[split].empty:
                 raise ValueError(f"Snapshot split {split} is empty")
@@ -159,7 +162,7 @@ def create_split_snapshot(
 
 
 def load_split_snapshot(
-    manifest_path: Path,
+    manifest_path: Path, splits: Sequence[str] | None = None,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
     manifest_path = manifest_path.resolve()
     manifest = json.loads(manifest_path.read_text())
@@ -168,8 +171,13 @@ def load_split_snapshot(
         or int(manifest.get("snapshot_version", 0)) != SNAPSHOT_VERSION
     ):
         raise ValueError(f"Unsupported snapshot manifest: {manifest_path}")
+    requested = list(manifest["splits"]) if splits is None else list(splits)
+    unknown = [split for split in requested if split not in manifest["splits"]]
+    if unknown:
+        raise ValueError("Snapshot does not contain splits: " + ", ".join(unknown))
     frames: dict[str, pd.DataFrame] = {}
-    for split, metadata in manifest["splits"].items():
+    for split in requested:
+        metadata = manifest["splits"][split]
         path = manifest_path.parent / metadata["path"]
         actual_hash = file_sha256(path)
         if actual_hash != metadata["file_sha256"]:
