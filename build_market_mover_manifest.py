@@ -16,8 +16,7 @@ BASE_FEATURES = [
    "active_field_size",
     "distance_m",
     "draw_number",
-    "weight_kg","recent_1_place","recent_2_place","recent_3_place","recent_4_place",
-    "recent_5_place","recent_6_place"
+    "weight_kg","career_starts"
 
 
                   ]
