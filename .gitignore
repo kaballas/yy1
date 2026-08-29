@@ -2,3 +2,4 @@
 !db/race_runners.sqlite
 *.sqlite-wal
 *.sqlite-shm
+outputs/market_mover_test_results.json
