@@ -1010,8 +1010,8 @@ python predict_moe_winner_ranker_feature_map.py \
 
 I also verified the new strict feature-mapped model compiles and runs a synthetic forward pass successfully.
 
-python train_market_mover_auto.py \  
-    --features-json test.json \
+python train_market_mover_auto.py \
+--features-json test.json \
     --competition-id 999 \
     --validation-races 400 \
     --test-races 200 \
@@ -1019,7 +1019,8 @@ python train_market_mover_auto.py \
     --early-stopping-rounds 60 \
     --selection-objective winner \
     --minimum-uplift 0.001 \
-    --forward-select --include-current-market
+    --forward-select \
+    --include-current-market
 
 
 python train_moe_winner_ranker_feature_map.py \
