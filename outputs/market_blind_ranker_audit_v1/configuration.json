@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "git_commit_sha": "1055edc42c221a8ae2dd881177053dbb0221197d",
+    "git_commit_sha": "3d64889feade7da3ab6f530cbba4d7cb839cdd20",
     "snapshot_manifest": "/home/theo/yy1/outputs/moe_winner_experiment_market_blind_v2/snapshot/manifest.json",
     "snapshot_content_hashes": {
       "training": "de337da7bc74c96064481cfb706d93123c91278226c31e6f8e6bec9a98bf25e0",
@@ -893,5 +893,5 @@
       "trainer_recent_top3_excess"
     ]
   },
-  "configuration_sha256": "a3c6dcc9dd6ad5bd295111bb6f62a6fc6724a352e50b34eb006a4b82b5832fd5"
+  "configuration_sha256": "2c775734eb12f2e0ad2cdc27cd17fbc1e33f9fafce299b217c4a5fbed3677808"
 }

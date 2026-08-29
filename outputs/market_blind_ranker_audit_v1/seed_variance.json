@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "git_commit_sha": "1055edc42c221a8ae2dd881177053dbb0221197d",
+    "git_commit_sha": "3d64889feade7da3ab6f530cbba4d7cb839cdd20",
     "snapshot_manifest": "/home/theo/yy1/outputs/moe_winner_experiment_market_blind_v2/snapshot/manifest.json",
     "snapshot_content_hashes": {
       "training": "de337da7bc74c96064481cfb706d93123c91278226c31e6f8e6bec9a98bf25e0",
@@ -2588,7 +2588,7 @@
         }
       ],
       "experiment_label": "full_current_mlp",
-      "git_commit_sha": "1055edc42c221a8ae2dd881177053dbb0221197d",
+      "git_commit_sha": "3d64889feade7da3ab6f530cbba4d7cb839cdd20",
       "snapshot_content_hashes": {
         "training": "de337da7bc74c96064481cfb706d93123c91278226c31e6f8e6bec9a98bf25e0",
         "validation": "933161f04049671f4fe4641e687a8d73138d1d0a3dfd13ec2179230278b4e6e0",
@@ -4568,7 +4568,7 @@
         }
       ],
       "experiment_label": "full_current_mlp",
-      "git_commit_sha": "1055edc42c221a8ae2dd881177053dbb0221197d",
+      "git_commit_sha": "3d64889feade7da3ab6f530cbba4d7cb839cdd20",
       "snapshot_content_hashes": {
         "training": "de337da7bc74c96064481cfb706d93123c91278226c31e6f8e6bec9a98bf25e0",
         "validation": "933161f04049671f4fe4641e687a8d73138d1d0a3dfd13ec2179230278b4e6e0",
@@ -6590,7 +6590,7 @@
         }
       ],
       "experiment_label": "full_current_mlp",
-      "git_commit_sha": "1055edc42c221a8ae2dd881177053dbb0221197d",
+      "git_commit_sha": "3d64889feade7da3ab6f530cbba4d7cb839cdd20",
       "snapshot_content_hashes": {
         "training": "de337da7bc74c96064481cfb706d93123c91278226c31e6f8e6bec9a98bf25e0",
         "validation": "933161f04049671f4fe4641e687a8d73138d1d0a3dfd13ec2179230278b4e6e0",
@@ -8556,7 +8556,7 @@
         }
       ],
       "experiment_label": "full_current_mlp",
-      "git_commit_sha": "1055edc42c221a8ae2dd881177053dbb0221197d",
+      "git_commit_sha": "3d64889feade7da3ab6f530cbba4d7cb839cdd20",
       "snapshot_content_hashes": {
         "training": "de337da7bc74c96064481cfb706d93123c91278226c31e6f8e6bec9a98bf25e0",
         "validation": "933161f04049671f4fe4641e687a8d73138d1d0a3dfd13ec2179230278b4e6e0",
@@ -10550,7 +10550,7 @@
         }
       ],
       "experiment_label": "full_current_mlp",
-      "git_commit_sha": "1055edc42c221a8ae2dd881177053dbb0221197d",
+      "git_commit_sha": "3d64889feade7da3ab6f530cbba4d7cb839cdd20",
       "snapshot_content_hashes": {
         "training": "de337da7bc74c96064481cfb706d93123c91278226c31e6f8e6bec9a98bf25e0",
         "validation": "933161f04049671f4fe4641e687a8d73138d1d0a3dfd13ec2179230278b4e6e0",
