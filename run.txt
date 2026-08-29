@@ -965,3 +965,71 @@ python train_tune_all_finished_winner_ranker.py \
     --forward-select \
     --include-current-market \
     --add-all-improving-after-round-one
+
+
+
+I added:
+
+•  predict_moe_winner_ranker_feature_map.py 
+• stricter feature-map enforcement in  src/model/race_moe_feature_map.py 
+• example config at  configs/race_moe_feature_map.example.json 
+
+Key change:
+
+• No fallback is allowed anymore.
+• Every feature must be explicitly assigned to at least one expert.
+• Every expert must have at least one feature.
+• If a feature is missing from the JSON, training fails fast.
+
+Example JSON:
+
+{
+  "experts": {
+    "0": ["distance_m", "distance_starts", "distance_wins"],
+    "1": ["career_starts", "career_wins", "career_seconds"],
+    "2": ["trackFamiliarity", "track_starts", "track_wins"],
+    "3": ["recent_2_starting_price", "open_price", "fluc1"]
+  }
+}
+
+Training command:
+
+python train_moe_winner_ranker_feature_map.py \
+  --feature-map-json configs/race_moe_feature_map.example.json \
+  --db db/race_runners.sqlite \
+  --features-json tabfm_features.json \
+  --moe-num-experts 4 \
+  --moe-top-k 2
+
+Prediction command:
+
+python predict_moe_winner_ranker_feature_map.py \
+  --checkpoint outputs/race_winner_moe_feature_map.pt \
+  --race-id 10812059 \
+  --db db/race_runners.sqlite
+
+I also verified the new strict feature-mapped model compiles and runs a synthetic forward pass successfully.
+
+python train_market_mover_auto.py \  
+    --features-json test.json \
+    --competition-id 999 \
+    --validation-races 400 \
+    --test-races 200 \
+    --max-estimators 700 \
+    --early-stopping-rounds 60 \
+    --selection-objective winner \
+    --minimum-uplift 0.001 \
+    --forward-select --include-current-market
+
+
+python train_moe_winner_ranker_feature_map.py \
+  --feature-map-json configs/race_moe_feature_map.json \
+  --db db/race_runners.sqlite \
+  --features-json tabfm_features.json \
+  --moe-num-experts 4 \
+  --moe-top-k 2
+
+ python predict_moe_winner_ranker_feature_map.py \
+    --checkpoint outputs/race_winner_moe_feature_map.pt \
+    --db db/race_runners.sqlite \
+    --race-id 10865977

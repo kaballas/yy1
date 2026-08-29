@@ -1,0 +1,34 @@
+{
+  "shared_features": [
+    "active_field_size",
+    "distance_m",
+    "draw_number",
+    "weight_kg"
+  ],
+  "experts": {
+    "0": [
+      "prize_money_rank_minus_market_rank",
+      "fluc2",
+      "trackFamiliarity",
+      "current_class_level",
+      "recent_min_weight_kg"
+    ],
+    "1": [
+      "career_starts",
+      "career_wins",
+      "distanceFamiliarity",
+      "win_percentage",
+      "place_percentage",
+      "track_starts",
+      "track_wins"
+    ],
+    "2": [
+             "open_price_rank",
+            "fluc2_price_rank",
+            "historical_market_overperformance_weighted_3_pct_in_race",
+            "heavyGroundPro",
+            "best_run_is_last_start",
+            "recent_similar_distance_speed_rank"
+    ]
+  }
+}

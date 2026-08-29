@@ -13,18 +13,10 @@ from feature_population_report import NON_FEATURE_COLUMNS
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [ 
-  "distance_m",
-        "draw_number",
-        "field_size",
-        "jockey_trainer_history_smoothed_win_rate",
-        "historical_market_overperformance_weighted_3_rank_in_race",
-        "last3_place_percentage_rank",
-        "career_place_rate_rank",
-        "place_percentage_rank",
-        "current_form_strength",
-        "recent_margin_quality_avg_6",
-        "current_form_strength_rank_in_race",
-        "distance_step_down_pct"
+   "active_field_size",
+    "distance_m",
+    "draw_number",
+    "weight_kg","current_form_strength_rank_in_race"
 
 
                   ]

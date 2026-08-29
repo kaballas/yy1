@@ -8,6 +8,7 @@ from src.model.race_moe import (
     RaceMixtureOfExperts, RaceWinnerModelConfig, build_race_winner_model,
     race_softmax_nll, router_balance_loss,
 )
+from src.model.race_moe_feature_map import load_feature_expert_map
 from src.race_moe_data import chronological_race_ids, market_blind_features
 from src.race_moe_evaluation import collapse_warnings, routing_diagnostics
 from src.race_moe_snapshot import (
@@ -36,6 +37,24 @@ def test_moe_forward_contract_and_sparse_top_k():
         output["router_weights"][valid].sum(dim=-1), torch.ones(10), atol=1e-6
     )
     assert torch.all(output["router_weights"][~valid] == 0)
+
+
+def test_manual_feature_map_can_intentionally_omit_global_features():
+    mapping = load_feature_expert_map(
+        {"experts": {"0": ["speed"], "1": ["form"]}},
+        ["speed", "form", "unused"],
+        2,
+    )
+    assert mapping == ((0,), (1,))
+
+
+def test_manual_feature_map_still_rejects_an_empty_expert():
+    with pytest.raises(ValueError, match="expert 1 has no explicit features"):
+        load_feature_expert_map(
+            {"experts": {"0": ["speed"], "1": ["not_available"]}},
+            ["speed", "form"],
+            2,
+        )
 
 
 def test_moe_is_permutation_equivariant_with_race_context():
