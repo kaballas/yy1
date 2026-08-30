@@ -400,31 +400,6 @@
       "first_up_flag",
       "second_up_flag",
       "third_up_flag"
-    ],
-    "2": [
-      "heavyGroundPro",
-      "best_run_is_last_start",
-      "recent_similar_distance_speed_rank"
-    ],
-    "3": [
-      "recent_1_place",
-      "recent_2_place",
-      "recent_3_place",
-      "recent_4_place",
-      "recent_5_place",
-      "recent_6_place",
-      "historical_implied_probability_weighted_3"
-    ],
-    "4": [
-      "heavyGroundPro",
-      "best_run_is_last_start",
-      "recent_similar_distance_speed_rank"
-    ],
-    "5": [
-      "jockey_trainer_synergy",
-      "best_finish_percentile_at_equal_or_higher_weight",
-      "recent_finish_percentile_slope_3",
-      "current_form_strength_gap_to_best"
     ]
   }
 }

@@ -14,10 +14,12 @@ from src.config import DEFAULT_DB
 
 BASE_FEATURES = [ 
    "active_field_size",
-    "distance_m",
-    "draw_number",
-    "weight_kg",
-    "field_size", 
+  "distance_m",
+  "draw_number",
+  "weight_kg",
+  "field_size",
+  "recent_finish_percentile_slope_3",
+  "last3_win_percentage"
     
 
 
