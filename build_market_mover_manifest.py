@@ -13,25 +13,28 @@ from feature_population_report import NON_FEATURE_COLUMNS
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [ 
- "active_field_size",
-    "distance_m",
-    "draw_number",
-    "weight_kg",
-    "field_size",
-    "career_starts",
-    "career_wins",
-    "career_seconds",
-    "career_thirds",
-    "trackFamiliarity",
-    "distanceFamiliarity",
-    "weight_change_from_last_run",
-    "weight_change_vs_recent_avg",
-    "last3_win_percentage",
-    "last3_place_percentage",
-    "open_price",
-    "fluc1",
-    "fluc2"
-  
+  "active_field_size",
+  "distance_m",
+  "draw_number",
+  "weight_kg",
+  "field_size",
+  "career_starts",
+  "career_wins",
+  "career_seconds",
+  "career_thirds",
+  "trackFamiliarity",
+  "distanceFamiliarity",
+  "weight_change_from_last_run",
+  "weight_change_vs_recent_avg",
+  "last3_win_percentage",
+  "last3_place_percentage",
+  "open_price",
+  "fluc1",
+  "fluc2",
+  "recent_finish_percentile_avg_6",
+  "recent6_vs_career_place_rate",
+  "first_up_win_rate_rank",
+  "recent_3_track_status_value"
     
 
 

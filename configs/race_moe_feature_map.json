@@ -52,6 +52,12 @@
     ],
     "10": [
       "recent_finish_percentile_weighted_6_rank_in_race"
+    ],
+    "11": [
+      "recent_finish_percentile_avg_6"
+    ],
+    "12": [
+      "recent6_vs_career_place_rate"
     ]
   }
 }
