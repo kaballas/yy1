@@ -16,7 +16,7 @@ BASE_FEATURES = [
    "active_field_size",
     "distance_m",
     "draw_number",
-    "weight_kg","career_starts"
+    "weight_kg","best_finish_percentile_at_equal_or_higher_weight"
 
 
                   ]

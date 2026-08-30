@@ -7,8 +7,6 @@
   ],
   "experts": {
     "0": [
-      "prize_money_rank_minus_market_rank",
-      "fluc2",
       "trackFamiliarity",
       "current_class_level",
       "recent_min_weight_kg"
@@ -23,12 +21,23 @@
       "track_wins"
     ],
     "2": [
-             "open_price_rank",
-            "fluc2_price_rank",
-            "historical_market_overperformance_weighted_3_pct_in_race",
-            "heavyGroundPro",
-            "best_run_is_last_start",
-            "recent_similar_distance_speed_rank"
+      "heavyGroundPro",
+      "best_run_is_last_start",
+      "recent_similar_distance_speed_rank"
+    ],
+    "3": [
+      "recent_1_place",
+      "recent_2_place",
+      "recent_3_place",
+      "recent_4_place",
+      "recent_5_place",
+      "recent_6_place",
+      "historical_implied_probability_weighted_3"
+    ],
+    "4": [
+      "heavyGroundPro",
+      "best_run_is_last_start",
+      "recent_similar_distance_speed_rank"
     ]
   }
 }

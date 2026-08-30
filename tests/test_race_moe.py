@@ -15,6 +15,7 @@ from src.race_moe_snapshot import (
     create_split_snapshot, load_split_snapshot, resolve_snapshot_manifest,
     snapshot_manifest_reference,
 )
+from train_moe_winner_ranker_feature_map import _competition_race_ids, parse_args
 
 
 def test_moe_forward_contract_and_sparse_top_k():
@@ -213,6 +214,25 @@ def test_chronological_split_is_consecutive_and_sealed():
     assert train == [1, 2, 3, 4, 5]
     assert validation == [6, 7, 8]
     assert test == [9, 10]
+
+
+def test_competition_filter_preserves_chronological_race_order():
+    frame = pd.DataFrame({
+        "race_id": [10, 11, 12, 13, 14],
+        "competition_id": [7, 8, 7, 9, 8],
+    })
+    assert _competition_race_ids(frame, [10, 11, 12, 13, 14], [8, 7]) == [10, 11, 12, 14]
+    assert _competition_race_ids(frame, [10, 11], None) == [10, 11]
+
+
+def test_competition_cli_accepts_training_alias_and_validation_ids():
+    args = parse_args([
+        "--feature-map-json", "map.json",
+        "--competition-id", "7", "8",
+        "--validation-competition-id", "9", "10",
+    ])
+    assert args.train_competition_ids == [7, 8]
+    assert args.validation_competition_ids == [9, 10]
 
 
 def test_diagnostics_warn_for_router_and_output_collapse():

@@ -1019,8 +1019,7 @@ python train_market_mover_auto.py \
     --early-stopping-rounds 60 \
     --selection-objective winner \
     --minimum-uplift 0.001 \
-    --forward-select \
-    --include-current-market
+    --forward-select
 
 
 python train_moe_winner_ranker_feature_map.py \
@@ -1034,3 +1033,14 @@ python train_moe_winner_ranker_feature_map.py \
     --checkpoint outputs/race_winner_moe_feature_map.pt \
     --db db/race_runners.sqlite \
     --race-id 10865977
+
+
+
+python train_moe_winner_ranker_feature_map.py \
+    --feature-map-json configs/race_moe_feature_map.json \
+    --db db/race_runners.sqlite \
+    --features-json tabfm_features.json \
+    --train-competition-id 999 \
+    --validation-competition-id 5 \
+    --moe-num-experts 5 \
+    --moe-top-k 2
