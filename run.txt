@@ -1044,3 +1044,17 @@ python train_moe_winner_ranker_feature_map.py \
     --validation-competition-id 5 \
     --moe-num-experts 5 \
     --moe-top-k 2
+
+
+
+python train_moe_winner_ranker_feature_map.py \
+    --feature-map-json /home/theo/yy1/configs/race_moe_feature_map.json \
+    --db db/race_runners.sqlite \
+    --features-json tabfm_features.json \
+    --train-competition-id 999 \
+    --validation-competition-id 6 \
+    --moe-num-experts 4 \
+--moe-top-k 2 \
+--moe-router-balance-weight 0.001
+
+

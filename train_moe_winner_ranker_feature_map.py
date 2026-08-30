@@ -98,8 +98,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--weight-decay", type=float, default=1e-3)
     parser.add_argument("--max-grad-norm", type=float, default=1.0)
     parser.add_argument("--early-stopping-patience", type=int, default=6)
-    parser.add_argument("--encoder-hidden-dim", type=int, default=128)
-    parser.add_argument("--representation-dim", type=int, default=64)
     parser.add_argument("--dropout", type=float, default=0.20)
     parser.add_argument("--moe-num-experts", type=int, default=4)
     parser.add_argument("--moe-top-k", type=_top_k, default=2)
@@ -290,7 +288,7 @@ def main(argv: list[str] | None = None) -> None:
         flush=True,
     )
     print(f"feature_map_path={args.feature_map_json}", flush=True)
-    print(f"feature_expert_distribution={json.dumps({str(i): list(expanded_features[j] for j in indices) for i, indices in enumerate(feature_map)})}", flush=True)
+    #print(f"feature_expert_distribution={json.dumps({str(i): list(expanded_features[j] for j in indices) for i, indices in enumerate(feature_map)})}", flush=True)
 
     best_state = None
     best_selection = None

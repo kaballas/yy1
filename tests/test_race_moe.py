@@ -8,7 +8,11 @@ from src.model.race_moe import (
     RaceMixtureOfExperts, RaceWinnerModelConfig, build_race_winner_model,
     race_softmax_nll, router_balance_loss,
 )
-from src.model.race_moe_feature_map import load_feature_expert_map
+from src.model.race_moe_feature_map import (
+    FeatureMappedRaceWinnerConfig,
+    RaceMixtureOfExpertsFeatureMap,
+    load_feature_expert_map,
+)
 from src.race_moe_data import chronological_race_ids, market_blind_features
 from src.race_moe_evaluation import collapse_warnings, routing_diagnostics
 from src.race_moe_snapshot import (
@@ -56,6 +60,24 @@ def test_manual_feature_map_still_rejects_an_empty_expert():
             ["speed", "form"],
             2,
         )
+
+
+def test_feature_mapped_moe_has_no_disconnected_encoder():
+    model = RaceMixtureOfExpertsFeatureMap(FeatureMappedRaceWinnerConfig(
+        feature_count=3,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        feature_map=((0, 1), (1, 2)),
+    )).eval()
+    x = torch.randn(1, 4, 3)
+    valid = torch.tensor([[True, True, True, False]])
+
+    output = model(x, valid, return_diagnostics=True)
+
+    assert not hasattr(model, "encoder")
+    assert "representation" not in output
+    assert model.contributing_parameter_count() < model.trainable_parameter_count()
 
 
 def test_moe_is_permutation_equivariant_with_race_context():

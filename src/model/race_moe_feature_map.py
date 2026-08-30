@@ -20,8 +20,6 @@ RELATIVE_SUFFIX = "__race_percentile"
 @dataclass(frozen=True)
 class FeatureMappedRaceWinnerConfig:
     feature_count: int
-    encoder_hidden_dim: int = 128
-    representation_dim: int = 64
     num_experts: int = 4
     top_k: int | None = 2
     gate_temperature: float = 1.0
@@ -140,7 +138,7 @@ class FeatureMappedExpert(nn.Module):
 
 
 class RaceMixtureOfExpertsFeatureMap(nn.Module):
-    """Shared full-feature encoder with expert-specific feature allowlists."""
+    """Mixture of experts with an explicit feature allowlist per expert."""
 
     def __init__(self, config: FeatureMappedRaceWinnerConfig):
         super().__init__()
@@ -148,12 +146,6 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
         self.num_experts = config.num_experts
         self.feat_to_expert = list(config.feature_map)
         self.has_feature_map = bool(config.feature_map)
-
-        self.encoder = nn.Sequential(
-            nn.Linear(config.feature_count, config.encoder_hidden_dim), nn.GELU(),
-            nn.LayerNorm(config.encoder_hidden_dim), nn.Dropout(config.dropout),
-            nn.Linear(config.encoder_hidden_dim, config.representation_dim), nn.GELU(),
-        )
 
         self.experts = nn.ModuleList([
             FeatureMappedExpert(len(indices), config.expert_hidden_dims, config.dropout)
@@ -174,7 +166,6 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
         if valid_mask.shape != features.shape[:2] or valid_mask.dtype != torch.bool:
             raise ValueError("valid_mask must be bool [batch, runners]")
 
-        representation = self.encoder(features)
         race_context = masked_mean_max(features, valid_mask)
         expanded_context = race_context.unsqueeze(1).expand(-1, features.shape[1], -1)
         router_input = torch.cat((features, expanded_context), dim=-1)
@@ -211,7 +202,6 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
             "dense_router_weights": dense_weights.masked_fill(~valid_mask.unsqueeze(-1), 0.0),
             "router_weights": router_weights.masked_fill(~valid_mask.unsqueeze(-1), 0.0),
             "selected_experts": selected & valid_mask.unsqueeze(-1),
-            "representation": representation.masked_fill(~valid_mask.unsqueeze(-1), 0.0),
             "race_context": race_context,
         }
 
@@ -224,7 +214,7 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
             active = expert_counts
         else:
             active = sorted(expert_counts, reverse=True)[: self.model_config.top_k]
-        return sum(p.numel() for p in self.encoder.parameters()) + sum(p.numel() for p in self.router.parameters()) + sum(active)
+        return sum(p.numel() for p in self.router.parameters()) + sum(active)
 
     def executed_parameter_count(self) -> int:
         return self.trainable_parameter_count()
