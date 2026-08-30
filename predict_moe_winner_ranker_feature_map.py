@@ -25,7 +25,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--race-id", type=int, required=True)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help=(
+            "Show model scores and per-expert gate/selection/logit columns. "
+            "The default view only shows rank, runner number, and runner name."
+        ),
+    )
     return parser.parse_args()
+
+
+def prediction_view(result: pd.DataFrame, *, diagnostics: bool) -> pd.DataFrame:
+    """Select the concise default columns or the complete diagnostic table."""
+    if diagnostics:
+        return result
+    return result.loc[:, ["rank", "runner_number", "runner_name"]]
 
 
 def main() -> None:
@@ -77,30 +92,37 @@ def main() -> None:
     x = torch.from_numpy(values).unsqueeze(0).to(device)
     valid = torch.ones((1, len(frame)), dtype=torch.bool, device=device)
     with torch.inference_mode():
-        output = model(x, valid, return_diagnostics=True)
-        logits = output["logits"][0].cpu().numpy()
-        probability = F.softmax(output["logits"][0], dim=0).cpu().numpy()
-        weights = output["router_weights"][0].cpu().numpy()
-        selected = output["selected_experts"][0].cpu().numpy()
-        expert_logits = output["expert_logits"][0].cpu().numpy()
+        output = model(x, valid, return_diagnostics=args.diagnostics)
+        output_logits = output["logits"] if args.diagnostics else output
+        logits = output_logits[0].cpu().numpy()
+        probability = F.softmax(output_logits[0], dim=0).cpu().numpy()
 
     result = frame[["runner_number", "runner_name"]].copy()
     result["ranking_logit"] = logits
     result["winner_probability"] = probability
     result["rank"] = result["winner_probability"].rank(method="first", ascending=False).astype(int)
-    for expert in range(weights.shape[1]):
-        result[f"expert_{expert}_gate"] = weights[:, expert]
-        result[f"expert_{expert}_selected"] = selected[:, expert].astype(int)
-        result[f"expert_{expert}_logit"] = expert_logits[:, expert]
+    if args.diagnostics:
+        weights = output["router_weights"][0].cpu().numpy()
+        selected = output["selected_experts"][0].cpu().numpy()
+        expert_logits = output["expert_logits"][0].cpu().numpy()
+        for expert in range(weights.shape[1]):
+            result[f"expert_{expert}_gate"] = weights[:, expert]
+            result[f"expert_{expert}_selected"] = selected[:, expert].astype(int)
+            result[f"expert_{expert}_logit"] = expert_logits[:, expert]
     result = result.sort_values("rank", kind="stable")
     first = frame.iloc[0]
     print(
         f"RACE WINNER FEATURE-MAP MOE\n"
         f"race={args.race_id} R{first['race_number']} {first['race_name']} "
         f"start={first['start_time_iso']} active_runners={len(frame)}\n"
-        f"num_experts={weights.shape[1]} top_k={model_config['top_k']}"
+        f"num_experts={model_config['num_experts']} top_k={model_config['top_k']}"
     )
-    print(result.to_string(index=False, float_format=lambda value: f"{value:.5f}"))
+    print(
+        prediction_view(result, diagnostics=args.diagnostics).to_string(
+            index=False,
+            float_format=lambda value: f"{value:.5f}",
+        )
+    )
 
 
 if __name__ == "__main__":

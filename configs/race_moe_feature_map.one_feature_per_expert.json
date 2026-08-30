@@ -1,0 +1,1265 @@
+{
+  "shared_features": [
+    "active_field_size",
+    "distance_m",
+    "draw_number",
+    "weight_kg",
+    "field_size"
+  ],
+  "experts": {
+    "0": [
+      "career_starts"
+    ],
+    "1": [
+      "career_wins"
+    ],
+    "2": [
+      "career_seconds"
+    ],
+    "3": [
+      "career_thirds"
+    ],
+    "4": [
+      "trackFamiliarity"
+    ],
+    "5": [
+      "distanceFamiliarity"
+    ],
+    "6": [
+      "weight_change_from_last_run"
+    ],
+    "7": [
+      "weight_change_vs_recent_avg"
+    ],
+    "8": [
+      "weight_change_vs_recent_weighted_avg"
+    ],
+    "9": [
+      "large_weight_drop_flag"
+    ],
+    "10": [
+      "last3_win_percentage"
+    ],
+    "11": [
+      "last3_place_percentage"
+    ],
+    "12": [
+      "win_percentage"
+    ],
+    "13": [
+      "place_percentage"
+    ],
+    "14": [
+      "distance_starts"
+    ],
+    "15": [
+      "distance_wins"
+    ],
+    "16": [
+      "track_starts"
+    ],
+    "17": [
+      "track_wins"
+    ],
+    "18": [
+      "horse_jockey_starts"
+    ],
+    "19": [
+      "horse_jockey_wins"
+    ],
+    "20": [
+      "recent_2_starting_price"
+    ],
+    "21": [
+      "recent_3_starting_price"
+    ],
+    "22": [
+      "recent_3_total_runners"
+    ],
+    "23": [
+      "recent_avg_place"
+    ],
+    "24": [
+      "recent_best_place"
+    ],
+    "25": [
+      "recent_same_distance_runs"
+    ],
+    "26": [
+      "recent_same_track_runs"
+    ],
+    "27": [
+      "recent_same_condition_runs"
+    ],
+    "28": [
+      "recent_days_since_last_run"
+    ],
+    "29": [
+      "open_price"
+    ],
+    "30": [
+      "fluc1"
+    ],
+    "31": [
+      "fluc2"
+    ],
+    "32": [
+      "recent_weighted_avg_margin_rank"
+    ],
+    "33": [
+      "dry_rating_rank"
+    ],
+    "34": [
+      "recent_finish_percentile_rank"
+    ],
+    "35": [
+      "recent_best_margin"
+    ],
+    "36": [
+      "form_barrier_percentile_weighted_6"
+    ],
+    "37": [
+      "sectional_last600_best_6"
+    ],
+    "38": [
+      "trainer_recent_top3_excess"
+    ],
+    "39": [
+      "trackExpert"
+    ],
+    "40": [
+      "age"
+    ],
+    "41": [
+      "competition_id"
+    ],
+    "42": [
+      "race_number"
+    ],
+    "43": [
+      "speed_rating"
+    ],
+    "44": [
+      "dry_rating"
+    ],
+    "45": [
+      "wet_rating"
+    ],
+    "46": [
+      "prize_money"
+    ],
+    "47": [
+      "good_starts"
+    ],
+    "48": [
+      "good_wins"
+    ],
+    "49": [
+      "soft_starts"
+    ],
+    "50": [
+      "soft_wins"
+    ],
+    "51": [
+      "heavy_starts"
+    ],
+    "52": [
+      "heavy_wins"
+    ],
+    "53": [
+      "first_up_starts"
+    ],
+    "54": [
+      "first_up_wins"
+    ],
+    "55": [
+      "second_up_starts"
+    ],
+    "56": [
+      "second_up_wins"
+    ],
+    "57": [
+      "recent_1_place"
+    ],
+    "58": [
+      "recent_1_distance_m"
+    ],
+    "59": [
+      "recent_1_weight_kg"
+    ],
+    "60": [
+      "recent_1_barrier"
+    ],
+    "61": [
+      "recent_1_track_status_value"
+    ],
+    "62": [
+      "recent_1_margin"
+    ],
+    "63": [
+      "recent_1_total_runners"
+    ],
+    "64": [
+      "recent_2_place"
+    ],
+    "65": [
+      "recent_2_distance_m"
+    ],
+    "66": [
+      "recent_2_weight_kg"
+    ],
+    "67": [
+      "recent_2_barrier"
+    ],
+    "68": [
+      "recent_2_track_status_value"
+    ],
+    "69": [
+      "recent_2_margin"
+    ],
+    "70": [
+      "recent_2_total_runners"
+    ],
+    "71": [
+      "recent_3_place"
+    ],
+    "72": [
+      "recent_3_distance_m"
+    ],
+    "73": [
+      "recent_3_weight_kg"
+    ],
+    "74": [
+      "recent_3_barrier"
+    ],
+    "75": [
+      "recent_3_track_status_value"
+    ],
+    "76": [
+      "recent_3_margin"
+    ],
+    "77": [
+      "recent_4_place"
+    ],
+    "78": [
+      "recent_4_distance_m"
+    ],
+    "79": [
+      "recent_4_weight_kg"
+    ],
+    "80": [
+      "recent_4_barrier"
+    ],
+    "81": [
+      "recent_4_track_status_value"
+    ],
+    "82": [
+      "recent_4_starting_price"
+    ],
+    "83": [
+      "recent_4_margin"
+    ],
+    "84": [
+      "recent_4_total_runners"
+    ],
+    "85": [
+      "recent_5_place"
+    ],
+    "86": [
+      "recent_5_distance_m"
+    ],
+    "87": [
+      "recent_5_weight_kg"
+    ],
+    "88": [
+      "recent_5_barrier"
+    ],
+    "89": [
+      "recent_5_track_status_value"
+    ],
+    "90": [
+      "recent_5_starting_price"
+    ],
+    "91": [
+      "recent_5_margin"
+    ],
+    "92": [
+      "recent_5_total_runners"
+    ],
+    "93": [
+      "recent_6_place"
+    ],
+    "94": [
+      "recent_6_distance_m"
+    ],
+    "95": [
+      "recent_6_weight_kg"
+    ],
+    "96": [
+      "recent_6_barrier"
+    ],
+    "97": [
+      "recent_6_track_status_value"
+    ],
+    "98": [
+      "recent_6_starting_price"
+    ],
+    "99": [
+      "recent_6_margin"
+    ],
+    "100": [
+      "recent_6_total_runners"
+    ],
+    "101": [
+      "recent_runs_count"
+    ],
+    "102": [
+      "recent_wins"
+    ],
+    "103": [
+      "recent_places"
+    ],
+    "104": [
+      "recent_avg_place_3"
+    ],
+    "105": [
+      "recent_avg_place_5"
+    ],
+    "106": [
+      "recent_win_rate_5"
+    ],
+    "107": [
+      "recent_top3_rate_5"
+    ],
+    "108": [
+      "recent_avg_margin"
+    ],
+    "109": [
+      "recent_avg_margin_3"
+    ],
+    "110": [
+      "recent_avg_starting_price"
+    ],
+    "111": [
+      "goodGroundPro"
+    ],
+    "112": [
+      "softGroundPro"
+    ],
+    "113": [
+      "heavyGroundPro"
+    ],
+    "114": [
+      "freshWinner"
+    ],
+    "115": [
+      "secondUpWinner"
+    ],
+    "116": [
+      "winningPartnership"
+    ],
+    "117": [
+      "hotStreak"
+    ],
+    "118": [
+      "recentPodium"
+    ],
+    "119": [
+      "market_open_to_fluc1_move"
+    ],
+    "120": [
+      "market_open_to_fluc2_move"
+    ],
+    "121": [
+      "market_fluc1_to_fluc2_move"
+    ],
+    "122": [
+      "market_open_to_fluc1_move_pct"
+    ],
+    "123": [
+      "market_open_to_fluc2_move_pct"
+    ],
+    "124": [
+      "market_fluc1_to_fluc2_move_pct"
+    ],
+    "125": [
+      "market_total_abs_movement"
+    ],
+    "126": [
+      "market_price_range_pct"
+    ],
+    "127": [
+      "market_implied_prob_change_open_to_fluc2"
+    ],
+    "128": [
+      "market_implied_prob_change_fluc1_to_fluc2"
+    ],
+    "129": [
+      "recent_best_speed_mps"
+    ],
+    "130": [
+      "recent_avg_speed_mps"
+    ],
+    "131": [
+      "recent_best_similar_distance_speed_mps"
+    ],
+    "132": [
+      "recent_avg_similar_distance_speed_mps"
+    ],
+    "133": [
+      "recent_weighted_avg_place"
+    ],
+    "134": [
+      "recent_weighted_avg_margin"
+    ],
+    "135": [
+      "recent_weighted_win_rate"
+    ],
+    "136": [
+      "recent_weighted_top3_rate"
+    ],
+    "137": [
+      "recent_finish_percentile_weighted"
+    ],
+    "138": [
+      "recent_market_edge_weighted"
+    ],
+    "139": [
+      "recent_avg_weight_kg"
+    ],
+    "140": [
+      "recent_weighted_avg_weight_kg"
+    ],
+    "141": [
+      "recent_min_weight_kg"
+    ],
+    "142": [
+      "recent_max_weight_kg"
+    ],
+    "143": [
+      "recent_weight_range_kg"
+    ],
+    "144": [
+      "weight_drop_after_close_run_flag"
+    ],
+    "145": [
+      "open_price_rank"
+    ],
+    "146": [
+      "fluc1_price_rank"
+    ],
+    "147": [
+      "fluc2_price_rank"
+    ],
+    "148": [
+      "market_steam_rank"
+    ],
+    "149": [
+      "speed_rating_rank"
+    ],
+    "150": [
+      "win_percentage_rank"
+    ],
+    "151": [
+      "place_percentage_rank"
+    ],
+    "152": [
+      "last3_win_percentage_rank"
+    ],
+    "153": [
+      "last3_place_percentage_rank"
+    ],
+    "154": [
+      "recent_similar_distance_speed_rank"
+    ],
+    "155": [
+      "recent_weighted_avg_place_rank"
+    ],
+    "156": [
+      "recent_weighted_win_rate_rank"
+    ],
+    "157": [
+      "recent_weighted_top3_rate_rank"
+    ],
+    "158": [
+      "recent_market_edge_rank"
+    ],
+    "159": [
+      "race_consensus_score"
+    ],
+    "160": [
+      "race_consensus_rank"
+    ],
+    "161": [
+      "wet_rating_rank"
+    ],
+    "162": [
+      "prize_money_rank"
+    ],
+    "163": [
+      "career_win_rate_rank"
+    ],
+    "164": [
+      "career_place_rate_rank"
+    ],
+    "165": [
+      "distance_win_rate_rank"
+    ],
+    "166": [
+      "track_win_rate_rank"
+    ],
+    "167": [
+      "first_up_win_rate_rank"
+    ],
+    "168": [
+      "second_up_win_rate_rank"
+    ],
+    "169": [
+      "horse_jockey_win_rate_rank"
+    ],
+    "170": [
+      "race_overlay_score"
+    ],
+    "171": [
+      "race_overlay_rank"
+    ],
+    "172": [
+      "race_signal_agreement_score"
+    ],
+    "173": [
+      "race_signal_agreement_rank"
+    ],
+    "174": [
+      "sectional_last600_seconds_weighted_3"
+    ],
+    "175": [
+      "sectional_last600_seconds_weighted_6"
+    ],
+    "176": [
+      "sectional_last600_std_6"
+    ],
+    "177": [
+      "sectional_last600_trend"
+    ],
+    "178": [
+      "sectional_closing_speed_ratio_weighted_3"
+    ],
+    "179": [
+      "sectional_closing_speed_ratio_weighted_6"
+    ],
+    "180": [
+      "current_class_level"
+    ],
+    "181": [
+      "form_class_level_weighted_3"
+    ],
+    "182": [
+      "form_class_level_weighted_6"
+    ],
+    "183": [
+      "class_change_vs_recent_3"
+    ],
+    "184": [
+      "class_drop_from_recent_best"
+    ],
+    "185": [
+      "jockey_history_starts"
+    ],
+    "186": [
+      "jockey_history_top3_excess"
+    ],
+    "187": [
+      "jockey_recent_top3_excess"
+    ],
+    "188": [
+      "trainer_history_starts"
+    ],
+    "189": [
+      "recent_best_speed_rank"
+    ],
+    "190": [
+      "trainer_history_top3_excess"
+    ],
+    "191": [
+      "jockey_trainer_history_starts"
+    ],
+    "192": [
+      "jockey_trainer_history_top3_excess"
+    ],
+    "193": [
+      "jockey_trainer_recent_top3_excess"
+    ],
+    "194": [
+      "recent_1_starting_price"
+    ],
+    "195": [
+      "recent_finish_percentile_last1"
+    ],
+    "196": [
+      "recent_finish_percentile_avg_3"
+    ],
+    "197": [
+      "recent_finish_percentile_avg_6"
+    ],
+    "198": [
+      "recent_finish_percentile_weighted_3"
+    ],
+    "199": [
+      "recent_finish_percentile_weighted_6"
+    ],
+    "200": [
+      "recent_finish_percentile_best_3"
+    ],
+    "201": [
+      "recent_finish_percentile_best_6"
+    ],
+    "202": [
+      "recent_finish_percentile_std_6"
+    ],
+    "203": [
+      "recent_finish_percentile_slope_3"
+    ],
+    "204": [
+      "recent_finish_percentile_slope_6"
+    ],
+    "205": [
+      "recent_finish_percentile_last_minus_avg3"
+    ],
+    "206": [
+      "recent_finish_percentile_avg3_minus_avg6"
+    ],
+    "207": [
+      "recent_margin_avg_3"
+    ],
+    "208": [
+      "recent_margin_avg_6"
+    ],
+    "209": [
+      "recent_margin_weighted_3"
+    ],
+    "210": [
+      "recent_margin_weighted_6"
+    ],
+    "211": [
+      "recent_margin_best_3"
+    ],
+    "212": [
+      "recent_margin_best_6"
+    ],
+    "213": [
+      "recent_margin_std_6"
+    ],
+    "214": [
+      "recent_margin_slope_3"
+    ],
+    "215": [
+      "recent_margin_slope_6"
+    ],
+    "216": [
+      "recent_margin_last_minus_avg3"
+    ],
+    "217": [
+      "recent_margin_quality_last1"
+    ],
+    "218": [
+      "recent_margin_quality_avg_3"
+    ],
+    "219": [
+      "recent_margin_quality_avg_6"
+    ],
+    "220": [
+      "recent_margin_quality_weighted_3"
+    ],
+    "221": [
+      "recent_margin_quality_weighted_6"
+    ],
+    "222": [
+      "recent_margin_quality_best_3"
+    ],
+    "223": [
+      "recent_margin_quality_slope_3"
+    ],
+    "224": [
+      "historical_market_overperformance_last1"
+    ],
+    "225": [
+      "historical_market_overperformance_avg_3"
+    ],
+    "226": [
+      "historical_market_overperformance_avg_6"
+    ],
+    "227": [
+      "historical_market_overperformance_weighted_3"
+    ],
+    "228": [
+      "historical_market_overperformance_weighted_6"
+    ],
+    "229": [
+      "historical_market_overperformance_best_3"
+    ],
+    "230": [
+      "historical_market_overperformance_slope_3"
+    ],
+    "231": [
+      "historical_implied_probability_weighted_3"
+    ],
+    "232": [
+      "historical_implied_probability_weighted_6"
+    ],
+    "233": [
+      "distance_change_last_run"
+    ],
+    "234": [
+      "abs_distance_change_last_run"
+    ],
+    "235": [
+      "distance_change_pct_last_run"
+    ],
+    "236": [
+      "distance_minus_recent_avg"
+    ],
+    "237": [
+      "distance_minus_recent_weighted_avg"
+    ],
+    "238": [
+      "abs_distance_minus_recent_weighted_avg"
+    ],
+    "239": [
+      "similar_distance_runs"
+    ],
+    "240": [
+      "similar_distance_finish_percentile_avg"
+    ],
+    "241": [
+      "similar_distance_finish_percentile_weighted"
+    ],
+    "242": [
+      "similar_distance_margin_quality_avg"
+    ],
+    "243": [
+      "similar_distance_margin_quality_weighted"
+    ],
+    "244": [
+      "similar_distance_top3_rate"
+    ],
+    "245": [
+      "distance_step_up_m"
+    ],
+    "246": [
+      "distance_step_down_m"
+    ],
+    "247": [
+      "distance_step_up_pct"
+    ],
+    "248": [
+      "distance_step_down_pct"
+    ],
+    "249": [
+      "historical_step_up_finish_percentile"
+    ],
+    "250": [
+      "historical_step_up_observations"
+    ],
+    "251": [
+      "historical_step_down_finish_percentile"
+    ],
+    "252": [
+      "historical_step_down_observations"
+    ],
+    "253": [
+      "recent_barrier_percentile_last1"
+    ],
+    "254": [
+      "recent_barrier_percentile_avg_3"
+    ],
+    "255": [
+      "recent_barrier_percentile_weighted_6"
+    ],
+    "256": [
+      "recent_barrier_percentile_std_6"
+    ],
+    "257": [
+      "current_barrier_percentile"
+    ],
+    "258": [
+      "current_minus_recent_barrier_percentile"
+    ],
+    "259": [
+      "current_weight_minus_last"
+    ],
+    "260": [
+      "current_weight_minus_recent_avg"
+    ],
+    "261": [
+      "current_weight_minus_recent_weighted_avg"
+    ],
+    "262": [
+      "current_weight_change_pct"
+    ],
+    "263": [
+      "best_finish_percentile_at_equal_or_higher_weight"
+    ],
+    "264": [
+      "best_margin_quality_at_equal_or_higher_weight"
+    ],
+    "265": [
+      "form_ceiling_finish_percentile_6"
+    ],
+    "266": [
+      "form_average_finish_percentile_6"
+    ],
+    "267": [
+      "form_consistency_finish_percentile_6"
+    ],
+    "268": [
+      "form_ceiling_minus_average"
+    ],
+    "269": [
+      "margin_quality_ceiling_6"
+    ],
+    "270": [
+      "margin_quality_average_6"
+    ],
+    "271": [
+      "margin_quality_consistency_6"
+    ],
+    "272": [
+      "best_run_recency_index"
+    ],
+    "273": [
+      "second_best_run_recency_index"
+    ],
+    "274": [
+      "best_run_is_last_start"
+    ],
+    "275": [
+      "best_run_within_last_2"
+    ],
+    "276": [
+      "best_run_within_last_3"
+    ],
+    "277": [
+      "recent3_vs_career_finish_percentile"
+    ],
+    "278": [
+      "recent6_vs_career_finish_percentile"
+    ],
+    "279": [
+      "recent3_vs_career_place_rate"
+    ],
+    "280": [
+      "recent6_vs_career_place_rate"
+    ],
+    "281": [
+      "recent_form_vs_career_form"
+    ],
+    "282": [
+      "same_track_runs"
+    ],
+    "283": [
+      "same_track_finish_percentile"
+    ],
+    "284": [
+      "same_track_margin_quality"
+    ],
+    "285": [
+      "same_track_top3_rate"
+    ],
+    "286": [
+      "same_track_distance_runs"
+    ],
+    "287": [
+      "same_track_distance_finish_percentile"
+    ],
+    "288": [
+      "same_track_distance_margin_quality"
+    ],
+    "289": [
+      "same_track_distance_top3_rate"
+    ],
+    "290": [
+      "condition_runs"
+    ],
+    "291": [
+      "condition_win_rate_smoothed"
+    ],
+    "292": [
+      "condition_top3_rate_smoothed"
+    ],
+    "293": [
+      "condition_finish_percentile"
+    ],
+    "294": [
+      "condition_margin_quality"
+    ],
+    "295": [
+      "recent_last600_avg_3"
+    ],
+    "296": [
+      "recent_last600_avg_6"
+    ],
+    "297": [
+      "recent_last600_weighted_3"
+    ],
+    "298": [
+      "recent_last600_weighted_6"
+    ],
+    "299": [
+      "recent_last600_best_3"
+    ],
+    "300": [
+      "recent_last600_best_6"
+    ],
+    "301": [
+      "recent_last600_std_6"
+    ],
+    "302": [
+      "recent_last600_slope_3"
+    ],
+    "303": [
+      "recent_last600_slope_6"
+    ],
+    "304": [
+      "historical_run_quality_last1"
+    ],
+    "305": [
+      "historical_run_quality_avg_3"
+    ],
+    "306": [
+      "historical_run_quality_weighted_3"
+    ],
+    "307": [
+      "historical_run_quality_weighted_6"
+    ],
+    "308": [
+      "historical_run_quality_best_3"
+    ],
+    "309": [
+      "historical_run_quality_slope_3"
+    ],
+    "310": [
+      "hidden_sectional_run_last1"
+    ],
+    "311": [
+      "hidden_sectional_run_avg_3"
+    ],
+    "312": [
+      "hidden_sectional_run_best_3"
+    ],
+    "313": [
+      "sectional_ceiling_6"
+    ],
+    "314": [
+      "sectional_average_6"
+    ],
+    "315": [
+      "sectional_consistency_6"
+    ],
+    "316": [
+      "class_change_last_run"
+    ],
+    "317": [
+      "class_step_up"
+    ],
+    "318": [
+      "class_step_down"
+    ],
+    "319": [
+      "recent_class_avg_3"
+    ],
+    "320": [
+      "recent_class_weighted_6"
+    ],
+    "321": [
+      "recent_best_class"
+    ],
+    "322": [
+      "performance_at_current_or_stronger_class"
+    ],
+    "323": [
+      "best_finish_percentile_at_stronger_class"
+    ],
+    "324": [
+      "best_margin_quality_at_stronger_class"
+    ],
+    "325": [
+      "class_adjusted_finish_percentile_last1"
+    ],
+    "326": [
+      "class_adjusted_finish_percentile_weighted_3"
+    ],
+    "327": [
+      "class_adjusted_finish_percentile_weighted_6"
+    ],
+    "328": [
+      "class_adjusted_margin_quality_weighted_3"
+    ],
+    "329": [
+      "class_adjusted_margin_quality_weighted_6"
+    ],
+    "330": [
+      "jockey_trainer_history_runs"
+    ],
+    "331": [
+      "jockey_trainer_history_wins"
+    ],
+    "332": [
+      "jockey_trainer_history_top3"
+    ],
+    "333": [
+      "jockey_trainer_history_win_rate"
+    ],
+    "334": [
+      "jockey_trainer_history_top3_rate"
+    ],
+    "335": [
+      "jockey_trainer_history_smoothed_win_rate"
+    ],
+    "336": [
+      "jockey_trainer_history_smoothed_top3_rate"
+    ],
+    "337": [
+      "jockey_trainer_history_win_excess"
+    ],
+    "338": [
+      "jockey_trainer_synergy"
+    ],
+    "339": [
+      "current_form_strength"
+    ],
+    "340": [
+      "recent_finish_percentile_weighted_3_rank_in_race"
+    ],
+    "341": [
+      "recent_finish_percentile_weighted_3_pct_in_race"
+    ],
+    "342": [
+      "recent_finish_percentile_weighted_3_minus_race_mean"
+    ],
+    "343": [
+      "recent_finish_percentile_weighted_3_minus_race_median"
+    ],
+    "344": [
+      "recent_finish_percentile_weighted_3_zscore_in_race"
+    ],
+    "345": [
+      "recent_finish_percentile_weighted_3_gap_to_best"
+    ],
+    "346": [
+      "recent_finish_percentile_weighted_6_rank_in_race"
+    ],
+    "347": [
+      "recent_finish_percentile_weighted_6_pct_in_race"
+    ],
+    "348": [
+      "recent_finish_percentile_weighted_6_minus_race_mean"
+    ],
+    "349": [
+      "recent_finish_percentile_weighted_6_minus_race_median"
+    ],
+    "350": [
+      "recent_finish_percentile_weighted_6_zscore_in_race"
+    ],
+    "351": [
+      "recent_finish_percentile_weighted_6_gap_to_best"
+    ],
+    "352": [
+      "recent_margin_quality_weighted_3_rank_in_race"
+    ],
+    "353": [
+      "recent_margin_quality_weighted_3_pct_in_race"
+    ],
+    "354": [
+      "recent_margin_quality_weighted_3_minus_race_mean"
+    ],
+    "355": [
+      "recent_margin_quality_weighted_3_minus_race_median"
+    ],
+    "356": [
+      "recent_margin_quality_weighted_3_zscore_in_race"
+    ],
+    "357": [
+      "recent_margin_quality_weighted_3_gap_to_best"
+    ],
+    "358": [
+      "historical_market_overperformance_weighted_3_rank_in_race"
+    ],
+    "359": [
+      "historical_market_overperformance_weighted_3_pct_in_race"
+    ],
+    "360": [
+      "historical_market_overperformance_weighted_3_minus_race_mean"
+    ],
+    "361": [
+      "historical_market_overperformance_weighted_3_minus_race_median"
+    ],
+    "362": [
+      "historical_market_overperformance_weighted_3_zscore_in_race"
+    ],
+    "363": [
+      "historical_market_overperformance_weighted_3_gap_to_best"
+    ],
+    "364": [
+      "hidden_sectional_run_best_3_rank_in_race"
+    ],
+    "365": [
+      "hidden_sectional_run_best_3_pct_in_race"
+    ],
+    "366": [
+      "hidden_sectional_run_best_3_minus_race_mean"
+    ],
+    "367": [
+      "hidden_sectional_run_best_3_minus_race_median"
+    ],
+    "368": [
+      "hidden_sectional_run_best_3_zscore_in_race"
+    ],
+    "369": [
+      "hidden_sectional_run_best_3_gap_to_best"
+    ],
+    "370": [
+      "similar_distance_finish_percentile_weighted_rank_in_race"
+    ],
+    "371": [
+      "similar_distance_finish_percentile_weighted_pct_in_race"
+    ],
+    "372": [
+      "similar_distance_finish_percentile_weighted_minus_race_mean"
+    ],
+    "373": [
+      "similar_distance_finish_percentile_weighted_minus_race_median"
+    ],
+    "374": [
+      "similar_distance_finish_percentile_weighted_zscore_in_race"
+    ],
+    "375": [
+      "similar_distance_finish_percentile_weighted_gap_to_best"
+    ],
+    "376": [
+      "class_adjusted_finish_percentile_weighted_3_rank_in_race"
+    ],
+    "377": [
+      "class_adjusted_finish_percentile_weighted_3_pct_in_race"
+    ],
+    "378": [
+      "class_adjusted_finish_percentile_weighted_3_minus_race_mean"
+    ],
+    "379": [
+      "class_adjusted_finish_percentile_weighted_3_minus_race_median"
+    ],
+    "380": [
+      "class_adjusted_finish_percentile_weighted_3_zscore_in_race"
+    ],
+    "381": [
+      "class_adjusted_finish_percentile_weighted_3_gap_to_best"
+    ],
+    "382": [
+      "jockey_trainer_history_smoothed_top3_rate_rank_in_race"
+    ],
+    "383": [
+      "jockey_trainer_history_smoothed_top3_rate_pct_in_race"
+    ],
+    "384": [
+      "jockey_trainer_history_smoothed_top3_rate_minus_race_mean"
+    ],
+    "385": [
+      "jockey_trainer_history_smoothed_top3_rate_minus_race_median"
+    ],
+    "386": [
+      "jockey_trainer_history_smoothed_top3_rate_zscore_in_race"
+    ],
+    "387": [
+      "jockey_trainer_history_smoothed_top3_rate_gap_to_best"
+    ],
+    "388": [
+      "current_form_strength_rank_in_race"
+    ],
+    "389": [
+      "current_form_strength_pct_in_race"
+    ],
+    "390": [
+      "current_form_strength_minus_race_mean"
+    ],
+    "391": [
+      "current_form_strength_minus_race_median"
+    ],
+    "392": [
+      "current_form_strength_zscore_in_race"
+    ],
+    "393": [
+      "current_form_strength_gap_to_best"
+    ],
+    "394": [
+      "finish_rank_minus_market_rank"
+    ],
+    "395": [
+      "finish_market_rank_abs_gap"
+    ],
+    "396": [
+      "margin_rank_minus_market_rank"
+    ],
+    "397": [
+      "margin_market_rank_abs_gap"
+    ],
+    "398": [
+      "distance_speed_rank_minus_market_rank"
+    ],
+    "399": [
+      "distance_speed_market_rank_abs_gap"
+    ],
+    "400": [
+      "jockey_rank_minus_market_rank"
+    ],
+    "401": [
+      "jockey_market_rank_abs_gap"
+    ],
+    "402": [
+      "career_rank_minus_market_rank"
+    ],
+    "403": [
+      "career_market_rank_abs_gap"
+    ],
+    "404": [
+      "prize_money_rank_minus_market_rank"
+    ],
+    "405": [
+      "prize_money_market_rank_abs_gap"
+    ],
+    "406": [
+      "total_prize_money"
+    ],
+    "407": [
+      "race_field_avg_prize_money"
+    ],
+    "408": [
+      "race_field_max_prize_money"
+    ],
+    "409": [
+      "race_field_avg_speed_rating"
+    ],
+    "410": [
+      "race_field_max_speed_rating"
+    ],
+    "411": [
+      "weight_vs_field_mean"
+    ],
+    "412": [
+      "num_scratchings"
+    ],
+    "413": [
+      "preparation_run_number"
+    ],
+    "414": [
+      "runs_this_preparation_before_race"
+    ],
+    "415": [
+      "first_up_flag"
+    ],
+    "416": [
+      "second_up_flag"
+    ],
+    "417": [
+      "third_up_flag"
+    ]
+  }
+}

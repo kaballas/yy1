@@ -3,22 +3,32 @@
     "active_field_size",
     "distance_m",
     "draw_number",
-    "weight_kg"
+    "weight_kg",
+    "field_size",
+    "career_starts",
+    "career_wins",
+    "career_seconds",
+    "career_thirds",
+    "trackFamiliarity",
+    "distanceFamiliarity",
+    "weight_change_from_last_run",
+    "weight_change_vs_recent_avg",
+    "last3_win_percentage",
+    "last3_place_percentage"
   ],
   "experts": {
     "0": [
-      "field_size",
-      "recent_finish_percentile_slope_3",
-      "last3_win_percentage",
-      "recent_5_starting_price",
-      "recent_same_distance_runs"
+      "open_price"
     ],
     "1": [
-      "field_size",
-      "open_price",
-      "fluc1",
+      "fluc1"
+    ],
+    "2": [
       "fluc2"
-      
+    ]
+    ,
+    "3": [
+      "current_form_strength_minus_race_median"
     ]
   }
 }
