@@ -16,9 +16,9 @@ BASE_FEATURES = [
    "active_field_size",
     "distance_m",
     "draw_number",
-    "weight_kg","jockey_trainer_synergy","best_finish_percentile_at_equal_or_higher_weight",
-  "recent_finish_percentile_slope_3",
-  "current_form_strength_gap_to_best"
+    "weight_kg",
+    "field_size", 
+    
 
 
                   ]
