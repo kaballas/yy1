@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -96,6 +97,16 @@ def parse_args() -> argparse.Namespace:
         help=(
             "XGBoost CPU threads. Defaults to 80%% of available logical CPU "
             "threads."
+        ),
+    )
+    parser.add_argument(
+        "--candidate-jobs",
+        type=int,
+        default=1,
+        help=(
+            "Forward-selection candidates to fit concurrently. Each candidate "
+            "still uses --jobs XGBoost threads, so reduce --jobs when increasing "
+            "this value."
         ),
     )
     parser.add_argument("--seed", type=int, default=42)
@@ -668,6 +679,11 @@ def run_forward_selection(
     )
     print("forward_sampling=full colsample_bytree=1.0 subsample=1.0", flush=True)
     print(
+        f"candidate_parallelism={args.candidate_jobs} "
+        f"xgboost_threads_per_candidate={args.jobs}",
+        flush=True,
+    )
+    print(
         f"selection_objective={args.selection_objective} "
         f"primary_metric={primary_metric} "
         f"selection_direction={selection_direction} "
@@ -713,7 +729,11 @@ def run_forward_selection(
             flush=True,
         )
         candidate_results: list[dict[str, Any]] = round_record["candidate_results"]
-        for candidate_order, (label, feature) in enumerate(remaining):
+
+        def fit_candidate(
+            candidate: tuple[int, tuple[str, str]],
+        ) -> tuple[int, str, str, dict[str, Any]]:
+            candidate_order, (label, feature) = candidate
             tested_features = [*current_features, feature]
             result = fit_feature_set(
                 args, parameter_args, train_matrix_all, validation_matrix_all,
@@ -721,41 +741,59 @@ def run_forward_selection(
                 validation_top3, validation_winner, tested_features,
                 args.selection_objective,
             )
-            result.update({
-                "model": label,
-                "added_feature": feature,
-                "candidate_order": candidate_order,
-                "top3_uplift_vs_round_baseline": (
-                    float(result["top3_capture_rate"])
-                    - float(baseline["top3_capture_rate"])
-                ),
-                "winner_uplift_vs_round_baseline": (
-                    float(result["winner_hit_rate"])
-                    - float(baseline["winner_hit_rate"])
-                ),
-            })
-            primary_delta = float(result[primary_metric]) - baseline_rate
-            directional_change = (
-                -primary_delta if args.reverse_select else primary_delta
+            return candidate_order, label, feature, result
+
+        candidate_workers = min(args.candidate_jobs, len(remaining))
+        indexed_candidates = list(enumerate(remaining))
+        if candidate_workers == 1:
+            fitted_candidates = map(fit_candidate, indexed_candidates)
+        else:
+            executor = ThreadPoolExecutor(
+                max_workers=candidate_workers,
+                thread_name_prefix="xgb-candidate",
             )
-            result["status"] = (
-                "lowers" if args.reverse_select else "improves"
-            ) if directional_change + 1e-12 >= args.minimum_uplift else "skipped"
-            candidate_results.append(result)
-            print(
-                f"  [{candidate_order + 1:>3}/{len(remaining)}] "
-                f"feature={feature:<50} "
-                f"top3={result['top3_capture_rate']:.2%} "
-                f"winner#1={result['winner_hit_rate']:.2%} "
-                f"primary_delta={primary_delta:+.2%} "
-                f"status={result['status'].upper()}",
-                flush=True,
-            )
-            if (
-                (candidate_order + 1) % SAVE_EVERY == 0
-                or candidate_order + 1 == len(remaining)
-            ):
-                save_progress(completed=False)
+            fitted_candidates = executor.map(fit_candidate, indexed_candidates)
+
+        try:
+            for candidate_order, label, feature, result in fitted_candidates:
+                result.update({
+                    "model": label,
+                    "added_feature": feature,
+                    "candidate_order": candidate_order,
+                    "top3_uplift_vs_round_baseline": (
+                        float(result["top3_capture_rate"])
+                        - float(baseline["top3_capture_rate"])
+                    ),
+                    "winner_uplift_vs_round_baseline": (
+                        float(result["winner_hit_rate"])
+                        - float(baseline["winner_hit_rate"])
+                    ),
+                })
+                primary_delta = float(result[primary_metric]) - baseline_rate
+                directional_change = (
+                    -primary_delta if args.reverse_select else primary_delta
+                )
+                result["status"] = (
+                    "lowers" if args.reverse_select else "improves"
+                ) if directional_change + 1e-12 >= args.minimum_uplift else "skipped"
+                candidate_results.append(result)
+                print(
+                    f"  [{candidate_order + 1:>3}/{len(remaining)}] "
+                    f"feature={feature:<50} "
+                    f"top3={result['top3_capture_rate']:.2%} "
+                    f"winner#1={result['winner_hit_rate']:.2%} "
+                    f"primary_delta={primary_delta:+.2%} "
+                    f"status={result['status'].upper()}",
+                    flush=True,
+                )
+                if (
+                    (candidate_order + 1) % SAVE_EVERY == 0
+                    or candidate_order + 1 == len(remaining)
+                ):
+                    save_progress(completed=False)
+        finally:
+            if candidate_workers > 1:
+                executor.shutdown(wait=True, cancel_futures=True)
 
         best = best_improving_result(
             candidate_results,
@@ -975,6 +1013,8 @@ def main() -> None:
     print(
         f"cpu_threads={CPU_THREADS}\n"
         f"xgboost_jobs={args.jobs}\n"
+        f"candidate_jobs={args.candidate_jobs}\n"
+        f"maximum_training_threads={args.jobs * args.candidate_jobs}\n"
         f"cpu_target={'80%' if args.jobs == DEFAULT_JOBS else 'manual'}",
         flush=True,
     )
@@ -982,12 +1022,21 @@ def main() -> None:
         raise ValueError(
             "validation-races, test-races and max-estimators must be positive"
         )
-    if args.early_stopping_rounds < 1 or args.jobs < 1 or args.top < 1:
-        raise ValueError("early-stopping-rounds, jobs and top must be positive")
+    if (
+        args.early_stopping_rounds < 1
+        or args.jobs < 1
+        or args.candidate_jobs < 1
+        or args.top < 1
+    ):
+        raise ValueError(
+            "early-stopping-rounds, jobs, candidate-jobs and top must be positive"
+        )
     if args.max_forward_rounds is not None and args.max_forward_rounds < 1:
         raise ValueError("max-forward-rounds must be positive")
     if args.max_forward_rounds is not None and not args.forward_select:
         raise ValueError("--max-forward-rounds requires --forward-select")
+    if args.candidate_jobs > 1 and not args.forward_select:
+        raise ValueError("--candidate-jobs greater than 1 requires --forward-select")
     if args.reverse_select and not args.forward_select:
         raise ValueError("--reverse-select requires --forward-select")
     if args.add_all_improving_after_round_one and not args.forward_select:
@@ -1001,6 +1050,12 @@ def main() -> None:
         )
     if not 0.0 < args.minimum_uplift < 1.0:
         raise ValueError("--minimum-uplift must be between zero and one")
+    if args.jobs * args.candidate_jobs > CPU_THREADS:
+        print(
+            "WARNING: --jobs × --candidate-jobs exceeds available logical "
+            "CPUs; thread contention may make training slower.",
+            flush=True,
+        )
     validate_production_selection_scope(args.competition_ids)
 
     database = args.db.resolve()

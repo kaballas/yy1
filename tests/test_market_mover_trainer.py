@@ -14,6 +14,7 @@ from train_market_mover_tests import (
     forward_selection_model_parameters,
     infer_ablation_features,
     load_feature_sets,
+    parse_args,
     parse_competition_ids,
     recommended_validation_races,
     top3_capture,
@@ -133,6 +134,25 @@ def test_rejects_more_than_one_varying_feature():
 def test_parses_one_or_multiple_competition_ids():
     assert parse_competition_ids("330") == [330]
     assert parse_competition_ids("330, 580,330") == [330, 580]
+
+
+def test_parses_forward_candidate_parallelism(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "train_market_mover_tests.py",
+            "--forward-select",
+            "--candidate-jobs",
+            "4",
+            "--jobs",
+            "12",
+        ],
+    )
+
+    args = parse_args()
+
+    assert args.candidate_jobs == 4
+    assert args.jobs == 12
 
 
 def test_rejects_invalid_competition_ids():
