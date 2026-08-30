@@ -14,21 +14,29 @@
     "weight_change_from_last_run",
     "weight_change_vs_recent_avg",
     "last3_win_percentage",
-    "last3_place_percentage"
+    "last3_place_percentage",
+    "open_price","fluc1","fluc2"
   ],
   "experts": {
-    "0": [
-      "open_price"
-    ],
+    "0": 
+    [
+      "current_form_strength_minus_race_median"
+    ]
+    ,
     "1": [
-      "fluc1"
-    ],
+      "prize_money"
+    ]
+     ,
     "2": [
-      "fluc2"
+      "recent_market_edge_weighted"
     ]
     ,
     "3": [
-      "current_form_strength_minus_race_median"
+      "class_adjusted_margin_quality_weighted_3"
+    ]
+    ,
+    "4": [
+      "form_consistency_finish_percentile_6"
     ]
   }
 }
