@@ -36,6 +36,7 @@ from train_winner_ranker_pipeline import model_parameters
 
 CPU_THREADS = os.cpu_count() or 1
 DEFAULT_JOBS = max(1, int(CPU_THREADS * 0.80))
+SAVE_EVERY = 10
 
 
 def parse_competition_ids(value: str) -> list[int]:
@@ -242,13 +243,15 @@ def forward_feature_pool(
     forbidden = set(declared_base) | set(excluded)
 
     candidates: list[str] = []
+    candidate_seen: set[str] = set()
     for features in feature_sets.values():
         for feature in features:
             if (
                 feature not in forbidden
                 and (include_current_market or not is_current_market_feature(feature))
-                and feature not in candidates
+                and feature not in candidate_seen
             ):
+                candidate_seen.add(feature)
                 candidates.append(feature)
     if not candidates:
         raise ValueError("No non-base, non-excluded forward-selection candidates found")
@@ -294,38 +297,61 @@ def recommended_validation_races(total_races: int) -> int:
     return min(1000, max(1, int(round(total_races * 0.20))))
 
 
-def top3_capture(frame: pd.DataFrame, scores: np.ndarray) -> dict[str, Any]:
-    scored = frame.loc[:, ["race_id", "top3_mask", "is_winner"]].copy()
-    scored["score"] = np.asarray(scores, dtype=np.float64)
+def top3_capture_fast(
+    top3_mask: np.ndarray,
+    is_winner: np.ndarray,
+    scores: np.ndarray,
+    groups: np.ndarray,
+) -> dict[str, Any]:
+    """Calculate race-local expected-credit metrics without pandas grouping."""
+    top3_mask = np.asarray(top3_mask, dtype=np.float64)
+    is_winner = np.asarray(is_winner, dtype=np.float64)
+    scores = np.asarray(scores, dtype=np.float64)
+    groups = np.asarray(groups, dtype=np.int64)
+    if not (len(top3_mask) == len(is_winner) == len(scores) == int(groups.sum())):
+        raise ValueError("Metric arrays and race group sizes must describe the same rows")
+
     hits = 0.0
-    races = 0
     races_3of3 = 0
     races_2plus = 0
     winner_hits = 0.0
     races_with_score_ties = 0
-    for _, race in scored.groupby("race_id", sort=False):
-        ordered = race.sort_values("score", ascending=False, kind="stable")
-        score_counts = ordered.groupby("score", sort=False, dropna=False).size()
-        races_with_score_ties += int((score_counts > 1).any())
+    start = 0
+    for size in groups:
+        stop = start + int(size)
+        order = np.argsort(-scores[start:stop], kind="stable")
+        race_scores = scores[start:stop][order]
+        race_top3 = top3_mask[start:stop][order]
+        race_winner = is_winner[start:stop][order]
+        same_as_previous = (
+            (race_scores[1:] == race_scores[:-1])
+            | (np.isnan(race_scores[1:]) & np.isnan(race_scores[:-1]))
+        )
+        races_with_score_ties += int(same_as_previous.any())
+        boundaries = np.flatnonzero(~same_as_previous) + 1
+        tier_starts = np.r_[0, boundaries]
+        tier_ends = np.r_[boundaries, len(race_scores)]
 
         # Give expected credit at tied score boundaries. This prevents arbitrary
         # database/runner order from making a race-constant feature look useful.
         slots = 3
         race_hits = 0.0
-        for _, tier in ordered.groupby("score", sort=False, dropna=False):
+        for tier_start, tier_end in zip(tier_starts, tier_ends):
             if slots <= 0:
                 break
-            take_fraction = min(slots, len(tier)) / len(tier)
-            race_hits += float(pd.to_numeric(tier["top3_mask"]).sum()) * take_fraction
-            slots -= min(slots, len(tier))
-        top_tier = ordered.loc[ordered["score"] == ordered.iloc[0]["score"]]
-        winner_hits += (
-            float(pd.to_numeric(top_tier["is_winner"]).sum()) / len(top_tier)
-        )
+            tier_size = int(tier_end - tier_start)
+            take = min(slots, tier_size)
+            race_hits += float(race_top3[tier_start:tier_end].sum()) * (
+                take / tier_size
+            )
+            slots -= take
+        top_tier_end = int(tier_ends[0])
+        winner_hits += float(race_winner[:top_tier_end].sum()) / top_tier_end
         hits += race_hits
-        races += 1
         races_3of3 += int(np.isclose(race_hits, 3.0))
         races_2plus += int(race_hits >= 2.0)
+        start = stop
+    races = len(groups)
     possible = races * 3
     return {
         "validation_races": races,
@@ -339,6 +365,16 @@ def top3_capture(frame: pd.DataFrame, scores: np.ndarray) -> dict[str, Any]:
         "races_with_score_ties": races_with_score_ties,
         "tie_handling": "expected_credit",
     }
+
+
+def top3_capture(frame: pd.DataFrame, scores: np.ndarray) -> dict[str, Any]:
+    """Compatibility wrapper around the precomputed-array metric path."""
+    return top3_capture_fast(
+        frame["top3_mask"].to_numpy(dtype=np.float64),
+        frame["is_winner"].to_numpy(dtype=np.float64),
+        scores,
+        group_sizes(frame),
+    )
 
 
 def best_improving_result(
@@ -428,20 +464,22 @@ def enable_native_categorical(
 def fit_feature_set(
     args: argparse.Namespace,
     parameter_args: SimpleNamespace,
-    training: pd.DataFrame,
-    validation: pd.DataFrame,
+    train_matrix_all: pd.DataFrame,
+    validation_matrix_all: pd.DataFrame,
     train_y: np.ndarray,
     validation_y: np.ndarray,
     train_groups: np.ndarray,
     validation_groups: np.ndarray,
+    validation_top3: np.ndarray,
+    validation_winner: np.ndarray,
     features: list[str],
     selection_objective: str = "top3",
 ) -> dict[str, Any]:
     parameters = forward_selection_model_parameters(
         parameter_args, args.seed, args.max_estimators, selection_objective
     )
-    train_matrix = model_feature_matrix(training, features)
-    validation_matrix = model_feature_matrix(validation, features)
+    train_matrix = train_matrix_all.loc[:, features]
+    validation_matrix = validation_matrix_all.loc[:, features]
     model = XGBRanker(
         **enable_native_categorical(parameters, train_matrix),
         early_stopping_rounds=args.early_stopping_rounds,
@@ -454,7 +492,12 @@ def fit_feature_set(
         eval_group=[validation_groups],
         verbose=False,
     )
-    metrics = top3_capture(validation, model.predict(validation_matrix))
+    metrics = top3_capture_fast(
+        validation_top3,
+        validation_winner,
+        model.predict(validation_matrix),
+        validation_groups,
+    )
     result = {
         "features": list(features),
         "best_iteration": int(model.best_iteration) + 1,
@@ -467,10 +510,13 @@ def fit_feature_set(
 def refit_and_evaluate_feature_set(
     args: argparse.Namespace,
     parameter_args: SimpleNamespace,
-    training: pd.DataFrame,
-    test: pd.DataFrame,
+    train_matrix_all: pd.DataFrame,
+    test_matrix_all: pd.DataFrame,
     train_y: np.ndarray,
     train_groups: np.ndarray,
+    test_top3: np.ndarray,
+    test_winner: np.ndarray,
+    test_groups: np.ndarray,
     features: list[str],
     estimators: int,
     selection_objective: str,
@@ -479,11 +525,16 @@ def refit_and_evaluate_feature_set(
     parameters = forward_selection_model_parameters(
         parameter_args, args.seed, estimators, selection_objective
     )
-    train_matrix = model_feature_matrix(training, features)
-    test_matrix = model_feature_matrix(test, features)
+    train_matrix = train_matrix_all.loc[:, features]
+    test_matrix = test_matrix_all.loc[:, features]
     model = XGBRanker(**enable_native_categorical(parameters, train_matrix))
     model.fit(train_matrix, train_y, group=train_groups, verbose=False)
-    metrics = top3_capture(test, model.predict(test_matrix))
+    metrics = top3_capture_fast(
+        test_top3,
+        test_winner,
+        model.predict(test_matrix),
+        test_groups,
+    )
     metrics["test_races"] = metrics.pop("validation_races")
     del model
     return {
@@ -569,6 +620,9 @@ def run_forward_selection(
     training: pd.DataFrame,
     validation: pd.DataFrame,
     test: pd.DataFrame,
+    train_matrix_all: pd.DataFrame,
+    validation_matrix_all: pd.DataFrame,
+    test_matrix_all: pd.DataFrame,
     train_y: np.ndarray,
     validation_y: np.ndarray,
     train_groups: np.ndarray,
@@ -592,9 +646,15 @@ def run_forward_selection(
     ]
     selected_features: list[str] = []
     rounds: list[dict[str, Any]] = []
+    validation_top3 = validation["top3_mask"].to_numpy(dtype=np.float64)
+    validation_winner = validation["is_winner"].to_numpy(dtype=np.float64)
+    test_top3 = test["top3_mask"].to_numpy(dtype=np.float64)
+    test_winner = test["is_winner"].to_numpy(dtype=np.float64)
+    test_groups = group_sizes(test)
     baseline = fit_feature_set(
-        args, parameter_args, training, validation, train_y, validation_y,
-        train_groups, validation_groups, current_features,
+        args, parameter_args, train_matrix_all, validation_matrix_all,
+        train_y, validation_y, train_groups, validation_groups,
+        validation_top3, validation_winner, current_features,
         args.selection_objective,
     )
     initial_baseline = dict(baseline)
@@ -656,8 +716,9 @@ def run_forward_selection(
         for candidate_order, (label, feature) in enumerate(remaining):
             tested_features = [*current_features, feature]
             result = fit_feature_set(
-                args, parameter_args, training, validation, train_y,
-                validation_y, train_groups, validation_groups, tested_features,
+                args, parameter_args, train_matrix_all, validation_matrix_all,
+                train_y, validation_y, train_groups, validation_groups,
+                validation_top3, validation_winner, tested_features,
                 args.selection_objective,
             )
             result.update({
@@ -690,7 +751,11 @@ def run_forward_selection(
                 f"status={result['status'].upper()}",
                 flush=True,
             )
-            save_progress(completed=False)
+            if (
+                (candidate_order + 1) % SAVE_EVERY == 0
+                or candidate_order + 1 == len(remaining)
+            ):
+                save_progress(completed=False)
 
         best = best_improving_result(
             candidate_results,
@@ -735,8 +800,9 @@ def run_forward_selection(
             # Individual improvements are not additive. Refit the combined set
             # so the next round compares candidates with the true joint baseline.
             baseline = fit_feature_set(
-                args, parameter_args, training, validation, train_y,
-                validation_y, train_groups, validation_groups,
+                args, parameter_args, train_matrix_all, validation_matrix_all,
+                train_y, validation_y, train_groups, validation_groups,
+                validation_top3, validation_winner,
                 current_features, args.selection_objective,
             )
             round_record["combined_baseline"] = baseline
@@ -783,16 +849,22 @@ def run_forward_selection(
         print(f"Stopped at --max-forward-rounds={args.max_forward_rounds}.")
 
     refit_training = pd.concat([training, validation], ignore_index=True)
+    refit_matrix_all = pd.concat(
+        [train_matrix_all, validation_matrix_all], ignore_index=True
+    )
     refit_y = refit_training[
         "is_winner" if args.selection_objective == "winner" else "top3_mask"
     ].to_numpy(dtype=np.int64)
     sealed_selected = refit_and_evaluate_feature_set(
         args,
         parameter_args,
-        refit_training,
-        test,
+        refit_matrix_all,
+        test_matrix_all,
         refit_y,
         group_sizes(refit_training),
+        test_top3,
+        test_winner,
+        test_groups,
         current_features,
         int(baseline["best_iteration"]),
         args.selection_objective,
@@ -800,10 +872,13 @@ def run_forward_selection(
     sealed_baseline = refit_and_evaluate_feature_set(
         args,
         parameter_args,
-        refit_training,
-        test,
+        refit_matrix_all,
+        test_matrix_all,
         refit_y,
         group_sizes(refit_training),
+        test_top3,
+        test_winner,
+        test_groups,
         base_features,
         int(initial_baseline["best_iteration"]),
         args.selection_objective,
@@ -949,11 +1024,12 @@ def main() -> None:
 
     numeric_columns = database_numeric_columns(database)
     text_columns = database_text_columns(database)
+    text_column_set = set(text_columns)
     manifest_features = list(dict.fromkeys(
         feature for features in feature_sets.values() for feature in features
     ))
     manifest_categorical = [
-        feature for feature in manifest_features if feature in set(text_columns)
+        feature for feature in manifest_features if feature in text_column_set
     ]
     frame = load_training_rows(
         database,
@@ -1006,6 +1082,11 @@ def main() -> None:
     validation_y = validation[target_column].to_numpy(dtype=np.int64)
     train_groups = group_sizes(training)
     validation_groups = group_sizes(validation)
+    train_matrix_all = model_feature_matrix(training, manifest_features)
+    validation_matrix_all = model_feature_matrix(validation, manifest_features)
+    test_matrix_all = model_feature_matrix(test, manifest_features)
+    validation_top3 = validation["top3_mask"].to_numpy(dtype=np.float64)
+    validation_winner = validation["is_winner"].to_numpy(dtype=np.float64)
 
     print(
         f"database={database}\nmanifest={manifest_path}\n"
@@ -1025,8 +1106,9 @@ def main() -> None:
     if args.forward_select:
         run_forward_selection(
             args, parameter_args, database, manifest_path, results_path,
-            training, validation, test, train_y, validation_y, train_groups,
-            validation_groups, len(train_ids), len(validation_ids),
+            training, validation, test, train_matrix_all, validation_matrix_all,
+            test_matrix_all, train_y, validation_y, train_groups, validation_groups,
+            len(train_ids), len(validation_ids),
             base_features, feature_sets, added_features,
         )
         return
@@ -1036,8 +1118,8 @@ def main() -> None:
     base_parameters = forward_selection_model_parameters(
         parameter_args, args.seed, args.max_estimators, args.selection_objective
     )
-    base_train_matrix = model_feature_matrix(training, base_features)
-    base_validation_matrix = model_feature_matrix(validation, base_features)
+    base_train_matrix = train_matrix_all.loc[:, base_features]
+    base_validation_matrix = validation_matrix_all.loc[:, base_features]
     base_model = XGBRanker(
         **enable_native_categorical(base_parameters, base_train_matrix),
         early_stopping_rounds=args.early_stopping_rounds,
@@ -1050,8 +1132,11 @@ def main() -> None:
         eval_group=[validation_groups],
         verbose=False,
     )
-    base_metrics = top3_capture(
-        validation, base_model.predict(base_validation_matrix)
+    base_metrics = top3_capture_fast(
+        validation_top3,
+        validation_winner,
+        base_model.predict(base_validation_matrix),
+        validation_groups,
     )
     base_result = {
         "model": "base",
@@ -1087,8 +1172,8 @@ def main() -> None:
         parameters = forward_selection_model_parameters(
             parameter_args, args.seed, args.max_estimators, args.selection_objective
         )
-        train_matrix = model_feature_matrix(training, features)
-        validation_matrix = model_feature_matrix(validation, features)
+        train_matrix = train_matrix_all.loc[:, features]
+        validation_matrix = validation_matrix_all.loc[:, features]
         model = XGBRanker(
             **enable_native_categorical(parameters, train_matrix),
             early_stopping_rounds=args.early_stopping_rounds,
@@ -1102,7 +1187,12 @@ def main() -> None:
             verbose=False,
         )
         scores = model.predict(validation_matrix)
-        metrics = top3_capture(validation, scores)
+        metrics = top3_capture_fast(
+            validation_top3,
+            validation_winner,
+            scores,
+            validation_groups,
+        )
         extra_feature = added_features[label]
         result = {
             "model": label,
@@ -1129,14 +1219,15 @@ def main() -> None:
             else "skipped"
         )
         results.append(result)
-        save_results(
-            results_path, database, manifest_path, len(train_ids),
-            len(validation_ids), base_features, args.competition_ids,
-            base_result, results, completed=index == total,
-            selection_objective=args.selection_objective,
-            minimum_uplift=args.minimum_uplift,
-            test_races=len(test_ids),
-        )
+        if index % SAVE_EVERY == 0 or index == total:
+            save_results(
+                results_path, database, manifest_path, len(train_ids),
+                len(validation_ids), base_features, args.competition_ids,
+                base_result, results, completed=index == total,
+                selection_objective=args.selection_objective,
+                minimum_uplift=args.minimum_uplift,
+                test_races=len(test_ids),
+            )
         primary_uplift = float(result[
             "winner_uplift_vs_base"
             if args.selection_objective == "winner"
@@ -1168,14 +1259,21 @@ def main() -> None:
 
     chosen_result = ranked[0] if ranked else base_result
     refit_training = pd.concat([training, validation], ignore_index=True)
+    refit_matrix_all = pd.concat(
+        [train_matrix_all, validation_matrix_all], ignore_index=True
+    )
     refit_y = refit_training[target_column].to_numpy(dtype=np.int64)
+    test_groups = group_sizes(test)
     sealed_test = refit_and_evaluate_feature_set(
         args,
         parameter_args,
-        refit_training,
-        test,
+        refit_matrix_all,
+        test_matrix_all,
         refit_y,
         group_sizes(refit_training),
+        test["top3_mask"].to_numpy(dtype=np.float64),
+        test["is_winner"].to_numpy(dtype=np.float64),
+        test_groups,
         list(chosen_result["features"]),
         int(chosen_result["best_iteration"]),
         args.selection_objective,

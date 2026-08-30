@@ -3,8 +3,8 @@
   "checkpoint_version": 1,
   "model_config": {
     "feature_count": 455,
-    "num_experts": 3,
-    "top_k": 3,
+    "num_experts": 1,
+    "top_k": 1,
     "expert_hidden_dims": [
       64
     ],
@@ -15,450 +15,15 @@
         1,
         2,
         3,
-        4,
-        5,
-        6,
-        8,
-        9,
-        12,
-        13,
-        16,
-        18,
-        19,
-        23,
-        24,
-        25,
-        26,
-        28,
-        31,
-        32,
-        37,
-        43,
-        47,
-        48,
-        49,
-        51,
-        55,
-        56,
-        57,
-        58,
-        59,
-        60,
-        62,
-        63,
-        66,
-        68,
-        69,
-        70,
-        71,
-        73,
-        81,
-        87,
-        88,
-        92,
-        97,
-        100,
-        104,
-        109,
-        116,
-        121,
-        136,
-        139,
-        141,
-        143,
-        146,
-        154,
-        155,
-        165,
-        166,
-        168,
-        169,
-        178,
-        179,
-        181,
-        184,
-        185,
-        186,
-        187,
-        188,
-        195,
-        197,
-        201,
-        204,
-        207,
-        209,
-        210,
-        213,
-        215,
-        216,
-        217,
-        218,
-        222,
-        224,
-        225,
-        226,
-        229,
-        234,
-        235,
-        237,
-        238,
-        239,
-        240,
-        241,
-        244,
-        245,
-        247,
-        249,
-        250,
-        251,
-        253,
-        258,
-        260,
-        262,
-        267,
-        270,
-        271,
-        273,
-        278,
-        282,
-        284,
-        285,
-        286,
-        292,
-        296,
-        297,
-        298,
-        299,
-        300,
-        301,
-        304,
-        305,
-        307,
-        308,
-        318,
-        321,
-        322,
-        328,
-        330,
-        333,
-        334,
-        335,
-        337,
-        340,
-        341,
-        342,
-        343,
-        344,
-        350,
-        355,
-        357,
-        366,
-        367,
-        369,
-        372,
-        374,
-        382,
-        383,
-        385,
-        387,
-        388,
-        393,
-        394,
-        395,
-        408,
-        409,
-        410,
-        415,
-        416,
-        417,
-        420,
-        421,
-        422,
-        423,
-        424,
-        426,
-        427,
-        430,
-        432,
-        433,
-        437,
-        438,
-        439,
-        440,
-        442,
-        445,
-        446
-      ],
-      "1": [
-        0,
-        1,
-        2,
-        3,
-        5,
-        7,
-        11,
         14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        23,
-        24,
-        25,
-        27,
-        28,
         29,
-        31,
-        37,
-        38,
-        39,
-        40,
-        44,
         46,
-        50,
-        51,
-        52,
-        55,
-        58,
-        60,
-        61,
-        62,
-        63,
-        65,
-        66,
-        67,
-        69,
-        71,
-        73,
-        76,
-        77,
-        79,
-        81,
-        83,
-        84,
-        85,
-        86,
-        88,
-        90,
-        92,
-        96,
-        99,
-        100,
-        103,
-        106,
-        107,
-        108,
-        109,
-        110,
-        111,
-        113,
-        115,
-        116,
-        117,
-        118,
-        119,
-        120,
-        121,
-        122,
-        133,
-        134,
-        135,
-        136,
-        137,
-        138,
-        139,
-        142,
-        143,
-        145,
-        146,
-        147,
-        154,
-        156,
-        157,
-        158,
-        159,
-        160,
-        165,
-        166,
-        168,
-        172,
-        181,
-        182,
-        183,
-        184,
-        185,
-        187,
-        188,
-        189,
-        190,
-        191,
-        193,
-        194,
-        196,
-        197,
-        198,
-        199,
-        200,
-        202,
-        203,
-        205,
+        94,
         207,
-        211,
-        212,
-        213,
-        214,
-        215,
-        216,
-        217,
-        220,
-        221,
-        222,
-        225,
-        226,
-        227,
-        229,
-        232,
-        235,
-        237,
-        238,
-        240,
-        241,
-        242,
-        243,
-        244,
-        246,
-        247,
-        248,
-        249,
-        250,
-        252,
-        254,
-        255,
-        257,
-        258,
-        260,
-        262,
-        264,
-        266,
-        267,
-        268,
-        269,
-        272,
-        273,
-        275,
-        276,
-        277,
-        278,
-        282,
-        284,
-        289,
-        290,
-        291,
-        295,
-        296,
-        297,
-        298,
-        301,
-        306,
-        308,
-        309,
-        310,
-        311,
-        312,
-        313,
-        314,
-        315,
-        316,
-        318,
-        319,
-        320,
-        321,
-        323,
-        325,
-        326,
-        327,
-        328,
-        331,
-        333,
-        334,
-        335,
-        337,
-        342,
-        343,
-        345,
-        347,
-        348,
-        349,
-        350,
-        351,
-        353,
-        355,
-        356,
-        357,
-        358,
-        359,
-        361,
-        362,
-        364,
-        366,
-        367,
-        368,
-        369,
-        371,
-        373,
-        374,
-        376,
-        377,
-        378,
-        379,
-        381,
-        385,
-        386,
-        391,
-        393,
-        395,
-        409,
-        411,
-        412,
-        414,
-        415,
-        416,
-        417,
-        418,
-        419,
         420,
         421,
-        423,
-        425,
         428,
-        429,
-        430,
-        431,
-        432,
-        433,
-        434,
-        435,
-        437,
-        438,
-        439,
-        441,
-        442,
-        443,
-        445,
-        450,
-        451,
-        454
-      ],
-      "2": [
-        0,
-        1,
-        2,
-        3,
-        420,
-        421
+        443
       ]
     },
     "routing_mode": "learned",
@@ -4934,159 +4499,181 @@
       10868959
     ]
   },
-  "best_epoch": 1,
+  "best_epoch": 2,
   "history": [
     {
       "epoch": 1,
-      "main_ranking_loss": 2.320174162204449,
-      "router_balance_loss": 0.1961652975815993,
-      "total_loss": 2.3221358409294717,
+      "main_ranking_loss": 2.3675146726461556,
+      "router_balance_loss": 0.0,
+      "total_loss": 2.3675146726461556,
       "validation_metrics": {
         "races": 101,
-        "top1_hit_rate": 0.37623762376237624,
-        "top2_containment": 0.5148514851485149,
-        "top3_containment": 0.6732673267326733,
-        "mrr": 0.5636335062077636,
-        "race_logloss": 2.0802966274953745,
-        "average_winner_probability": 0.12825716331158535
+        "top1_hit_rate": 0.09900990099009901,
+        "top2_containment": 0.18811881188118812,
+        "top3_containment": 0.3069306930693069,
+        "mrr": 0.2951481961382952,
+        "race_logloss": 2.2760582073151596,
+        "average_winner_probability": 0.10598147940812724
       },
       "validation_router": {
-        "dominant_expert_rate": 0.6235177865612648,
-        "gate_entropy": 0.7544191479682922,
-        "average_number_of_active_experts": 3.0,
-        "router_balance_loss": 0.2132609486579895
+        "dominant_expert_rate": 1.0,
+        "gate_entropy": 0.0,
+        "average_number_of_active_experts": 1.0,
+        "router_balance_loss": 0.0
       },
       "best": true
     },
     {
       "epoch": 2,
-      "main_ranking_loss": 2.2526268830666174,
-      "router_balance_loss": 0.2770044656900259,
-      "total_loss": 2.25539692732004,
+      "main_ranking_loss": 2.3661381024580734,
+      "router_balance_loss": 0.0,
+      "total_loss": 2.3661381024580734,
       "validation_metrics": {
         "races": 101,
-        "top1_hit_rate": 0.3465346534653465,
-        "top2_containment": 0.5544554455445545,
-        "top3_containment": 0.7425742574257426,
-        "mrr": 0.566034103410341,
-        "race_logloss": 1.9782025415276656,
-        "average_winner_probability": 0.142584288621893
+        "top1_hit_rate": 0.09900990099009901,
+        "top2_containment": 0.18811881188118812,
+        "top3_containment": 0.31683168316831684,
+        "mrr": 0.2962646264626463,
+        "race_logloss": 2.2760330785104994,
+        "average_winner_probability": 0.10597996177649734
       },
       "validation_router": {
-        "dominant_expert_rate": 0.6324110671936759,
-        "gate_entropy": 0.636651873588562,
-        "average_number_of_active_experts": 3.0,
-        "router_balance_loss": 0.30376654863357544
+        "dominant_expert_rate": 1.0,
+        "gate_entropy": 0.0,
+        "average_number_of_active_experts": 1.0,
+        "router_balance_loss": 0.0
       },
-      "best": false
+      "best": true
     },
     {
       "epoch": 3,
-      "main_ranking_loss": 2.2238745946150558,
-      "router_balance_loss": 0.30854946283193735,
-      "total_loss": 2.2269600758185755,
+      "main_ranking_loss": 2.367594410822942,
+      "router_balance_loss": 0.0,
+      "total_loss": 2.367594410822942,
       "validation_metrics": {
         "races": 101,
-        "top1_hit_rate": 0.33663366336633666,
-        "top2_containment": 0.5445544554455446,
-        "top3_containment": 0.7524752475247525,
-        "mrr": 0.5622230080150872,
-        "race_logloss": 1.920542443952843,
-        "average_winner_probability": 0.15174995982410885
+        "top1_hit_rate": 0.09900990099009901,
+        "top2_containment": 0.18811881188118812,
+        "top3_containment": 0.3069306930693069,
+        "mrr": 0.2948577000557199,
+        "race_logloss": 2.2758944977717843,
+        "average_winner_probability": 0.10599312857531085
       },
       "validation_router": {
-        "dominant_expert_rate": 0.5938735177865613,
-        "gate_entropy": 0.681018590927124,
-        "average_number_of_active_experts": 3.0,
-        "router_balance_loss": 0.167684406042099
+        "dominant_expert_rate": 1.0,
+        "gate_entropy": 0.0,
+        "average_number_of_active_experts": 1.0,
+        "router_balance_loss": 0.0
       },
       "best": false
     },
     {
       "epoch": 4,
-      "main_ranking_loss": 2.198954391479492,
-      "router_balance_loss": 0.26502657120044415,
-      "total_loss": 2.2016046377328724,
+      "main_ranking_loss": 2.370128983717698,
+      "router_balance_loss": 0.0,
+      "total_loss": 2.370128983717698,
       "validation_metrics": {
         "races": 101,
-        "top1_hit_rate": 0.3465346534653465,
-        "top2_containment": 0.5742574257425742,
-        "top3_containment": 0.7524752475247525,
-        "mrr": 0.572949080622348,
-        "race_logloss": 1.910724066142907,
-        "average_winner_probability": 0.15368808739551224
+        "top1_hit_rate": 0.09900990099009901,
+        "top2_containment": 0.18811881188118812,
+        "top3_containment": 0.3069306930693069,
+        "mrr": 0.2948066235194948,
+        "race_logloss": 2.2758273578957118,
+        "average_winner_probability": 0.10599437230589366
       },
       "validation_router": {
-        "dominant_expert_rate": 0.43774703557312256,
-        "gate_entropy": 0.7457770109176636,
-        "average_number_of_active_experts": 3.0,
-        "router_balance_loss": 0.019042998552322388
+        "dominant_expert_rate": 1.0,
+        "gate_entropy": 0.0,
+        "average_number_of_active_experts": 1.0,
+        "router_balance_loss": 0.0
       },
       "best": false
     },
     {
       "epoch": 5,
-      "main_ranking_loss": 2.172499898763803,
-      "router_balance_loss": 0.13271037065065824,
-      "total_loss": 2.173826991594755,
+      "main_ranking_loss": 2.371321021593534,
+      "router_balance_loss": 0.0,
+      "total_loss": 2.371321021593534,
       "validation_metrics": {
         "races": 101,
-        "top1_hit_rate": 0.3564356435643564,
-        "top2_containment": 0.5544554455445545,
-        "top3_containment": 0.7623762376237624,
-        "mrr": 0.5748585572842998,
-        "race_logloss": 1.887475750788203,
-        "average_winner_probability": 0.15853483252006
+        "top1_hit_rate": 0.09900990099009901,
+        "top2_containment": 0.18811881188118812,
+        "top3_containment": 0.3069306930693069,
+        "mrr": 0.2951523723800952,
+        "race_logloss": 2.27565454964,
+        "average_winner_probability": 0.10600852103221535
       },
       "validation_router": {
-        "dominant_expert_rate": 0.35079051383399207,
-        "gate_entropy": 0.7334858775138855,
-        "average_number_of_active_experts": 3.0,
-        "router_balance_loss": 0.0005733966827392578
+        "dominant_expert_rate": 1.0,
+        "gate_entropy": 0.0,
+        "average_number_of_active_experts": 1.0,
+        "router_balance_loss": 0.0
       },
       "best": false
     },
     {
       "epoch": 6,
-      "main_ranking_loss": 2.1567046092106748,
-      "router_balance_loss": 0.0746711620917687,
-      "total_loss": 2.157451316026541,
+      "main_ranking_loss": 2.366008560474102,
+      "router_balance_loss": 0.0,
+      "total_loss": 2.366008560474102,
       "validation_metrics": {
         "races": 101,
-        "top1_hit_rate": 0.36633663366336633,
-        "top2_containment": 0.5742574257425742,
-        "top3_containment": 0.7524752475247525,
-        "mrr": 0.583922677982084,
-        "race_logloss": 1.8049967643040663,
-        "average_winner_probability": 0.17470678421530392
+        "top1_hit_rate": 0.09900990099009901,
+        "top2_containment": 0.18811881188118812,
+        "top3_containment": 0.3069306930693069,
+        "mrr": 0.29493270755646994,
+        "race_logloss": 2.2756481808093527,
+        "average_winner_probability": 0.10601091532423945
       },
       "validation_router": {
-        "dominant_expert_rate": 0.5602766798418972,
-        "gate_entropy": 0.6158790588378906,
-        "average_number_of_active_experts": 3.0,
-        "router_balance_loss": 0.1765635907649994
+        "dominant_expert_rate": 1.0,
+        "gate_entropy": 0.0,
+        "average_number_of_active_experts": 1.0,
+        "router_balance_loss": 0.0
       },
       "best": false
     },
     {
       "epoch": 7,
-      "main_ranking_loss": 2.1369086522322434,
-      "router_balance_loss": 0.09617002010345459,
-      "total_loss": 2.137870348416842,
+      "main_ranking_loss": 2.364499572607187,
+      "router_balance_loss": 0.0,
+      "total_loss": 2.364499572607187,
       "validation_metrics": {
         "races": 101,
-        "top1_hit_rate": 0.3465346534653465,
-        "top2_containment": 0.5544554455445545,
-        "top3_containment": 0.7326732673267327,
-        "mrr": 0.5668670438472418,
-        "race_logloss": 1.826336579298094,
-        "average_winner_probability": 0.17409120721392113
+        "top1_hit_rate": 0.09900990099009901,
+        "top2_containment": 0.18811881188118812,
+        "top3_containment": 0.3069306930693069,
+        "mrr": 0.2951684454159702,
+        "race_logloss": 2.275433989714807,
+        "average_winner_probability": 0.10602766164753696
       },
       "validation_router": {
-        "dominant_expert_rate": 0.549407114624506,
-        "gate_entropy": 0.6515682935714722,
-        "average_number_of_active_experts": 3.0,
-        "router_balance_loss": 0.20073476433753967
+        "dominant_expert_rate": 1.0,
+        "gate_entropy": 0.0,
+        "average_number_of_active_experts": 1.0,
+        "router_balance_loss": 0.0
+      },
+      "best": false
+    },
+    {
+      "epoch": 8,
+      "main_ranking_loss": 2.3690804114708532,
+      "router_balance_loss": 0.0,
+      "total_loss": 2.3690804114708532,
+      "validation_metrics": {
+        "races": 101,
+        "top1_hit_rate": 0.09900990099009901,
+        "top2_containment": 0.18811881188118812,
+        "top3_containment": 0.3069306930693069,
+        "mrr": 0.29493270755646994,
+        "race_logloss": 2.2754514231835534,
+        "average_winner_probability": 0.10602524433985795
+      },
+      "validation_router": {
+        "dominant_expert_rate": 1.0,
+        "gate_entropy": 0.0,
+        "average_number_of_active_experts": 1.0,
+        "router_balance_loss": 0.0
       },
       "best": false
     }
@@ -5094,161 +4681,81 @@
   "metrics": {
     "training": {
       "races": 2051,
-      "top1_hit_rate": 0.19941491955143834,
-      "top2_containment": 0.3447098976109215,
-      "top3_containment": 0.47001462701121405,
-      "mrr": 0.4031254101280917,
-      "race_logloss": 2.276056477016605,
-      "average_winner_probability": 0.10732724941878247
+      "top1_hit_rate": 0.09946367625548513,
+      "top2_containment": 0.19990248659190638,
+      "top3_containment": 0.2935153583617747,
+      "mrr": 0.2883356366087172,
+      "race_logloss": 2.36744248225977,
+      "average_winner_probability": 0.0962418007402377
     },
     "validation": {
       "races": 101,
-      "top1_hit_rate": 0.37623762376237624,
-      "top2_containment": 0.5148514851485149,
-      "top3_containment": 0.6732673267326733,
-      "mrr": 0.5636335062077636,
-      "race_logloss": 2.0802966274953745,
-      "average_winner_probability": 0.12825716331158535
+      "top1_hit_rate": 0.09900990099009901,
+      "top2_containment": 0.18811881188118812,
+      "top3_containment": 0.31683168316831684,
+      "mrr": 0.2962646264626463,
+      "race_logloss": 2.2760330785104994,
+      "average_winner_probability": 0.10597996177649734
     },
     "test": {
       "races": 1000,
-      "top1_hit_rate": 0.286,
-      "top2_containment": 0.517,
-      "top3_containment": 0.658,
-      "mrr": 0.5129224386724386,
-      "race_logloss": 2.0677901547378155,
-      "average_winner_probability": 0.13177764136716724
+      "top1_hit_rate": 0.109,
+      "top2_containment": 0.216,
+      "top3_containment": 0.337,
+      "mrr": 0.30924501609501615,
+      "race_logloss": 2.2194002738178114,
+      "average_winner_probability": 0.11238306394964456
     }
   },
   "router_diagnostics": {
     "training": {
       "expert_usage_rate": [
-        1.0,
-        1.0,
         1.0
       ],
       "mean_gate_weight_per_expert": [
-        0.16848069429397583,
-        0.5247102379798889,
-        0.3068085014820099
+        1.0
       ],
       "top1_routed_expert_frequency": [
-        0.018102372034956304,
-        0.6357232031389335,
-        0.3461744248261102
+        1.0
       ],
-      "gate_entropy": 0.7682783603668213,
-      "dominant_expert_rate": 0.6357232031389335,
-      "average_number_of_active_experts": 3.0,
-      "router_balance_loss": 0.1935141682624817,
+      "gate_entropy": 0.0,
+      "dominant_expert_rate": 1.0,
+      "average_number_of_active_experts": 1.0,
+      "router_balance_loss": 0.0,
       "race_dominant_gate_diagnostic_available": true,
       "pairwise_expert_logit_correlations": [
         [
-          1.0,
-          0.6601780908061651,
-          0.026920096803814676
-        ],
-        [
-          0.6601780908061651,
-          1.0,
-          0.14434624740153598
-        ],
-        [
-          0.026920096803814676,
-          0.14434624740153595,
           1.0
         ]
       ],
       "pairwise_expert_logit_pearson": [
         [
-          1.0,
-          0.6601780908061651,
-          0.026920096803814676
-        ],
-        [
-          0.6601780908061651,
-          1.0,
-          0.14434624740153598
-        ],
-        [
-          0.026920096803814676,
-          0.14434624740153595,
           1.0
         ]
       ],
       "pairwise_expert_logit_spearman": [
         [
-          1.0,
-          0.6451784268203147,
-          0.057485775041779125
-        ],
-        [
-          0.6451784268203147,
-          1.0,
-          0.16005102969991866
-        ],
-        [
-          0.057485775041779125,
-          0.16005102969991866,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_pearson": [
         [
-          1.0,
-          0.6933316056502848,
-          -0.08034362608670556
-        ],
-        [
-          0.6933316056502847,
-          1.0,
-          0.06130053351129272
-        ],
-        [
-          -0.08034362608670556,
-          0.06130053351129272,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_spearman": [
         [
-          1.0,
-          0.6772786787188487,
-          -0.0705140897872134
-        ],
-        [
-          0.6772786787188487,
-          1.0,
-          0.06207173855676493
-        ],
-        [
-          -0.0705140897872134,
-          0.06207173855676493,
           1.0
         ]
       ],
       "mean_race_level_ranking_correlation": [
         [
-          1.0,
-          0.6264969739825696,
-          -0.04037476929379527
-        ],
-        [
-          0.6264969739825696,
-          1.0,
-          0.050698202539847144
-        ],
-        [
-          -0.04037476929379527,
-          0.050698202539847144,
           1.0
         ]
       ],
-      "maximum_absolute_pairwise_expert_correlation": 0.6601780908061651,
+      "maximum_absolute_pairwise_expert_correlation": null,
       "specialisation_descriptions": [
-        "stronger usage in runner_experience=unknown (gate uplift +7.4%)",
-        "stronger usage in race_distance=long_1800m+ (gate uplift +3.9%)",
-        "stronger usage in runner_experience=developing_2-5 (gate uplift +9.4%)"
+        "no obvious specialisation"
       ],
       "breakdown": {
         "race_distance": [
@@ -5256,42 +4763,30 @@
             "value": "middle_1200-1799m",
             "runners": 15630,
             "mean_gate_weight_per_expert": [
-              0.1677103042602539,
-              0.5236586332321167,
-              0.30862975120544434
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.017018554062699937,
-              0.6339731285988484,
-              0.34900831733845167
+              1.0
             ]
           },
           {
             "value": "long_1800m+",
             "runners": 3226,
             "mean_gate_weight_per_expert": [
-              0.15200115740299225,
-              0.5641418695449829,
-              0.2838572859764099
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.011159330440173589,
-              0.6797892126472411,
-              0.30905145691258523
+              1.0
             ]
           },
           {
             "value": "short_<1200m",
             "runners": 3572,
             "mean_gate_weight_per_expert": [
-              0.18673259019851685,
-              0.493700236082077,
-              0.3195677697658539
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.029115341545352745,
-              0.6035834266517357,
-              0.3673012318029115
+              1.0
             ]
           }
         ],
@@ -5300,42 +4795,30 @@
             "value": "medium_8-11",
             "runners": 10799,
             "mean_gate_weight_per_expert": [
-              0.15711311995983124,
-              0.5093415379524231,
-              0.33354565501213074
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.008889712010371332,
-              0.6087600703768867,
-              0.3823502176127419
+              1.0
             ]
           },
           {
             "value": "small_<=7",
             "runners": 893,
             "mean_gate_weight_per_expert": [
-              0.15999479591846466,
-              0.44447389245033264,
-              0.3955310881137848
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0022396416573348264,
-              0.5207166853303471,
-              0.47704367301231804
+              1.0
             ]
           },
           {
             "value": "large_12+",
             "runners": 10736,
             "mean_gate_weight_per_expert": [
-              0.18062052130699158,
-              0.5468438267707825,
-              0.2725346088409424
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.028688524590163935,
-              0.6724105812220567,
-              0.29890089418777943
+              1.0
             ]
           }
         ],
@@ -5344,126 +4827,90 @@
             "value": "Good (4)",
             "runners": 7839,
             "mean_gate_weight_per_expert": [
-              0.1730354279279709,
-              0.5221714377403259,
-              0.3047925531864166
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.01785942084449547,
-              0.6327337670621253,
-              0.34940681209337926
+              1.0
             ]
           },
           {
             "value": "Soft (7)",
             "runners": 2178,
             "mean_gate_weight_per_expert": [
-              0.18207131326198578,
-              0.5280028581619263,
-              0.289925217628479
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.03213957759412305,
-              0.6432506887052342,
-              0.3246097337006428
+              1.0
             ]
           },
           {
             "value": "Soft (5)",
             "runners": 4369,
             "mean_gate_weight_per_expert": [
-              0.16985754668712616,
-              0.5290603637695312,
-              0.30108287930488586
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.01625085831998169,
-              0.6424811169604029,
-              0.3412680247196155
+              1.0
             ]
           },
           {
             "value": "Good (3)",
             "runners": 1924,
             "mean_gate_weight_per_expert": [
-              0.15334954857826233,
-              0.5246200561523438,
-              0.32203003764152527
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.012474012474012475,
-              0.6294178794178794,
-              0.3581081081081081
+              1.0
             ]
           },
           {
             "value": "Heavy (10)",
             "runners": 950,
             "mean_gate_weight_per_expert": [
-              0.12630504369735718,
-              0.5393303036689758,
-              0.3343646228313446
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0010526315789473684,
-              0.6347368421052632,
-              0.3642105263157895
+              1.0
             ]
           },
           {
             "value": "Soft (6)",
             "runners": 2360,
             "mean_gate_weight_per_expert": [
-              0.1778891682624817,
-              0.5212695002555847,
-              0.3008420467376709
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.025847457627118643,
-              0.6432203389830509,
-              0.3309322033898305
+              1.0
             ]
           },
           {
             "value": "Good",
             "runners": 448,
             "mean_gate_weight_per_expert": [
-              0.12685760855674744,
-              0.5094351172447205,
-              0.3637073040008545
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.578125,
-              0.421875
+              1.0
             ]
           },
           {
             "value": "Heavy (8)",
             "runners": 1345,
             "mean_gate_weight_per_expert": [
-              0.16687212884426117,
-              0.5223885178565979,
-              0.3107396960258484
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.016356877323420074,
-              0.6312267657992565,
-              0.3524163568773234
+              1.0
             ]
           },
           {
             "value": "Heavy (9)",
             "runners": 1015,
             "mean_gate_weight_per_expert": [
-              0.1650000363588333,
-              0.5228456258773804,
-              0.31215450167655945
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.016748768472906402,
-              0.6403940886699507,
-              0.34285714285714286
+              1.0
             ]
           }
         ],
@@ -5472,14 +4919,10 @@
             "value": "Horses - Aus/NZ",
             "runners": 22428,
             "mean_gate_weight_per_expert": [
-              0.16848069429397583,
-              0.5247102379798889,
-              0.3068085014820099
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.018102372034956304,
-              0.6357232031389335,
-              0.3461744248261102
+              1.0
             ]
           }
         ],
@@ -5488,56 +4931,40 @@
             "value": "experienced_6+",
             "runners": 19858,
             "mean_gate_weight_per_expert": [
-              0.16210931539535522,
-              0.541449248790741,
-              0.2964402139186859
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.01314331755463793,
-              0.6571658777318965,
-              0.3296908047134656
+              1.0
             ]
           },
           {
             "value": "developing_2-5",
             "runners": 2185,
             "mean_gate_weight_per_expert": [
-              0.2158944308757782,
-              0.38308319449424744,
-              0.401022344827652
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.056292906178489706,
-              0.44897025171624716,
-              0.49473684210526314
+              1.0
             ]
           },
           {
             "value": "inexperienced_0-1",
             "runners": 345,
             "mean_gate_weight_per_expert": [
-              0.22628824412822723,
-              0.4641753137111664,
-              0.3095363974571228
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.05507246376811594,
-              0.5797101449275363,
-              0.3652173913043478
+              1.0
             ]
           },
           {
             "value": "unknown",
             "runners": 40,
             "mean_gate_weight_per_expert": [
-              0.2428911179304123,
-              0.4731171727180481,
-              0.2839917838573456
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.075,
-              0.675,
-              0.25
+              1.0
             ]
           }
         ],
@@ -5546,235 +4973,109 @@
             "value": "none",
             "runners": 21833,
             "mean_gate_weight_per_expert": [
-              0.1682121753692627,
-              0.5258267521858215,
-              0.30596017837524414
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.017908670361379563,
-              0.6372005679476023,
-              0.3448907616910182
+              1.0
             ]
           },
           {
             "value": "two_plus",
             "runners": 363,
             "mean_gate_weight_per_expert": [
-              0.1927928626537323,
-              0.4850084185600281,
-              0.32219865918159485
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.03305785123966942,
-              0.5867768595041323,
-              0.38016528925619836
+              1.0
             ]
           },
           {
             "value": "one",
             "runners": 232,
             "mean_gate_weight_per_expert": [
-              0.15568117797374725,
-              0.4817323386669159,
-              0.3625866174697876
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.01293103448275862,
-              0.5732758620689655,
-              0.41379310344827586
+              1.0
             ]
           }
         ]
       },
       "top1_selection_agreement": [
         [
-          1.0,
-          0.37640175524134567,
-          0.09117503656752804
-        ],
-        [
-          0.37640175524134567,
-          1.0,
-          0.10580204778156997
-        ],
-        [
-          0.09117503656752804,
-          0.10580204778156997,
           1.0
         ]
       ],
       "top1_selection_disagreement": [
         [
-          0.0,
-          0.6235982447586543,
-          0.908824963432472
-        ],
-        [
-          0.6235982447586543,
-          0.0,
-          0.89419795221843
-        ],
-        [
-          0.908824963432472,
-          0.89419795221843,
           0.0
         ]
       ],
       "unique_top1_race_rate_per_expert": [
-        0.5699658703071673,
-        0.5553388590931253,
-        0.840565577766943
+        1.0
       ],
       "unique_top1_winner_race_rate_per_expert": [
-        0.07996099463676255,
-        0.08873720136518772,
-        0.07752315943442223
+        0.09946367625548513
       ],
       "winner_hit_rate_given_unique_top1_per_expert": [
-        0.14029084687767324,
-        0.15978928884986832,
-        0.09222737819025523
+        0.09946367625548513
       ],
       "expert_specific_winner_hit_rate": [
-        0.16235982447586544,
-        0.1764992686494393,
-        0.10385177961969771
+        0.09946367625548513
       ],
-      "race_dominant_gate_expert_winner_hit_rate": 0.1750365675280351,
+      "race_dominant_gate_expert_winner_hit_rate": 0.09946367625548513,
       "race_dominant_gate_expert_frequency": [
-        0.0009751340809361287,
-        0.9341784495368113,
-        0.06484641638225255
+        1.0
       ]
     },
     "validation": {
       "expert_usage_rate": [
-        1.0,
-        1.0,
         1.0
       ],
       "mean_gate_weight_per_expert": [
-        0.14557012915611267,
-        0.5226210355758667,
-        0.33180853724479675
+        1.0
       ],
       "top1_routed_expert_frequency": [
-        0.0029644268774703555,
-        0.6235177865612648,
-        0.37351778656126483
+        1.0
       ],
-      "gate_entropy": 0.7544191479682922,
-      "dominant_expert_rate": 0.6235177865612648,
-      "average_number_of_active_experts": 3.0,
-      "router_balance_loss": 0.2132609486579895,
+      "gate_entropy": 0.0,
+      "dominant_expert_rate": 1.0,
+      "average_number_of_active_experts": 1.0,
+      "router_balance_loss": 0.0,
       "race_dominant_gate_diagnostic_available": true,
       "pairwise_expert_logit_correlations": [
         [
-          1.0,
-          0.6521475163231673,
-          0.11991233906656759
-        ],
-        [
-          0.6521475163231673,
-          1.0,
-          0.2951039552540104
-        ],
-        [
-          0.11991233906656758,
-          0.29510395525401045,
           1.0
         ]
       ],
       "pairwise_expert_logit_pearson": [
         [
-          1.0,
-          0.6521475163231673,
-          0.11991233906656759
-        ],
-        [
-          0.6521475163231673,
-          1.0,
-          0.2951039552540104
-        ],
-        [
-          0.11991233906656758,
-          0.29510395525401045,
           1.0
         ]
       ],
       "pairwise_expert_logit_spearman": [
         [
-          1.0,
-          0.6266371236393893,
-          0.1049710567962853
-        ],
-        [
-          0.6266371236393893,
-          1.0,
-          0.24912153518754038
-        ],
-        [
-          0.1049710567962853,
-          0.24912153518754038,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_pearson": [
         [
-          1.0,
-          0.6974165309511956,
-          -0.04092329055937645
-        ],
-        [
-          0.6974165309511956,
-          1.0,
-          0.11445423914861873
-        ],
-        [
-          -0.04092329055937645,
-          0.11445423914861874,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_spearman": [
         [
-          1.0,
-          0.6801692817269192,
-          -0.046488568466703364
-        ],
-        [
-          0.6801692817269192,
-          1.0,
-          0.08778324909188617
-        ],
-        [
-          -0.046488568466703364,
-          0.08778324909188617,
           1.0
         ]
       ],
       "mean_race_level_ranking_correlation": [
         [
-          1.0,
-          0.6150268533640695,
-          -0.052509202116074585
-        ],
-        [
-          0.6150268533640695,
-          1.0,
-          0.027122324384991833
-        ],
-        [
-          -0.052509202116074585,
-          0.027122324384991833,
           1.0
         ]
       ],
-      "maximum_absolute_pairwise_expert_correlation": 0.6521475163231673,
+      "maximum_absolute_pairwise_expert_correlation": null,
       "specialisation_descriptions": [
-        "stronger usage in number_of_debutants=two_plus (gate uplift +6.9%)",
-        "stronger usage in field_size=large_12+ (gate uplift +3.8%)",
-        "stronger usage in field_size=small_<=7 (gate uplift +13.9%)"
+        "no obvious specialisation"
       ],
       "breakdown": {
         "race_distance": [
@@ -5782,42 +5083,30 @@
             "value": "middle_1200-1799m",
             "runners": 627,
             "mean_gate_weight_per_expert": [
-              0.1443828046321869,
-              0.517744243144989,
-              0.33787310123443604
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.003189792663476874,
-              0.6124401913875598,
-              0.3843700159489633
+              1.0
             ]
           },
           {
             "value": "long_1800m+",
             "runners": 179,
             "mean_gate_weight_per_expert": [
-              0.12562936544418335,
-              0.5534533262252808,
-              0.3209172785282135
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6703910614525139,
-              0.329608938547486
+              1.0
             ]
           },
           {
             "value": "short_<1200m",
             "runners": 206,
             "mean_gate_weight_per_expert": [
-              0.1665118932723999,
-              0.5106744766235352,
-              0.32281357049942017
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0048543689320388345,
-              0.616504854368932,
-              0.3786407766990291
+              1.0
             ]
           }
         ],
@@ -5826,42 +5115,30 @@
             "value": "medium_8-11",
             "runners": 560,
             "mean_gate_weight_per_expert": [
-              0.14919431507587433,
-              0.5179522633552551,
-              0.3328535556793213
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0035714285714285713,
-              0.6339285714285714,
-              0.3625
+              1.0
             ]
           },
           {
             "value": "large_12+",
             "runners": 355,
             "mean_gate_weight_per_expert": [
-              0.14704124629497528,
-              0.5607941150665283,
-              0.29216498136520386
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0028169014084507044,
-              0.6704225352112676,
-              0.3267605633802817
+              1.0
             ]
           },
           {
             "value": "small_<=7",
             "runners": 97,
             "mean_gate_weight_per_expert": [
-              0.11926456540822983,
-              0.40987253189086914,
-              0.47086280584335327
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.3917525773195876,
-              0.6082474226804123
+              1.0
             ]
           }
         ],
@@ -5870,126 +5147,90 @@
             "value": "Good (3)",
             "runners": 116,
             "mean_gate_weight_per_expert": [
-              0.14717446267604828,
-              0.5306285619735718,
-              0.3221970796585083
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6206896551724138,
-              0.3793103448275862
+              1.0
             ]
           },
           {
             "value": "Good (4)",
             "runners": 315,
             "mean_gate_weight_per_expert": [
-              0.14335894584655762,
-              0.5304041504859924,
-              0.326236754655838
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.638095238095238,
-              0.3619047619047619
+              1.0
             ]
           },
           {
             "value": "Soft (6)",
             "runners": 92,
             "mean_gate_weight_per_expert": [
-              0.16027213633060455,
-              0.53309565782547,
-              0.3066323399543762
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6956521739130435,
-              0.30434782608695654
+              1.0
             ]
           },
           {
             "value": "Heavy (10)",
             "runners": 67,
             "mean_gate_weight_per_expert": [
-              0.12203701585531235,
-              0.5380845665931702,
-              0.3398783206939697
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6567164179104478,
-              0.34328358208955223
+              1.0
             ]
           },
           {
             "value": "Heavy (9)",
             "runners": 85,
             "mean_gate_weight_per_expert": [
-              0.13039155304431915,
-              0.5372321009635925,
-              0.3323764204978943
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6352941176470588,
-              0.36470588235294116
+              1.0
             ]
           },
           {
             "value": "Soft (7)",
             "runners": 103,
             "mean_gate_weight_per_expert": [
-              0.16581636667251587,
-              0.506801187992096,
-              0.32738247513771057
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.019417475728155338,
-              0.5825242718446602,
-              0.39805825242718446
+              1.0
             ]
           },
           {
             "value": "Good",
             "runners": 71,
             "mean_gate_weight_per_expert": [
-              0.11936905235052109,
-              0.4380965232849121,
-              0.442534476518631
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.4225352112676056,
-              0.5774647887323944
+              1.0
             ]
           },
           {
             "value": "Soft (5)",
             "runners": 135,
             "mean_gate_weight_per_expert": [
-              0.16598832607269287,
-              0.5294089317321777,
-              0.30460265278816223
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.007407407407407408,
-              0.6666666666666666,
-              0.32592592592592595
+              1.0
             ]
           },
           {
             "value": "Heavy (8)",
             "runners": 28,
             "mean_gate_weight_per_expert": [
-              0.11140237003564835,
-              0.525918185710907,
-              0.36267948150634766
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.5714285714285714,
-              0.42857142857142855
+              1.0
             ]
           }
         ],
@@ -5998,14 +5239,10 @@
             "value": "Horses - Aus/NZ",
             "runners": 1012,
             "mean_gate_weight_per_expert": [
-              0.14557012915611267,
-              0.5226210355758667,
-              0.33180853724479675
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0029644268774703555,
-              0.6235177865612648,
-              0.37351778656126483
+              1.0
             ]
           }
         ],
@@ -6014,42 +5251,30 @@
             "value": "experienced_6+",
             "runners": 907,
             "mean_gate_weight_per_expert": [
-              0.1416032910346985,
-              0.5353028774261475,
-              0.3230939507484436
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.002205071664829107,
-              0.6339581036383682,
-              0.3638368246968026
+              1.0
             ]
           },
           {
             "value": "developing_2-5",
             "runners": 86,
             "mean_gate_weight_per_expert": [
-              0.17467746138572693,
-              0.3921806812286377,
-              0.433141827583313
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.011627906976744186,
-              0.4883720930232558,
-              0.5
+              1.0
             ]
           },
           {
             "value": "inexperienced_0-1",
             "runners": 19,
             "mean_gate_weight_per_expert": [
-              0.20319168269634247,
-              0.5076602697372437,
-              0.2891480028629303
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.7368421052631579,
-              0.2631578947368421
+              1.0
             ]
           }
         ],
@@ -6058,235 +5283,109 @@
             "value": "none",
             "runners": 971,
             "mean_gate_weight_per_expert": [
-              0.14426858723163605,
-              0.5242921113967896,
-              0.33143922686576843
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.003089598352214212,
-              0.6240988671472708,
-              0.3728115345005149
+              1.0
             ]
           },
           {
             "value": "two_plus",
             "runners": 19,
             "mean_gate_weight_per_expert": [
-              0.2143932431936264,
-              0.48953768610954285,
-              0.29606905579566956
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6842105263157895,
-              0.3157894736842105
+              1.0
             ]
           },
           {
             "value": "one",
             "runners": 22,
             "mean_gate_weight_per_expert": [
-              0.1435782015323639,
-              0.47744694352149963,
-              0.3789748251438141
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.5454545454545454,
-              0.45454545454545453
+              1.0
             ]
           }
         ]
       },
       "top1_selection_agreement": [
         [
-          1.0,
-          0.43564356435643564,
-          0.09900990099009901
-        ],
-        [
-          0.43564356435643564,
-          1.0,
-          0.06930693069306931
-        ],
-        [
-          0.09900990099009901,
-          0.06930693069306931,
           1.0
         ]
       ],
       "top1_selection_disagreement": [
         [
-          0.0,
-          0.5643564356435644,
-          0.900990099009901
-        ],
-        [
-          0.5643564356435644,
-          0.0,
-          0.9306930693069306
-        ],
-        [
-          0.900990099009901,
-          0.9306930693069306,
           0.0
         ]
       ],
       "unique_top1_race_rate_per_expert": [
-        0.48514851485148514,
-        0.5148514851485149,
-        0.8514851485148515
+        1.0
       ],
       "unique_top1_winner_race_rate_per_expert": [
-        0.07920792079207921,
-        0.1188118811881188,
-        0.0594059405940594
+        0.09900990099009901
       ],
       "winner_hit_rate_given_unique_top1_per_expert": [
-        0.16326530612244897,
-        0.23076923076923078,
-        0.06976744186046512
+        0.09900990099009901
       ],
       "expert_specific_winner_hit_rate": [
-        0.2871287128712871,
-        0.31683168316831684,
-        0.0891089108910891
+        0.09900990099009901
       ],
-      "race_dominant_gate_expert_winner_hit_rate": 0.2871287128712871,
+      "race_dominant_gate_expert_winner_hit_rate": 0.09900990099009901,
       "race_dominant_gate_expert_frequency": [
-        0.0,
-        0.8613861386138614,
-        0.13861386138613863
+        1.0
       ]
     },
     "test": {
       "expert_usage_rate": [
-        1.0,
-        1.0,
         1.0
       ],
       "mean_gate_weight_per_expert": [
-        0.1556709110736847,
-        0.5080090165138245,
-        0.3363184928894043
+        1.0
       ],
       "top1_routed_expert_frequency": [
-        0.010969307035122878,
-        0.6077417993882502,
-        0.38128889357662693
+        1.0
       ],
-      "gate_entropy": 0.7699022889137268,
-      "dominant_expert_rate": 0.6077417993882502,
-      "average_number_of_active_experts": 3.0,
-      "router_balance_loss": 0.18625012040138245,
+      "gate_entropy": 0.0,
+      "dominant_expert_rate": 1.0,
+      "average_number_of_active_experts": 1.0,
+      "router_balance_loss": 0.0,
       "race_dominant_gate_diagnostic_available": true,
       "pairwise_expert_logit_correlations": [
         [
-          1.0,
-          0.6137094903838479,
-          0.06771964598985168
-        ],
-        [
-          0.6137094903838478,
-          1.0,
-          0.13458465092289468
-        ],
-        [
-          0.06771964598985168,
-          0.1345846509228947,
           1.0
         ]
       ],
       "pairwise_expert_logit_pearson": [
         [
-          1.0,
-          0.6137094903838479,
-          0.06771964598985168
-        ],
-        [
-          0.6137094903838478,
-          1.0,
-          0.13458465092289468
-        ],
-        [
-          0.06771964598985168,
-          0.1345846509228947,
           1.0
         ]
       ],
       "pairwise_expert_logit_spearman": [
         [
-          1.0,
-          0.6035458139857693,
-          0.07423596991401528
-        ],
-        [
-          0.6035458139857693,
-          1.0,
-          0.12354979634625975
-        ],
-        [
-          0.07423596991401528,
-          0.12354979634625975,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_pearson": [
         [
-          1.0,
-          0.6799260510896806,
-          -0.044884546607507646
-        ],
-        [
-          0.6799260510896805,
-          1.0,
-          0.04858291881828832
-        ],
-        [
-          -0.044884546607507646,
-          0.04858291881828832,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_spearman": [
         [
-          1.0,
-          0.6709995042020555,
-          -0.03778270500504205
-        ],
-        [
-          0.6709995042020555,
-          1.0,
-          0.03903897935829501
-        ],
-        [
-          -0.03778270500504205,
-          0.03903897935829501,
           1.0
         ]
       ],
       "mean_race_level_ranking_correlation": [
         [
-          1.0,
-          0.6204118744001098,
-          -0.019350471867013004
-        ],
-        [
-          0.6204118744001098,
-          1.0,
-          0.016377267427833582
-        ],
-        [
-          -0.019350471867013004,
-          0.016377267427833582,
           1.0
         ]
       ],
-      "maximum_absolute_pairwise_expert_correlation": 0.6137094903838479,
+      "maximum_absolute_pairwise_expert_correlation": null,
       "specialisation_descriptions": [
-        "stronger usage in runner_experience=inexperienced_0-1 (gate uplift +5.3%)",
-        "stronger usage in field_size=large_12+ (gate uplift +4.8%)",
-        "stronger usage in track_condition=Soft (gate uplift +9.9%)"
+        "no obvious specialisation"
       ],
       "breakdown": {
         "race_distance": [
@@ -6294,42 +5393,30 @@
             "value": "middle_1200-1799m",
             "runners": 6164,
             "mean_gate_weight_per_expert": [
-              0.1521429866552353,
-              0.5094473958015442,
-              0.33840829133987427
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.007624918883841661,
-              0.6075600259571706,
-              0.3848150551589877
+              1.0
             ]
           },
           {
             "value": "short_<1200m",
             "runners": 2111,
             "mean_gate_weight_per_expert": [
-              0.18484754860401154,
-              0.4791012406349182,
-              0.3360516130924225
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.02700142112742776,
-              0.5836096636665088,
-              0.3893889152060635
+              1.0
             ]
           },
           {
             "value": "long_1800m+",
             "runners": 1206,
             "mean_gate_weight_per_expert": [
-              0.12263158708810806,
-              0.5512669682502747,
-              0.326101690530777
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6509121061359867,
-              0.3490878938640133
+              1.0
             ]
           }
         ],
@@ -6338,42 +5425,30 @@
             "value": "medium_8-11",
             "runners": 5812,
             "mean_gate_weight_per_expert": [
-              0.15488243103027344,
-              0.5017716288566589,
-              0.34334468841552734
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.011011699931176875,
-              0.5989332415691673,
-              0.3900550584996559
+              1.0
             ]
           },
           {
             "value": "large_12+",
             "runners": 2470,
             "mean_gate_weight_per_expert": [
-              0.16254055500030518,
-              0.5556315183639526,
-              0.28182756900787354
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.012955465587044534,
-              0.6821862348178138,
-              0.3048582995951417
+              1.0
             ]
           },
           {
             "value": "small_<=7",
             "runners": 1199,
             "mean_gate_weight_per_expert": [
-              0.14534108340740204,
-              0.44014742970466614,
-              0.41451171040534973
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.006672226855713094,
-              0.4970809007506255,
-              0.4962468723936614
+              1.0
             ]
           }
         ],
@@ -6382,154 +5457,110 @@
             "value": "Good (4)",
             "runners": 2577,
             "mean_gate_weight_per_expert": [
-              0.17022192478179932,
-              0.5024590492248535,
-              0.3273191452026367
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.012029491656965464,
-              0.5983701979045402,
-              0.38960031043849436
+              1.0
             ]
           },
           {
             "value": "Soft (6)",
             "runners": 1153,
             "mean_gate_weight_per_expert": [
-              0.17105309665203094,
-              0.5165117383003235,
-              0.31243544816970825
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.026019080659150044,
-              0.6227233304423244,
-              0.3512575888985256
+              1.0
             ]
           },
           {
             "value": "Soft (7)",
             "runners": 848,
             "mean_gate_weight_per_expert": [
-              0.16243429481983185,
-              0.5233235955238342,
-              0.31424203515052795
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.008254716981132075,
-              0.6497641509433962,
-              0.3419811320754717
+              1.0
             ]
           },
           {
             "value": "Good",
             "runners": 424,
             "mean_gate_weight_per_expert": [
-              0.1043124571442604,
-              0.4791998863220215,
-              0.4164876639842987
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.5495283018867925,
-              0.45047169811320753
+              1.0
             ]
           },
           {
             "value": "Heavy (9)",
             "runners": 561,
             "mean_gate_weight_per_expert": [
-              0.13496249914169312,
-              0.5277737379074097,
-              0.3372635245323181
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0053475935828877,
-              0.6345811051693404,
-              0.3600713012477718
+              1.0
             ]
           },
           {
             "value": "Good (3)",
             "runners": 1067,
             "mean_gate_weight_per_expert": [
-              0.13753704726696014,
-              0.5006808638572693,
-              0.36178213357925415
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0009372071227741331,
-              0.5979381443298969,
-              0.40112464854732893
+              1.0
             ]
           },
           {
             "value": "Heavy (10)",
             "runners": 553,
             "mean_gate_weight_per_expert": [
-              0.12821538746356964,
-              0.5190098285675049,
-              0.35277488827705383
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6166365280289331,
-              0.3833634719710669
+              1.0
             ]
           },
           {
             "value": "Soft (5)",
             "runners": 1321,
             "mean_gate_weight_per_expert": [
-              0.16712850332260132,
-              0.5077028870582581,
-              0.3251689672470093
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0174110522331567,
-              0.6169568508705526,
-              0.36563209689629067
+              1.0
             ]
           },
           {
             "value": "unknown",
             "runners": 34,
             "mean_gate_weight_per_expert": [
-              0.08469866216182709,
-              0.5402969121932983,
-              0.37500444054603577
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.6470588235294118,
-              0.35294117647058826
+              1.0
             ]
           },
           {
             "value": "Heavy (8)",
             "runners": 885,
             "mean_gate_weight_per_expert": [
-              0.15065720677375793,
-              0.5058436393737793,
-              0.3434986174106598
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.010169491525423728,
-              0.5853107344632769,
-              0.40451977401129946
+              1.0
             ]
           },
           {
             "value": "Soft",
             "runners": 58,
             "mean_gate_weight_per_expert": [
-              0.13277065753936768,
-              0.4324107766151428,
-              0.4348185956478119
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0,
-              0.4827586206896552,
-              0.5172413793103449
+              1.0
             ]
           }
         ],
@@ -6538,14 +5569,10 @@
             "value": "Horses - Aus/NZ",
             "runners": 9481,
             "mean_gate_weight_per_expert": [
-              0.1556709110736847,
-              0.5080090165138245,
-              0.3363184928894043
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.010969307035122878,
-              0.6077417993882502,
-              0.38128889357662693
+              1.0
             ]
           }
         ],
@@ -6554,42 +5581,30 @@
             "value": "experienced_6+",
             "runners": 7159,
             "mean_gate_weight_per_expert": [
-              0.14419493079185486,
-              0.5276210904121399,
-              0.3281833529472351
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.0047492666573543795,
-              0.6301159379801649,
-              0.3651347953624808
+              1.0
             ]
           },
           {
             "value": "inexperienced_0-1",
             "runners": 812,
             "mean_gate_weight_per_expert": [
-              0.2084425687789917,
-              0.49655595421791077,
-              0.2950012981891632
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.023399014778325122,
-              0.6379310344827587,
-              0.33866995073891626
+              1.0
             ]
           },
           {
             "value": "developing_2-5",
             "runners": 1510,
             "mean_gate_weight_per_expert": [
-              0.18170110881328583,
-              0.4211938977241516,
-              0.39710530638694763
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.03377483443708609,
-              0.48543046357615893,
-              0.48079470198675495
+              1.0
             ]
           }
         ],
@@ -6598,105 +5613,59 @@
             "value": "none",
             "runners": 7712,
             "mean_gate_weight_per_expert": [
-              0.1494756042957306,
-              0.5135363936424255,
-              0.3369872272014618
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.01037344398340249,
-              0.6124221991701245,
-              0.377204356846473
+              1.0
             ]
           },
           {
             "value": "two_plus",
             "runners": 1036,
             "mean_gate_weight_per_expert": [
-              0.19530291855335236,
-              0.48560330271720886,
-              0.3190937638282776
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.009652509652509652,
-              0.6013513513513513,
-              0.388996138996139
+              1.0
             ]
           },
           {
             "value": "one",
             "runners": 733,
             "mean_gate_weight_per_expert": [
-              0.16483722627162933,
-              0.4815341532230377,
-              0.3536284565925598
+              1.0
             ],
             "top1_routed_expert_frequency": [
-              0.019099590723055934,
-              0.567530695770805,
-              0.41336971350613916
+              1.0
             ]
           }
         ]
       },
       "top1_selection_agreement": [
         [
-          1.0,
-          0.396,
-          0.1
-        ],
-        [
-          0.396,
-          1.0,
-          0.113
-        ],
-        [
-          0.1,
-          0.113,
           1.0
         ]
       ],
       "top1_selection_disagreement": [
         [
-          0.0,
-          0.604,
-          0.9
-        ],
-        [
-          0.604,
-          0.0,
-          0.887
-        ],
-        [
-          0.9,
-          0.887,
           0.0
         ]
       ],
       "unique_top1_race_rate_per_expert": [
-        0.541,
-        0.528,
-        0.824
+        1.0
       ],
       "unique_top1_winner_race_rate_per_expert": [
-        0.097,
-        0.125,
-        0.075
+        0.109
       ],
       "winner_hit_rate_given_unique_top1_per_expert": [
-        0.17929759704251386,
-        0.23674242424242425,
-        0.09101941747572816
+        0.109
       ],
       "expert_specific_winner_hit_rate": [
-        0.225,
-        0.253,
-        0.119
+        0.109
       ],
-      "race_dominant_gate_expert_winner_hit_rate": 0.244,
+      "race_dominant_gate_expert_winner_hit_rate": 0.109,
       "race_dominant_gate_expert_frequency": [
-        0.004,
-        0.85,
-        0.146
+        1.0
       ]
     }
   },
@@ -6723,8 +5692,8 @@
     "encoder_hidden_dim": 128,
     "representation_dim": 64,
     "dropout": 0.2,
-    "moe_num_experts": 3,
-    "moe_top_k": 3,
+    "moe_num_experts": 1,
+    "moe_top_k": 1,
     "moe_gate_temperature": 1.0,
     "moe_router_balance_weight": 0.01,
     "moe_expert_hidden_dims": [

@@ -17,6 +17,7 @@ from train_market_mover_tests import (
     parse_competition_ids,
     recommended_validation_races,
     top3_capture,
+    top3_capture_fast,
     validate_production_selection_scope,
 )
 
@@ -96,6 +97,19 @@ def test_tied_scores_receive_expected_not_row_order_credit():
     assert result["winner_hits"] == pytest.approx(0.1)
     assert result["winner_hit_rate"] == pytest.approx(0.1)
     assert result["races_with_score_ties"] == 1
+
+
+def test_fast_top3_capture_accepts_precomputed_race_arrays():
+    result = top3_capture_fast(
+        top3_mask=np.array([1, 1, 1, 0, 1, 1, 1, 0], dtype=float),
+        is_winner=np.array([1, 0, 0, 0, 0, 1, 0, 0], dtype=float),
+        scores=np.array([4, 3, 2, 1, 4, 3, 1, 2], dtype=float),
+        groups=np.array([4, 4]),
+    )
+
+    assert result["top3_hits"] == 5
+    assert result["winner_hits"] == 1
+    assert result["validation_races"] == 2
 
 
 def test_infers_all_shared_base_features_and_one_addition():
