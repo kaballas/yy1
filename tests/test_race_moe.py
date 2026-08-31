@@ -19,7 +19,12 @@ from src.race_moe_snapshot import (
     create_split_snapshot, load_split_snapshot, resolve_snapshot_manifest,
     snapshot_manifest_reference,
 )
-from train_moe_winner_ranker_feature_map import _competition_race_ids, parse_args
+from train_moe_winner_ranker_feature_map import (
+    _competition_population,
+    _selection,
+    main as feature_map_main,
+    parse_args,
+)
 
 
 def test_moe_forward_contract_and_sparse_top_k():
@@ -60,6 +65,28 @@ def test_manual_feature_map_still_rejects_an_empty_expert():
             ["speed", "form"],
             2,
         )
+
+
+def test_feature_mapped_fixed_uniform_routing_bypasses_router():
+    model = RaceMixtureOfExpertsFeatureMap(FeatureMappedRaceWinnerConfig(
+        feature_count=3,
+        num_experts=2,
+        top_k=None,
+        routing_mode="fixed_uniform",
+        dropout=0.0,
+        feature_map=((0, 1), (1, 2)),
+    )).eval()
+    x = torch.randn(1, 4, 3)
+    valid = torch.tensor([[True, True, True, False]])
+
+    output = model(x, valid, return_diagnostics=True)
+
+    assert model.router is None
+    assert torch.allclose(
+        output["router_weights"][valid],
+        torch.full((3, 2), 0.5),
+    )
+    assert torch.allclose(output["logits"], output["expert_logits"].mean(dim=-1))
 
 
 def test_feature_mapped_moe_has_no_disconnected_encoder():
@@ -238,13 +265,28 @@ def test_chronological_split_is_consecutive_and_sealed():
     assert test == [9, 10]
 
 
-def test_competition_filter_preserves_chronological_race_order():
+def test_competition_population_filter_preserves_row_order():
     frame = pd.DataFrame({
         "race_id": [10, 11, 12, 13, 14],
         "competition_id": [7, 8, 7, 9, 8],
     })
-    assert _competition_race_ids(frame, [10, 11, 12, 13, 14], [8, 7]) == [10, 11, 12, 14]
-    assert _competition_race_ids(frame, [10, 11], None) == [10, 11]
+    filtered = _competition_population(frame, [8, 7])
+    assert filtered["race_id"].tolist() == [10, 11, 12, 14]
+    assert _competition_population(frame, None).equals(frame)
+
+
+def test_feature_map_checkpoint_selection_prioritizes_logloss():
+    lower_logloss = {
+        "top1_hit_rate": 0.20,
+        "mrr": 0.40,
+        "race_logloss": 1.20,
+    }
+    higher_top1 = {
+        "top1_hit_rate": 0.30,
+        "mrr": 0.50,
+        "race_logloss": 1.30,
+    }
+    assert _selection(lower_logloss) > _selection(higher_top1)
 
 
 def test_competition_cli_accepts_training_alias_and_validation_ids():
@@ -255,6 +297,15 @@ def test_competition_cli_accepts_training_alias_and_validation_ids():
     ])
     assert args.train_competition_ids == [7, 8]
     assert args.validation_competition_ids == [9, 10]
+
+
+def test_feature_map_trainer_rejects_mismatched_competition_populations():
+    with pytest.raises(ValueError, match="must match"):
+        feature_map_main([
+            "--feature-map-json", "map.json",
+            "--train-competition-id", "7",
+            "--validation-competition-id", "8",
+        ])
 
 
 def test_diagnostics_warn_for_router_and_output_collapse():

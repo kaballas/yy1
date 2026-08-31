@@ -12,7 +12,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from src.model.race_moe import MoERouter, masked_mean_max, router_balance_loss
+from src.model.race_moe import MoERouter, masked_mean_max
 
 RELATIVE_SUFFIX = "__race_percentile"
 
@@ -152,7 +152,10 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
             for indices in self.feat_to_expert
         ])
         router_input_dim = 3 * config.feature_count
-        self.router = MoERouter(router_input_dim, config.router_hidden_dim, config.num_experts)
+        self.router = (
+            MoERouter(router_input_dim, config.router_hidden_dim, config.num_experts)
+            if config.routing_mode == "learned" else None
+        )
 
     @property
     def feature_map(self) -> tuple[tuple[int, ...], ...]:
@@ -167,28 +170,36 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
             raise ValueError("valid_mask must be bool [batch, runners]")
 
         race_context = masked_mean_max(features, valid_mask)
-        expanded_context = race_context.unsqueeze(1).expand(-1, features.shape[1], -1)
-        router_input = torch.cat((features, expanded_context), dim=-1)
-        router_logits = self.router(router_input)
-        dense_weights = F.softmax(router_logits / self.model_config.gate_temperature, dim=-1)
-
-        top_k = self.model_config.num_experts if self.model_config.top_k is None else self.model_config.top_k
-        if top_k < self.model_config.num_experts:
-            indices = dense_weights.topk(top_k, dim=-1).indices
-            selected = torch.zeros_like(dense_weights, dtype=torch.bool)
-            selected.scatter_(-1, indices, True)
-            sparse_weights = dense_weights * selected
-            sparse_weights = sparse_weights / sparse_weights.sum(dim=-1, keepdim=True).clamp_min(torch.finfo(sparse_weights.dtype).eps)
-            router_weights = sparse_weights + dense_weights - dense_weights.detach()
-        else:
-            selected = torch.ones_like(dense_weights, dtype=torch.bool)
-            router_weights = dense_weights
-
         expert_logits = []
         for expert_index, feature_indices in enumerate(self.feat_to_expert):
             expert_features = features[..., feature_indices]
             expert_logits.append(self.experts[expert_index](expert_features))
         expert_logits_tensor = torch.stack(expert_logits, dim=-1)
+
+        if self.router is None:
+            router_logits = torch.zeros_like(expert_logits_tensor)
+            dense_weights = torch.full_like(
+                expert_logits_tensor, 1.0 / self.model_config.num_experts
+            )
+            router_weights = dense_weights
+            selected = torch.ones_like(dense_weights, dtype=torch.bool)
+        else:
+            expanded_context = race_context.unsqueeze(1).expand(-1, features.shape[1], -1)
+            router_input = torch.cat((features, expanded_context), dim=-1)
+            router_logits = self.router(router_input)
+            dense_weights = F.softmax(router_logits / self.model_config.gate_temperature, dim=-1)
+
+            top_k = self.model_config.num_experts if self.model_config.top_k is None else self.model_config.top_k
+            if top_k < self.model_config.num_experts:
+                indices = dense_weights.topk(top_k, dim=-1).indices
+                selected = torch.zeros_like(dense_weights, dtype=torch.bool)
+                selected.scatter_(-1, indices, True)
+                sparse_weights = dense_weights * selected
+                sparse_weights = sparse_weights / sparse_weights.sum(dim=-1, keepdim=True).clamp_min(torch.finfo(sparse_weights.dtype).eps)
+                router_weights = sparse_weights + dense_weights - dense_weights.detach()
+            else:
+                selected = torch.ones_like(dense_weights, dtype=torch.bool)
+                router_weights = dense_weights
         final_logits = (router_weights * expert_logits_tensor).sum(dim=-1)
         final_logits = final_logits.masked_fill(~valid_mask, 0.0)
 
@@ -210,11 +221,12 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
 
     def contributing_parameter_count(self) -> int:
         expert_counts = [sum(p.numel() for p in expert.parameters()) for expert in self.experts]
-        if self.model_config.top_k is None:
+        if self.router is None or self.model_config.top_k is None:
             active = expert_counts
         else:
             active = sorted(expert_counts, reverse=True)[: self.model_config.top_k]
-        return sum(p.numel() for p in self.router.parameters()) + sum(active)
+        router = 0 if self.router is None else sum(p.numel() for p in self.router.parameters())
+        return router + sum(active)
 
     def executed_parameter_count(self) -> int:
         return self.trainable_parameter_count()

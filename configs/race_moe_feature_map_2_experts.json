@@ -2,10 +2,7 @@
   "shared_features": [
     "active_field_size",
     "distance_m",
-    "field_size",
-    "open_price",
-      "fluc1",
-      "fluc2"
+    "field_size"
   ],
 
   "experts": {
@@ -21,10 +18,7 @@
       "recent_finish_percentile_avg_6",
       "recent_finish_percentile_weighted_3_minus_race_median",
       "recent_margin_slope_6",
-      "historical_run_quality_weighted_6"
-    ],
-
-    "1": [
+      "historical_run_quality_weighted_6",
       "career_starts",
       "career_wins",
       "career_seconds",
@@ -35,10 +29,7 @@
       "class_adjusted_margin_quality_weighted_3",
       "recent6_vs_career_place_rate",
       "first_up_win_rate_rank",
-      "second_up_win_rate_rank"
-    ],
-
-    "2": [
+      "second_up_win_rate_rank",
       "draw_number",
       "weight_kg",
       "trackFamiliarity",
@@ -53,8 +44,10 @@
       "recent_barrier_percentile_std_6"
     ],
 
-    "3": [
-      
+    "1": [
+      "open_price",
+      "fluc1",
+      "fluc2",
       "recent_market_edge_weighted",
       "recent_1_starting_price",
       "jockey_trainer_history_win_excess",

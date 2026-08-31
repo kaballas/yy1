@@ -43,14 +43,38 @@ def prediction_view(result: pd.DataFrame, *, diagnostics: bool) -> pd.DataFrame:
     return result.loc[:, ["rank", "runner_number", "runner_name"]]
 
 
-def main() -> None:
-    args = parse_args()
-    device = torch.device(args.device)
-    checkpoint = torch.load(args.checkpoint.resolve(), map_location=device, weights_only=False)
-    if checkpoint.get("checkpoint_type") != "race_winner_moe_feature_map":
-        raise ValueError("Checkpoint is not a race_winner_moe_feature_map bundle")
+def expert_usage_line(router_weights: np.ndarray) -> str:
+    """Format each expert's mean mixture weight across the active field."""
+    usage = router_weights.mean(axis=0) * 100.0
+    values = " ".join(
+        f"expert_{expert}={percentage:.2f}%"
+        for expert, percentage in enumerate(usage)
+    )
+    return f"expert_usage_mean_gate: {values}"
 
-    model_config = checkpoint["model_config"]
+
+def expert_influence_line(
+    router_weights: np.ndarray, expert_logits: np.ndarray,
+) -> str:
+    """Format each expert's share of field-relative weighted score movement."""
+    weighted_logits = router_weights * expert_logits
+    centered = weighted_logits - weighted_logits.mean(axis=0, keepdims=True)
+    magnitudes = np.mean(np.abs(centered), axis=0)
+    total = float(magnitudes.sum())
+    influence = (
+        magnitudes / total * 100.0
+        if total > np.finfo(magnitudes.dtype).eps
+        else np.zeros_like(magnitudes)
+    )
+    values = " ".join(
+        f"expert_{expert}={percentage:.2f}%"
+        for expert, percentage in enumerate(influence)
+    )
+    return f"expert_influence_score_variation: {values}"
+
+
+def build_model_from_checkpoint_config(model_config: dict) -> RaceMixtureOfExpertsFeatureMap:
+    """Recreate the exact model variant described by a saved checkpoint."""
     map_dict = model_config["feature_expert_map"]
     feature_map = tuple(
         tuple(int(idx) for idx in sorted(map_dict[str(expert_id)]))
@@ -63,9 +87,21 @@ def main() -> None:
         gate_temperature=model_config["gate_temperature"],
         expert_hidden_dims=tuple(model_config["expert_hidden_dims"]),
         router_hidden_dim=model_config["router_hidden_dim"],
+        routing_mode=model_config.get("routing_mode", "learned"),
         feature_map=feature_map,
     )
-    model = RaceMixtureOfExpertsFeatureMap(config).to(device)
+    return RaceMixtureOfExpertsFeatureMap(config)
+
+
+def main() -> None:
+    args = parse_args()
+    device = torch.device(args.device)
+    checkpoint = torch.load(args.checkpoint.resolve(), map_location=device, weights_only=False)
+    if checkpoint.get("checkpoint_type") != "race_winner_moe_feature_map":
+        raise ValueError("Checkpoint is not a race_winner_moe_feature_map bundle")
+
+    model_config = checkpoint["model_config"]
+    model = build_model_from_checkpoint_config(model_config).to(device)
     model.load_state_dict(checkpoint["model_state_dict"], strict=True)
     model.eval()
 
@@ -92,19 +128,19 @@ def main() -> None:
     x = torch.from_numpy(values).unsqueeze(0).to(device)
     valid = torch.ones((1, len(frame)), dtype=torch.bool, device=device)
     with torch.inference_mode():
-        output = model(x, valid, return_diagnostics=args.diagnostics)
-        output_logits = output["logits"] if args.diagnostics else output
+        output = model(x, valid, return_diagnostics=True)
+        output_logits = output["logits"]
         logits = output_logits[0].cpu().numpy()
         probability = F.softmax(output_logits[0], dim=0).cpu().numpy()
+        weights = output["router_weights"][0].cpu().numpy()
+        expert_logits = output["expert_logits"][0].cpu().numpy()
 
     result = frame[["runner_number", "runner_name"]].copy()
     result["ranking_logit"] = logits
     result["winner_probability"] = probability
     result["rank"] = result["winner_probability"].rank(method="first", ascending=False).astype(int)
     if args.diagnostics:
-        weights = output["router_weights"][0].cpu().numpy()
         selected = output["selected_experts"][0].cpu().numpy()
-        expert_logits = output["expert_logits"][0].cpu().numpy()
         for expert in range(weights.shape[1]):
             result[f"expert_{expert}_gate"] = weights[:, expert]
             result[f"expert_{expert}_selected"] = selected[:, expert].astype(int)
@@ -115,7 +151,9 @@ def main() -> None:
         f"RACE WINNER FEATURE-MAP MOE\n"
         f"race={args.race_id} R{first['race_number']} {first['race_name']} "
         f"start={first['start_time_iso']} active_runners={len(frame)}\n"
-        f"num_experts={model_config['num_experts']} top_k={model_config['top_k']}"
+        f"num_experts={model_config['num_experts']} top_k={model_config['top_k']}\n"
+        f"{expert_usage_line(weights)}\n"
+        f"{expert_influence_line(weights, expert_logits)}"
     )
     print(
         prediction_view(result, diagnostics=args.diagnostics).to_string(

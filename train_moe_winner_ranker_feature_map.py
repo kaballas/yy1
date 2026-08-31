@@ -81,7 +81,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         nargs="+",
         default=None,
         metavar="ID",
-        help="Train only on these competition IDs within the chronological training window.",
+        help="Restrict the population to these competition IDs before chronological splitting.",
     )
     parser.add_argument(
         "--validation-competition-id",
@@ -90,7 +90,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         nargs="+",
         default=None,
         metavar="ID",
-        help="Validate only on these competition IDs within the chronological validation window.",
+        help="Must match --train-competition-id to select checkpoints in-distribution.",
     )
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--races-per-batch", type=int, default=32)
@@ -135,28 +135,21 @@ def validate_args(args: argparse.Namespace) -> None:
 
 def _selection(metrics: dict[str, float | int]) -> tuple[float, float, float]:
     return (
-        float(metrics["top1_hit_rate"]),
-        float(metrics["mrr"]),
         -float(metrics["race_logloss"]),
+        float(metrics["mrr"]),
+        float(metrics["top1_hit_rate"]),
     )
 
 
-def _competition_race_ids(
+def _competition_population(
     frame: pd.DataFrame,
-    race_ids: list[int],
     competition_ids: list[int] | None,
-) -> list[int]:
-    """Filter race IDs by competition without changing chronological order."""
+) -> pd.DataFrame:
+    """Restrict the population before creating chronological partitions."""
     if competition_ids is None:
-        return race_ids
+        return frame
     competition = pd.to_numeric(frame["competition_id"], errors="coerce")
-    matching = set(
-        frame.loc[
-            frame["race_id"].isin(race_ids) & competition.isin(competition_ids),
-            "race_id",
-        ].astype(int)
-    )
-    return [race_id for race_id in race_ids if race_id in matching]
+    return frame.loc[competition.isin(competition_ids)].copy()
 
 
 def _run_epoch(
@@ -211,6 +204,19 @@ def _split_range(frame: pd.DataFrame, race_ids_values: list[int]) -> dict[str, A
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     validate_args(args)
+    train_competitions = (
+        None if args.train_competition_ids is None
+        else sorted(set(args.train_competition_ids))
+    )
+    validation_competitions = (
+        None if args.validation_competition_ids is None
+        else sorted(set(args.validation_competition_ids))
+    )
+    if train_competitions != validation_competitions:
+        raise ValueError(
+            "--train-competition-id and --validation-competition-id must match; "
+            "use a separate run for cross-competition evaluation"
+        )
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -220,16 +226,11 @@ def main(argv: list[str] | None = None) -> None:
     features, market_excluded = market_blind_features(configured_features, include_market=args.include_market_features)
     zeroed = [name for name in configured_zeroed if name in features]
 
-    frame = load_finished_winner_rows(args.db, features)
+    frame = _competition_population(
+        load_finished_winner_rows(args.db, features),
+        train_competitions,
+    )
     train_ids, validation_ids, test_ids = chronological_race_ids(frame, args.validation_races, args.test_races)
-    train_ids = _competition_race_ids(frame, train_ids, args.train_competition_ids)
-    validation_ids = _competition_race_ids(frame, validation_ids, args.validation_competition_ids)
-    if not train_ids:
-        requested = args.train_competition_ids if args.train_competition_ids is not None else "all"
-        raise ValueError(f"No training races remain for competition IDs {requested}")
-    if not validation_ids:
-        requested = args.validation_competition_ids if args.validation_competition_ids is not None else "all"
-        raise ValueError(f"No validation races remain for competition IDs {requested}")
 
     partitions = {
         "training": frame.loc[frame["race_id"].isin(train_ids)].copy(),
@@ -282,8 +283,8 @@ def main(argv: list[str] | None = None) -> None:
         f"model_type=moe_feature_map objective=race_softmax_nll "
         f"market_blind={not args.include_market_features} raw_features={len(features)} model_features={len(expanded_features)}\n"
         f"train_races={len(train_ids):,} validation_races={len(validation_ids):,} sealed_test_races={len(test_ids):,} device={device}\n"
-        f"train_competition_ids={args.train_competition_ids or 'all'} "
-        f"validation_competition_ids={args.validation_competition_ids or 'all'} test_competition_ids=all\n"
+        f"competition_ids={train_competitions or 'all'} "
+        "split_population=shared\n"
         f"num_experts={args.moe_num_experts} top_k={args.moe_top_k if args.moe_top_k is not None else 'all'} routing_mode={config.routing_mode} temperature={args.moe_gate_temperature:g} balance_weight={args.moe_router_balance_weight:g} expert_hidden_dims={list(args.moe_expert_hidden_dims)}",
         flush=True,
     )
