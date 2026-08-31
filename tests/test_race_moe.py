@@ -12,6 +12,7 @@ from src.model.race_moe_feature_map import (
     FeatureMappedRaceWinnerConfig,
     RaceMixtureOfExpertsFeatureMap,
     load_feature_expert_map,
+    load_router_feature_indices,
 )
 from src.race_moe_data import chronological_race_ids, market_blind_features
 from src.race_moe_evaluation import collapse_warnings, routing_diagnostics
@@ -65,6 +66,30 @@ def test_manual_feature_map_still_rejects_an_empty_expert():
             ["speed", "form"],
             2,
         )
+
+
+def test_router_feature_allowlist_is_explicit_and_rejects_unknown_features(tmp_path):
+    path = tmp_path / "map.json"
+    path.write_text('{"router_features": ["form", "speed", "form"]}')
+    assert load_router_feature_indices(path, ["speed", "form"]) == (1, 0)
+
+    path.write_text('{"router_features": ["missing"]}')
+    with pytest.raises(ValueError, match="unavailable features"):
+        load_router_feature_indices(path, ["speed", "form"])
+
+
+def test_feature_mapped_router_uses_only_allowlisted_features():
+    model = RaceMixtureOfExpertsFeatureMap(FeatureMappedRaceWinnerConfig(
+        feature_count=3,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        feature_map=((0, 1), (1, 2)),
+        router_feature_indices=(1,),
+    ))
+
+    assert model.router is not None
+    assert model.router.network[1].in_features == 3
 
 
 def test_feature_mapped_fixed_uniform_routing_bypasses_router():

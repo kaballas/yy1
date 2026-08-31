@@ -28,6 +28,7 @@ class FeatureMappedRaceWinnerConfig:
     dropout: float = 0.20
     routing_mode: str = "learned"
     feature_map: tuple[tuple[int, ...], ...] = ()
+    router_feature_indices: tuple[int, ...] = ()
 
 
 def _normalise_expert_map(raw: Any, feature_names: list[str], num_experts: int) -> tuple[tuple[int, ...], ...]:
@@ -99,6 +100,27 @@ def load_feature_expert_map(path: str | Path | None, feature_names: list[str], n
     return _normalise_expert_map(path, feature_names, num_experts)
 
 
+def load_router_feature_indices(
+    path: str | Path, feature_names: list[str],
+) -> tuple[int, ...]:
+    """Load the explicit raw-feature allowlist used by the learned router."""
+    payload = json.loads(Path(path).read_text())
+    router_features = payload.get("router_features")
+    if not isinstance(router_features, list) or not router_features:
+        raise ValueError(
+            "feature map JSON must contain a non-empty 'router_features' list"
+        )
+    feature_to_index = {name: idx for idx, name in enumerate(feature_names)}
+    unknown = [name for name in router_features if name not in feature_to_index]
+    if unknown:
+        raise ValueError(
+            "router_features contains unavailable features: " + ", ".join(unknown)
+        )
+    return tuple(
+        dict.fromkeys(feature_to_index[name] for name in router_features)
+    )
+
+
 def expand_feature_map_to_model_features(
     raw_map: tuple[tuple[int, ...], ...],
     raw_feature_names: list[str],
@@ -121,6 +143,17 @@ def expand_feature_map_to_model_features(
             )
         expanded.append(tuple(sorted(indices)))
     return tuple(expanded)
+
+
+def expand_feature_indices_to_model_features(
+    raw_indices: tuple[int, ...],
+    raw_feature_names: list[str],
+    model_feature_names: list[str],
+) -> tuple[int, ...]:
+    """Expand an allowlist to include each configured race-relative feature."""
+    return expand_feature_map_to_model_features(
+        (raw_indices,), raw_feature_names, model_feature_names,
+    )[0]
 
 
 class FeatureMappedExpert(nn.Module):
@@ -146,12 +179,16 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
         self.num_experts = config.num_experts
         self.feat_to_expert = list(config.feature_map)
         self.has_feature_map = bool(config.feature_map)
+        self.router_feature_indices = (
+            config.router_feature_indices
+            or tuple(range(config.feature_count))
+        )
 
         self.experts = nn.ModuleList([
             FeatureMappedExpert(len(indices), config.expert_hidden_dims, config.dropout)
             for indices in self.feat_to_expert
         ])
-        router_input_dim = 3 * config.feature_count
+        router_input_dim = 3 * len(self.router_feature_indices)
         self.router = (
             MoERouter(router_input_dim, config.router_hidden_dim, config.num_experts)
             if config.routing_mode == "learned" else None
@@ -169,7 +206,8 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
         if valid_mask.shape != features.shape[:2] or valid_mask.dtype != torch.bool:
             raise ValueError("valid_mask must be bool [batch, runners]")
 
-        race_context = masked_mean_max(features, valid_mask)
+        router_features = features[..., self.router_feature_indices]
+        race_context = masked_mean_max(router_features, valid_mask)
         expert_logits = []
         for expert_index, feature_indices in enumerate(self.feat_to_expert):
             expert_features = features[..., feature_indices]
@@ -185,7 +223,7 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
             selected = torch.ones_like(dense_weights, dtype=torch.bool)
         else:
             expanded_context = race_context.unsqueeze(1).expand(-1, features.shape[1], -1)
-            router_input = torch.cat((features, expanded_context), dim=-1)
+            router_input = torch.cat((router_features, expanded_context), dim=-1)
             router_logits = self.router(router_input)
             dense_weights = F.softmax(router_logits / self.model_config.gate_temperature, dim=-1)
 

@@ -1,0 +1,4 @@
+cohort_id,races,model,checkpoint_type,path,top1,top2,top3,mrr,logloss,avg_winner_probability,cohort_rank
+039dd0a2e9c0,1000,race_winner_moe_feature_map_2_experts,race_winner_moe_feature_map,/home/theo/yy1/outputs/race_winner_moe_feature_map_2_experts.pt,0.302,0.478,0.608,0.503184102009102,2.0410912133331376,0.198315357696265,1
+039dd0a2e9c0,1000,race_winner_moe_feature_map_1_experts,race_winner_moe_feature_map,/home/theo/yy1/outputs/race_winner_moe_feature_map_1_experts.pt,0.205,0.363,0.504,0.4173486957486957,2.1648043918548208,0.1392845110706985,2
+039dd0a2e9c0,1000,race_winner_moe_feature_map_uniform,race_winner_moe_feature_map,/home/theo/yy1/outputs/race_winner_moe_feature_map_uniform.pt,0.207,0.351,0.5,0.41498102453102453,2.1785333554608854,0.13766539758164437,3

@@ -22,7 +22,9 @@ from src.model.race_moe_feature_map import (
     FeatureMappedRaceWinnerConfig,
     RaceMixtureOfExpertsFeatureMap,
     expand_feature_map_to_model_features,
+    expand_feature_indices_to_model_features,
     load_feature_expert_map,
+    load_router_feature_indices,
 )
 from src.race_moe_data import (
     batches, chronological_race_ids, load_finished_winner_rows,
@@ -264,6 +266,10 @@ def main(argv: list[str] | None = None) -> None:
 
     feature_map = load_feature_expert_map(args.feature_map_json, features, args.moe_num_experts)
     feature_map = expand_feature_map_to_model_features(feature_map, features, expanded_features)
+    router_features = load_router_feature_indices(args.feature_map_json, features)
+    router_feature_indices = expand_feature_indices_to_model_features(
+        router_features, features, expanded_features,
+    )
     config = FeatureMappedRaceWinnerConfig(
         feature_count=len(expanded_features),
         num_experts=args.moe_num_experts,
@@ -274,6 +280,7 @@ def main(argv: list[str] | None = None) -> None:
         dropout=args.dropout,
         routing_mode=args.moe_routing_mode,
         feature_map=feature_map,
+        router_feature_indices=router_feature_indices,
     )
     model = RaceMixtureOfExpertsFeatureMap(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -285,6 +292,7 @@ def main(argv: list[str] | None = None) -> None:
         f"train_races={len(train_ids):,} validation_races={len(validation_ids):,} sealed_test_races={len(test_ids):,} device={device}\n"
         f"competition_ids={train_competitions or 'all'} "
         "split_population=shared\n"
+        f"router_features={len(router_feature_indices)} "
         f"num_experts={args.moe_num_experts} top_k={args.moe_top_k if args.moe_top_k is not None else 'all'} routing_mode={config.routing_mode} temperature={args.moe_gate_temperature:g} balance_weight={args.moe_router_balance_weight:g} expert_hidden_dims={list(args.moe_expert_hidden_dims)}",
         flush=True,
     )
@@ -353,6 +361,7 @@ def main(argv: list[str] | None = None) -> None:
             "expert_hidden_dims": list(args.moe_expert_hidden_dims),
             "router_hidden_dim": args.moe_router_hidden_dim,
             "feature_expert_map": {str(i): list(indices) for i, indices in enumerate(feature_map)},
+            "router_feature_indices": list(router_feature_indices),
             "routing_mode": args.moe_routing_mode,
             "gate_temperature": args.moe_gate_temperature,
         },

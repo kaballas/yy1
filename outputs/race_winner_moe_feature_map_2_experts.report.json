@@ -3,8 +3,8 @@
   "checkpoint_version": 1,
   "model_config": {
     "feature_count": 455,
-    "num_experts": 2,
-    "top_k": 1,
+    "num_experts": 9,
+    "top_k": 7,
     "expert_hidden_dims": [
       64
     ],
@@ -15,47 +15,21 @@
         1,
         2,
         3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
         14,
         15,
         39,
         46,
-        50,
-        135,
-        147,
-        166,
-        168,
-        171,
-        172,
         181,
         201,
         219,
         221,
-        240,
-        243,
-        260,
         271,
-        282,
         309,
-        330,
         345,
         348,
         393,
         420,
         421,
-        422,
-        423,
-        424,
-        425,
-        426,
-        427,
         428,
         429,
         450
@@ -63,24 +37,167 @@
       "1": [
         0,
         1,
-        33,
-        34,
-        35,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        18,
         46,
+        50,
+        95,
+        97,
+        168,
+        171,
+        172,
+        282,
+        330,
+        420,
+        421,
+        422,
+        423,
+        424,
+        425,
+        432
+      ],
+      "2": [
+        0,
+        1,
+        2,
+        3,
+        8,
+        9,
+        10,
+        11,
+        46,
+        135,
+        147,
+        240,
+        243,
+        246,
+        260,
+        268,
+        420,
+        421,
+        426,
+        427
+      ],
+      "3": [
+        0,
+        1,
+        2,
+        3,
+        32,
+        46,
+        91,
+        95,
         142,
         189,
         198,
+        240,
+        306,
+        307,
+        312,
         339,
-        447,
-        448,
-        449,
+        420,
+        421,
+        446,
         454
+      ],
+      "4": [
+        0,
+        1,
+        2,
+        3,
+        11,
+        42,
+        46,
+        77,
+        87,
+        128,
+        140,
+        157,
+        180,
+        181,
+        330,
+        420,
+        421,
+        453
+      ],
+      "5": [
+        0,
+        1,
+        2,
+        3,
+        14,
+        15,
+        19,
+        46,
+        48,
+        330,
+        411,
+        420,
+        421,
+        428,
+        429,
+        433
+      ],
+      "6": [
+        0,
+        1,
+        2,
+        3,
+        37,
+        46,
+        106,
+        115,
+        197,
+        257,
+        288,
+        316,
+        333,
+        393,
+        420,
+        421
+      ],
+      "7": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        37,
+        46,
+        106,
+        228,
+        304,
+        361,
+        420,
+        421,
+        422
+      ],
+      "8": [
+        0,
+        1,
+        2,
+        3,
+        46,
+        48,
+        197,
+        305,
+        330,
+        335,
+        360,
+        364,
+        420,
+        421
       ]
     },
     "routing_mode": "learned",
     "gate_temperature": 1.25
   },
-  "feature_map_path": "configs/race_moe_feature_map_2_experts.json",
+  "feature_map_path": "configs/race_moe_feature_map.json",
   "raw_feature_columns": [
     "distance_m",
     "active_field_size",
@@ -6108,423 +6225,467 @@
       10865772
     ]
   },
-  "best_epoch": 11,
+  "best_epoch": 13,
   "history": [
     {
       "epoch": 1,
-      "main_ranking_loss": 2.1701879583963075,
-      "router_balance_loss": 0.8141888934786957,
-      "total_loss": 2.178329849007106,
+      "main_ranking_loss": 2.2366254329681396,
+      "router_balance_loss": 1.67680822858716,
+      "total_loss": 2.2533935107807124,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.324,
-        "top2_containment": 0.506,
-        "top3_containment": 0.668,
-        "mrr": 0.530079193029193,
-        "race_logloss": 2.050040235401773,
-        "average_winner_probability": 0.13814768873155117
+        "top1_hit_rate": 0.25,
+        "top2_containment": 0.45,
+        "top3_containment": 0.59,
+        "mrr": 0.47170817515817515,
+        "race_logloss": 2.149211190693961,
+        "average_winner_probability": 0.12377038638293743
       },
       "validation_router": {
-        "dominant_expert_rate": 1.0,
-        "gate_entropy": 0.00270885624922812,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.9984312057495117
+        "dominant_expert_rate": 0.5024677296886864,
+        "gate_entropy": 0.7083436846733093,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 2.719096302986145
       },
       "best": true
     },
     {
       "epoch": 2,
-      "main_ranking_loss": 1.990675954535456,
-      "router_balance_loss": 0.9976952807738049,
-      "total_loss": 2.0006529010168395,
+      "main_ranking_loss": 2.0862122762321245,
+      "router_balance_loss": 2.9446505319954146,
+      "total_loss": 2.1156587801357305,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.336,
-        "top2_containment": 0.514,
-        "top3_containment": 0.682,
-        "mrr": 0.5382751026751027,
-        "race_logloss": 1.922807777784706,
-        "average_winner_probability": 0.16988831033185126
+        "top1_hit_rate": 0.304,
+        "top2_containment": 0.49,
+        "top3_containment": 0.624,
+        "mrr": 0.5123526196026196,
+        "race_logloss": 2.043569428302559,
+        "average_winner_probability": 0.14492997716367245
       },
       "validation_router": {
-        "dominant_expert_rate": 1.0,
-        "gate_entropy": 0.000983818550594151,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.9995365142822266
+        "dominant_expert_rate": 0.43090356871678054,
+        "gate_entropy": 0.7941933274269104,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 1.935607761144638
       },
       "best": true
     },
     {
       "epoch": 3,
-      "main_ranking_loss": 1.9263781427156808,
-      "router_balance_loss": 0.9989644914570421,
-      "total_loss": 1.9363677867568365,
+      "main_ranking_loss": 2.0167236812043896,
+      "router_balance_loss": 2.8570956050759495,
+      "total_loss": 2.0452946424484253,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.332,
-        "top2_containment": 0.516,
-        "top3_containment": 0.68,
-        "mrr": 0.5366862859362859,
-        "race_logloss": 1.8856230659476407,
-        "average_winner_probability": 0.1879471460748464
+        "top1_hit_rate": 0.314,
+        "top2_containment": 0.498,
+        "top3_containment": 0.658,
+        "mrr": 0.5214230824730824,
+        "race_logloss": 1.996471542959231,
+        "average_winner_probability": 0.15855545807629823
       },
       "validation_router": {
-        "dominant_expert_rate": 1.0,
-        "gate_entropy": 0.0010157435899600387,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.9995017051696777
+        "dominant_expert_rate": 0.4652619589977221,
+        "gate_entropy": 0.8011374473571777,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 1.9602049589157104
       },
       "best": true
     },
     {
       "epoch": 4,
-      "main_ranking_loss": 1.9175888358956517,
-      "router_balance_loss": 0.995191781827719,
-      "total_loss": 1.9275407425247797,
+      "main_ranking_loss": 1.9852557028874311,
+      "router_balance_loss": 2.323402799002015,
+      "total_loss": 2.008489730334518,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.328,
-        "top2_containment": 0.516,
-        "top3_containment": 0.676,
-        "mrr": 0.5342085081585082,
-        "race_logloss": 1.878722807661652,
-        "average_winner_probability": 0.19389304463658483
+        "top1_hit_rate": 0.318,
+        "top2_containment": 0.514,
+        "top3_containment": 0.668,
+        "mrr": 0.5273280164280163,
+        "race_logloss": 1.967237672360731,
+        "average_winner_probability": 0.16966884832456708
       },
       "validation_router": {
-        "dominant_expert_rate": 1.0,
-        "gate_entropy": 0.0006983240018598735,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.9996504783630371
+        "dominant_expert_rate": 0.5861807137433561,
+        "gate_entropy": 0.7840454578399658,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 2.210961192846298
       },
       "best": true
     },
     {
       "epoch": 5,
-      "main_ranking_loss": 1.9130372623405834,
-      "router_balance_loss": 0.994529396000475,
-      "total_loss": 1.9229825546245765,
+      "main_ranking_loss": 1.958941094946153,
+      "router_balance_loss": 2.15282140864004,
+      "total_loss": 1.980469304736298,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.33,
-        "top2_containment": 0.51,
-        "top3_containment": 0.678,
-        "mrr": 0.5343751748251748,
-        "race_logloss": 1.8770741208647173,
-        "average_winner_probability": 0.19500344790611415
+        "top1_hit_rate": 0.306,
+        "top2_containment": 0.498,
+        "top3_containment": 0.648,
+        "mrr": 0.5163718836718837,
+        "race_logloss": 1.9568615994170089,
+        "average_winner_probability": 0.1736005328577012
       },
       "validation_router": {
-        "dominant_expert_rate": 0.9990508731966591,
-        "gate_entropy": 0.008828445337712765,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.9874141216278076
+        "dominant_expert_rate": 0.5442293090356871,
+        "gate_entropy": 0.8145008683204651,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 2.173128366470337
       },
       "best": true
     },
     {
       "epoch": 6,
-      "main_ranking_loss": 1.917068878022751,
-      "router_balance_loss": 0.9604851963496445,
-      "total_loss": 1.9266737345421667,
+      "main_ranking_loss": 1.9447169256682444,
+      "router_balance_loss": 1.6737070130829763,
+      "total_loss": 1.9614539972626337,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.322,
-        "top2_containment": 0.508,
-        "top3_containment": 0.676,
-        "mrr": 0.529449777999778,
-        "race_logloss": 1.8859525431107658,
-        "average_winner_probability": 0.19215117006376387
+        "top1_hit_rate": 0.328,
+        "top2_containment": 0.512,
+        "top3_containment": 0.672,
+        "mrr": 0.5329405927405928,
+        "race_logloss": 1.9441434933076343,
+        "average_winner_probability": 0.17194230524636805
       },
       "validation_router": {
-        "dominant_expert_rate": 0.9893697798025817,
-        "gate_entropy": 0.036791447550058365,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.9350972175598145
-      },
-      "best": false
-    },
-    {
-      "epoch": 7,
-      "main_ranking_loss": 1.9147928091559079,
-      "router_balance_loss": 0.9383289566134462,
-      "total_loss": 1.9241760969161987,
-      "validation_metrics": {
-        "races": 500,
-        "top1_hit_rate": 0.326,
-        "top2_containment": 0.51,
-        "top3_containment": 0.682,
-        "mrr": 0.5324727938727939,
-        "race_logloss": 1.8742582202466256,
-        "average_winner_probability": 0.19554429699573667
-      },
-      "validation_router": {
-        "dominant_expert_rate": 0.9962034927866363,
-        "gate_entropy": 0.05712386593222618,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.9346857070922852
+        "dominant_expert_rate": 0.5315110098709187,
+        "gate_entropy": 1.2632763385772705,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 1.202777698636055
       },
       "best": true
     },
     {
-      "epoch": 8,
-      "main_ranking_loss": 1.9107807626818667,
-      "router_balance_loss": 0.8492103897699035,
-      "total_loss": 1.9192728583175358,
+      "epoch": 7,
+      "main_ranking_loss": 1.9300842769075148,
+      "router_balance_loss": 1.4168074001180064,
+      "total_loss": 1.9442523505428049,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.324,
-        "top2_containment": 0.508,
-        "top3_containment": 0.676,
-        "mrr": 0.5302616827616827,
-        "race_logloss": 1.880492310331788,
-        "average_winner_probability": 0.19275213576946407
+        "top1_hit_rate": 0.32,
+        "top2_containment": 0.51,
+        "top3_containment": 0.66,
+        "mrr": 0.5278945609945611,
+        "race_logloss": 1.944570444754873,
+        "average_winner_probability": 0.17282730502076446
       },
       "validation_router": {
-        "dominant_expert_rate": 0.9779802581624905,
-        "gate_entropy": 0.2694353759288788,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.6258866786956787
+        "dominant_expert_rate": 0.5020880789673501,
+        "gate_entropy": 1.3655304908752441,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.9693048149347305
       },
       "best": false
     },
     {
-      "epoch": 9,
-      "main_ranking_loss": 1.9162496328353882,
-      "router_balance_loss": 0.511956783804563,
-      "total_loss": 1.921369199705596,
+      "epoch": 8,
+      "main_ranking_loss": 1.9160972396926124,
+      "router_balance_loss": 1.18241816582066,
+      "total_loss": 1.9279214214570453,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.328,
-        "top2_containment": 0.508,
-        "top3_containment": 0.67,
-        "mrr": 0.5320172383172382,
-        "race_logloss": 1.8733701859356646,
-        "average_winner_probability": 0.19559221880231054
+        "top1_hit_rate": 0.306,
+        "top2_containment": 0.514,
+        "top3_containment": 0.666,
+        "mrr": 0.5218327283827284,
+        "race_logloss": 1.929087459084541,
+        "average_winner_probability": 0.1821125986278057
       },
       "validation_router": {
-        "dominant_expert_rate": 0.9755125284738041,
-        "gate_entropy": 0.5722659230232239,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.17707109451293945
+        "dominant_expert_rate": 0.5218299164768413,
+        "gate_entropy": 1.26138436794281,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 1.1414324939250946
+      },
+      "best": true
+    },
+    {
+      "epoch": 9,
+      "main_ranking_loss": 1.903817042265788,
+      "router_balance_loss": 1.181257685812393,
+      "total_loss": 1.9156296123372447,
+      "validation_metrics": {
+        "races": 500,
+        "top1_hit_rate": 0.308,
+        "top2_containment": 0.522,
+        "top3_containment": 0.662,
+        "mrr": 0.524097014097014,
+        "race_logloss": 1.9218645840624848,
+        "average_winner_probability": 0.18844872895255685
+      },
+      "validation_router": {
+        "dominant_expert_rate": 0.5713743356112376,
+        "gate_entropy": 1.2372868061065674,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 1.2766388952732086
       },
       "best": true
     },
     {
       "epoch": 10,
-      "main_ranking_loss": 1.9165892518392884,
-      "router_balance_loss": 0.17836957520777635,
-      "total_loss": 1.9183729509315868,
+      "main_ranking_loss": 1.8979128315897271,
+      "router_balance_loss": 1.0764394597251816,
+      "total_loss": 1.9086772380488934,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.302,
-        "top2_containment": 0.492,
-        "top3_containment": 0.656,
-        "mrr": 0.5135856365856366,
-        "race_logloss": 1.9147201200147805,
-        "average_winner_probability": 0.18798317327164113
+        "top1_hit_rate": 0.316,
+        "top2_containment": 0.5,
+        "top3_containment": 0.652,
+        "mrr": 0.5233541347541347,
+        "race_logloss": 1.9296122189566636,
+        "average_winner_probability": 0.1800157814435661
       },
       "validation_router": {
-        "dominant_expert_rate": 0.914958238420653,
-        "gate_entropy": 0.6450548768043518,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.04960918426513672
+        "dominant_expert_rate": 0.4037585421412301,
+        "gate_entropy": 1.402127981185913,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.6830400228500366
       },
       "best": false
     },
     {
       "epoch": 11,
-      "main_ranking_loss": 1.9107389119592044,
-      "router_balance_loss": 0.15188602763827486,
-      "total_loss": 1.9122577645991108,
+      "main_ranking_loss": 1.887157915842415,
+      "router_balance_loss": 0.9078081869842982,
+      "total_loss": 1.8962359983142059,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.33,
-        "top2_containment": 0.51,
-        "top3_containment": 0.678,
-        "mrr": 0.5345172383172383,
-        "race_logloss": 1.8683674950904952,
-        "average_winner_probability": 0.19976403861492872
+        "top1_hit_rate": 0.334,
+        "top2_containment": 0.524,
+        "top3_containment": 0.654,
+        "mrr": 0.5361605783105783,
+        "race_logloss": 1.9312450559927052,
+        "average_winner_probability": 0.18631568727456033
       },
       "validation_router": {
-        "dominant_expert_rate": 0.9954441913439636,
-        "gate_entropy": 0.5293126106262207,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.25907623767852783
+        "dominant_expert_rate": 0.5146165527714502,
+        "gate_entropy": 1.2360602617263794,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 1.2922329902648926
       },
-      "best": true
+      "best": false
     },
     {
       "epoch": 12,
-      "main_ranking_loss": 1.9148762769038135,
-      "router_balance_loss": 0.1420808688248738,
-      "total_loss": 1.9162970899355294,
+      "main_ranking_loss": 1.8768642361801449,
+      "router_balance_loss": 0.8841652657726023,
+      "total_loss": 1.8857058876811867,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.294,
-        "top2_containment": 0.478,
-        "top3_containment": 0.624,
-        "mrr": 0.503365651015651,
-        "race_logloss": 1.9174530649609716,
-        "average_winner_probability": 0.18759096143394707
+        "top1_hit_rate": 0.316,
+        "top2_containment": 0.508,
+        "top3_containment": 0.662,
+        "mrr": 0.5257620712620712,
+        "race_logloss": 1.9227909255343487,
+        "average_winner_probability": 0.1876498481584713
       },
       "validation_router": {
-        "dominant_expert_rate": 0.8832574031890661,
-        "gate_entropy": 0.5945897102355957,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.09761548042297363
+        "dominant_expert_rate": 0.4305239179954442,
+        "gate_entropy": 1.373552680015564,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.7308933138847351
       },
       "best": false
     },
     {
       "epoch": 13,
-      "main_ranking_loss": 1.9052864147885011,
-      "router_balance_loss": 0.11887723856633252,
-      "total_loss": 1.9064751887085414,
+      "main_ranking_loss": 1.8650638844707224,
+      "router_balance_loss": 0.8420802756111221,
+      "total_loss": 1.8734846882300802,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.316,
-        "top2_containment": 0.508,
-        "top3_containment": 0.654,
-        "mrr": 0.523131451881452,
-        "race_logloss": 1.8949517450968976,
-        "average_winner_probability": 0.19709577119490132
+        "top1_hit_rate": 0.338,
+        "top2_containment": 0.524,
+        "top3_containment": 0.672,
+        "mrr": 0.5399813353313353,
+        "race_logloss": 1.920791513455512,
+        "average_winner_probability": 0.20679649312701076
       },
       "validation_router": {
-        "dominant_expert_rate": 0.9553910402429765,
-        "gate_entropy": 0.565851628780365,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.15114665031433105
+        "dominant_expert_rate": 0.6194001518602885,
+        "gate_entropy": 1.1268867254257202,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 1.6605512499809265
       },
-      "best": false
+      "best": true
     },
     {
       "epoch": 14,
-      "main_ranking_loss": 1.9054619392546097,
-      "router_balance_loss": 0.1217208723030468,
-      "total_loss": 1.9066791451803529,
+      "main_ranking_loss": 1.8614792198237806,
+      "router_balance_loss": 0.8229736679851418,
+      "total_loss": 1.8697089464357584,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.324,
-        "top2_containment": 0.512,
-        "top3_containment": 0.666,
-        "mrr": 0.5298029526029527,
-        "race_logloss": 1.8763417080755966,
-        "average_winner_probability": 0.2014645803188905
+        "top1_hit_rate": 0.318,
+        "top2_containment": 0.522,
+        "top3_containment": 0.662,
+        "mrr": 0.5280612776112776,
+        "race_logloss": 1.9251844689181292,
+        "average_winner_probability": 0.19209255091287195
       },
       "validation_router": {
-        "dominant_expert_rate": 0.9741837509491268,
-        "gate_entropy": 0.582290530204773,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.14121663570404053
+        "dominant_expert_rate": 0.4745634016704632,
+        "gate_entropy": 1.3495272397994995,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.855435386300087
       },
       "best": false
     },
     {
       "epoch": 15,
-      "main_ranking_loss": 1.8920007590020056,
-      "router_balance_loss": 0.13122888484803757,
-      "total_loss": 1.8933130549912405,
+      "main_ranking_loss": 1.8549532795896624,
+      "router_balance_loss": 0.7606532408459352,
+      "total_loss": 1.8625598083628285,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.304,
-        "top2_containment": 0.488,
-        "top3_containment": 0.62,
-        "mrr": 0.5077053835053835,
-        "race_logloss": 1.9337408760706511,
-        "average_winner_probability": 0.19157577567733824
+        "top1_hit_rate": 0.318,
+        "top2_containment": 0.516,
+        "top3_containment": 0.652,
+        "mrr": 0.5260104118104117,
+        "race_logloss": 1.9355057605136337,
+        "average_winner_probability": 0.1842121553197503
       },
       "validation_router": {
-        "dominant_expert_rate": 0.8118830675778284,
-        "gate_entropy": 0.6210740208625793,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.05233442783355713
+        "dominant_expert_rate": 0.4278663629460896,
+        "gate_entropy": 1.4381825923919678,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.6986987590789795
       },
       "best": false
     },
     {
       "epoch": 16,
-      "main_ranking_loss": 1.886658784186486,
-      "router_balance_loss": 0.09889910716821651,
-      "total_loss": 1.8876477704189791,
+      "main_ranking_loss": 1.8386688539297273,
+      "router_balance_loss": 0.7949079629218224,
+      "total_loss": 1.8466179335471427,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.32,
-        "top2_containment": 0.498,
-        "top3_containment": 0.646,
-        "mrr": 0.5223346986346987,
-        "race_logloss": 1.8904421703839944,
-        "average_winner_probability": 0.20176354625774548
+        "top1_hit_rate": 0.316,
+        "top2_containment": 0.514,
+        "top3_containment": 0.658,
+        "mrr": 0.5255881895881896,
+        "race_logloss": 1.9282595174584276,
+        "average_winner_probability": 0.18911552242469043
       },
       "validation_router": {
-        "dominant_expert_rate": 0.9322323462414579,
-        "gate_entropy": 0.6134968400001526,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.08106374740600586
+        "dominant_expert_rate": 0.37699316628701596,
+        "gate_entropy": 1.4623546600341797,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.525126039981842
       },
       "best": false
     },
     {
       "epoch": 17,
-      "main_ranking_loss": 1.883794614584139,
-      "router_balance_loss": 0.10024836747953207,
-      "total_loss": 1.8847970997933114,
+      "main_ranking_loss": 1.827776083851805,
+      "router_balance_loss": 0.7890300077967124,
+      "total_loss": 1.8356663826668616,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.3,
-        "top2_containment": 0.482,
-        "top3_containment": 0.626,
-        "mrr": 0.5065196192696193,
-        "race_logloss": 1.9174597291125306,
-        "average_winner_probability": 0.19791084444802254
+        "top1_hit_rate": 0.308,
+        "top2_containment": 0.518,
+        "top3_containment": 0.67,
+        "mrr": 0.5241660395160396,
+        "race_logloss": 1.927863461071078,
+        "average_winner_probability": 0.2055915739336051
       },
       "validation_router": {
-        "dominant_expert_rate": 0.8872437357630979,
-        "gate_entropy": 0.5894493460655212,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.10093533992767334
+        "dominant_expert_rate": 0.46716021260440393,
+        "gate_entropy": 1.268515706062317,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.9578491002321243
       },
       "best": false
     },
     {
       "epoch": 18,
-      "main_ranking_loss": 1.8719376797723297,
-      "router_balance_loss": 0.09252608058476212,
-      "total_loss": 1.872862933885933,
+      "main_ranking_loss": 1.8129727686985884,
+      "router_balance_loss": 0.7983643701761076,
+      "total_loss": 1.8209564178296835,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.296,
-        "top2_containment": 0.466,
-        "top3_containment": 0.598,
-        "mrr": 0.4983610112110113,
-        "race_logloss": 1.9453355380012554,
-        "average_winner_probability": 0.1941889610234648
+        "top1_hit_rate": 0.312,
+        "top2_containment": 0.522,
+        "top3_containment": 0.658,
+        "mrr": 0.5253549284049284,
+        "race_logloss": 1.925706456650092,
+        "average_winner_probability": 0.20629714403674007
       },
       "validation_router": {
-        "dominant_expert_rate": 0.8308656036446469,
-        "gate_entropy": 0.6010803580284119,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.06954312324523926
+        "dominant_expert_rate": 0.455960516324981,
+        "gate_entropy": 1.2890441417694092,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.9038719236850739
       },
       "best": false
     },
     {
       "epoch": 19,
-      "main_ranking_loss": 1.864776048329797,
-      "router_balance_loss": 0.08240428301367429,
-      "total_loss": 1.865600096117152,
+      "main_ranking_loss": 1.8041781458524193,
+      "router_balance_loss": 0.8085402970266814,
+      "total_loss": 1.812263544243161,
       "validation_metrics": {
         "races": 500,
-        "top1_hit_rate": 0.304,
-        "top2_containment": 0.466,
-        "top3_containment": 0.616,
-        "mrr": 0.5058202686202686,
-        "race_logloss": 1.9290585423332123,
-        "average_winner_probability": 0.1991320656607859
+        "top1_hit_rate": 0.318,
+        "top2_containment": 0.514,
+        "top3_containment": 0.65,
+        "mrr": 0.5250144522144522,
+        "race_logloss": 1.9358236130827116,
+        "average_winner_probability": 0.19525151864346116
       },
       "validation_router": {
-        "dominant_expert_rate": 0.8337129840546698,
-        "gate_entropy": 0.6129531860351562,
-        "average_number_of_active_experts": 1.0,
-        "router_balance_loss": 0.05969548225402832
+        "dominant_expert_rate": 0.4533029612756264,
+        "gate_entropy": 1.318717122077942,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.9049555361270905
+      },
+      "best": false
+    },
+    {
+      "epoch": 20,
+      "main_ranking_loss": 1.79266094335235,
+      "router_balance_loss": 0.8731308762389834,
+      "total_loss": 1.8013922460008376,
+      "validation_metrics": {
+        "races": 500,
+        "top1_hit_rate": 0.324,
+        "top2_containment": 0.518,
+        "top3_containment": 0.658,
+        "mrr": 0.5294557942057941,
+        "race_logloss": 1.9418067366923484,
+        "average_winner_probability": 0.20272076011355966
+      },
+      "validation_router": {
+        "dominant_expert_rate": 0.4506454062262718,
+        "gate_entropy": 1.322129726409912,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.8290089219808578
+      },
+      "best": false
+    },
+    {
+      "epoch": 21,
+      "main_ranking_loss": 1.777691941450138,
+      "router_balance_loss": 0.8375527422026833,
+      "total_loss": 1.7860674692852663,
+      "validation_metrics": {
+        "races": 500,
+        "top1_hit_rate": 0.32,
+        "top2_containment": 0.506,
+        "top3_containment": 0.646,
+        "mrr": 0.5246834276834277,
+        "race_logloss": 1.948340987227699,
+        "average_winner_probability": 0.19531228838441894
+      },
+      "validation_router": {
+        "dominant_expert_rate": 0.3946469248291572,
+        "gate_entropy": 1.3959121704101562,
+        "average_number_of_active_experts": 7.0,
+        "router_balance_loss": 0.6288592666387558
       },
       "best": false
     }
@@ -6532,114 +6693,688 @@
   "metrics": {
     "training": {
       "races": 3210,
-      "top1_hit_rate": 0.32305295950155766,
-      "top2_containment": 0.5124610591900312,
-      "top3_containment": 0.6473520249221184,
-      "mrr": 0.5269078550386962,
-      "race_logloss": 1.8988953589996267,
-      "average_winner_probability": 0.1989279873297779
+      "top1_hit_rate": 0.332398753894081,
+      "top2_containment": 0.5233644859813084,
+      "top3_containment": 0.659190031152648,
+      "mrr": 0.5352139155410184,
+      "race_logloss": 1.8612247610250279,
+      "average_winner_probability": 0.2216407329070373
     },
     "validation": {
       "races": 500,
-      "top1_hit_rate": 0.33,
-      "top2_containment": 0.51,
-      "top3_containment": 0.678,
-      "mrr": 0.5345172383172383,
-      "race_logloss": 1.8683674950904952,
-      "average_winner_probability": 0.19976403861492872
+      "top1_hit_rate": 0.338,
+      "top2_containment": 0.524,
+      "top3_containment": 0.672,
+      "mrr": 0.5399813353313353,
+      "race_logloss": 1.920791513455512,
+      "average_winner_probability": 0.20679649312701076
     },
     "test": {
       "races": 1000,
-      "top1_hit_rate": 0.296,
-      "top2_containment": 0.49,
-      "top3_containment": 0.621,
-      "mrr": 0.5057790515040514,
-      "race_logloss": 1.9423391253912456,
-      "average_winner_probability": 0.19236159892426805
+      "top1_hit_rate": 0.302,
+      "top2_containment": 0.478,
+      "top3_containment": 0.608,
+      "mrr": 0.503184102009102,
+      "race_logloss": 2.0410912134193375,
+      "average_winner_probability": 0.1983153576552868
     }
   },
   "router_diagnostics": {
     "training": {
       "expert_usage_rate": [
-        0.009200071688870303,
-        0.9907999283111297
+        0.5034350917020133,
+        0.9093434494294761,
+        0.4368241830455822,
+        0.8223012127367226,
+        0.9439930700758707,
+        0.9668438974849155,
+        0.9404982376486051,
+        0.5093195531393752,
+        0.9674413047374395
       ],
       "mean_gate_weight_per_expert": [
-        0.009200071915984154,
-        0.9907999038696289
+        0.013790395110845566,
+        0.0492686964571476,
+        0.007875458337366581,
+        0.4824565649032593,
+        0.038262270390987396,
+        0.06689109653234482,
+        0.1186474934220314,
+        0.18228064477443695,
+        0.04052698239684105
       ],
       "top1_routed_expert_frequency": [
-        0.009200071688870303,
-        0.9907999283111297
+        0.0,
+        0.003166258438377442,
+        2.9870362626202283e-05,
+        0.5980345301391959,
+        0.0001792221757572137,
+        0.016817014158551885,
+        0.11353724834219488,
+        0.26784754166915586,
+        0.00038831471414062967
       ],
-      "gate_entropy": 0.5392276048660278,
-      "dominant_expert_rate": 0.9907999283111297,
-      "average_number_of_active_experts": 1.0,
-      "router_balance_loss": 0.23068535327911377,
+      "gate_entropy": 1.1448830366134644,
+      "dominant_expert_rate": 0.5980345301391959,
+      "average_number_of_active_experts": 7.0,
+      "router_balance_loss": 1.5268098711967468,
       "race_dominant_gate_diagnostic_available": true,
       "pairwise_expert_logit_correlations": [
         [
           1.0,
-          0.3789411127024544
+          0.1853744647007363,
+          -0.36404328527580876,
+          0.4925307657101634,
+          0.6602580967086205,
+          -0.8165095017480821,
+          -0.5746622941116203,
+          -0.08590631045403181,
+          0.5949636988794914
         ],
         [
-          0.3789411127024544,
+          0.1853744647007363,
+          1.0,
+          0.3540920555369829,
+          0.013765970156722497,
+          0.3430581439800237,
+          -0.07150183245914227,
+          -0.5194988522687374,
+          0.5594563274666621,
+          0.4480696895770556
+        ],
+        [
+          -0.36404328527580876,
+          0.3540920555369829,
+          1.0,
+          -0.22644151590049086,
+          -0.040950275001124005,
+          0.46276421318695204,
+          -0.26343113183449945,
+          0.002768921680177645,
+          0.1332786555133378
+        ],
+        [
+          0.4925307657101634,
+          0.013765970156722498,
+          -0.2264415159004909,
+          1.0,
+          0.34413895835565045,
+          -0.5626083201865266,
+          -0.3764184638960954,
+          -0.15242603614472022,
+          0.24402465551849017
+        ],
+        [
+          0.6602580967086205,
+          0.3430581439800237,
+          -0.040950275001124005,
+          0.3441389583556504,
+          1.0,
+          -0.518118261790239,
+          -0.5280832950380664,
+          0.04593054387072993,
+          0.45776590679867674
+        ],
+        [
+          -0.816509501748082,
+          -0.07150183245914227,
+          0.462764213186952,
+          -0.5626083201865266,
+          -0.5181182617902391,
+          1.0,
+          0.45153114888718243,
+          0.13538851590953097,
+          -0.2854409751592038
+        ],
+        [
+          -0.5746622941116203,
+          -0.5194988522687374,
+          -0.26343113183449945,
+          -0.37641846389609535,
+          -0.5280832950380663,
+          0.4515311488871825,
+          1.0,
+          0.1446530053371382,
+          -0.7679036503667277
+        ],
+        [
+          -0.08590631045403181,
+          0.5594563274666621,
+          0.0027689216801776444,
+          -0.15242603614472025,
+          0.04593054387072994,
+          0.135388515909531,
+          0.1446530053371382,
+          1.0,
+          -0.08157200237191817
+        ],
+        [
+          0.5949636988794913,
+          0.4480696895770556,
+          0.13327865551333778,
+          0.24402465551849015,
+          0.45776590679867674,
+          -0.2854409751592038,
+          -0.7679036503667278,
+          -0.08157200237191817,
           1.0
         ]
       ],
       "pairwise_expert_logit_pearson": [
         [
           1.0,
-          0.3789411127024544
+          0.1853744647007363,
+          -0.36404328527580876,
+          0.4925307657101634,
+          0.6602580967086205,
+          -0.8165095017480821,
+          -0.5746622941116203,
+          -0.08590631045403181,
+          0.5949636988794914
         ],
         [
-          0.3789411127024544,
+          0.1853744647007363,
+          1.0,
+          0.3540920555369829,
+          0.013765970156722497,
+          0.3430581439800237,
+          -0.07150183245914227,
+          -0.5194988522687374,
+          0.5594563274666621,
+          0.4480696895770556
+        ],
+        [
+          -0.36404328527580876,
+          0.3540920555369829,
+          1.0,
+          -0.22644151590049086,
+          -0.040950275001124005,
+          0.46276421318695204,
+          -0.26343113183449945,
+          0.002768921680177645,
+          0.1332786555133378
+        ],
+        [
+          0.4925307657101634,
+          0.013765970156722498,
+          -0.2264415159004909,
+          1.0,
+          0.34413895835565045,
+          -0.5626083201865266,
+          -0.3764184638960954,
+          -0.15242603614472022,
+          0.24402465551849017
+        ],
+        [
+          0.6602580967086205,
+          0.3430581439800237,
+          -0.040950275001124005,
+          0.3441389583556504,
+          1.0,
+          -0.518118261790239,
+          -0.5280832950380664,
+          0.04593054387072993,
+          0.45776590679867674
+        ],
+        [
+          -0.816509501748082,
+          -0.07150183245914227,
+          0.462764213186952,
+          -0.5626083201865266,
+          -0.5181182617902391,
+          1.0,
+          0.45153114888718243,
+          0.13538851590953097,
+          -0.2854409751592038
+        ],
+        [
+          -0.5746622941116203,
+          -0.5194988522687374,
+          -0.26343113183449945,
+          -0.37641846389609535,
+          -0.5280832950380663,
+          0.4515311488871825,
+          1.0,
+          0.1446530053371382,
+          -0.7679036503667277
+        ],
+        [
+          -0.08590631045403181,
+          0.5594563274666621,
+          0.0027689216801776444,
+          -0.15242603614472025,
+          0.04593054387072994,
+          0.135388515909531,
+          0.1446530053371382,
+          1.0,
+          -0.08157200237191817
+        ],
+        [
+          0.5949636988794913,
+          0.4480696895770556,
+          0.13327865551333778,
+          0.24402465551849015,
+          0.45776590679867674,
+          -0.2854409751592038,
+          -0.7679036503667278,
+          -0.08157200237191817,
           1.0
         ]
       ],
       "pairwise_expert_logit_spearman": [
         [
           1.0,
-          0.37730782722578443
+          0.2123237510192337,
+          -0.36102835791413196,
+          0.5644489748513191,
+          0.6851772409483873,
+          -0.8355347556667344,
+          -0.6127521613642913,
+          -0.08365758005557486,
+          0.6342819185554944
         ],
         [
-          0.37730782722578443,
+          0.2123237510192337,
+          1.0,
+          0.36068713822177917,
+          0.05339351064174269,
+          0.35232994287014074,
+          -0.06524452598336876,
+          -0.5154318384115483,
+          0.5419086370433078,
+          0.45257342509932325
+        ],
+        [
+          -0.36102835791413196,
+          0.36068713822177917,
+          1.0,
+          -0.24762012533083094,
+          -0.0495712516554929,
+          0.49636336946167253,
+          -0.25996607584327613,
+          0.015722894540891826,
+          0.13262654606310129
+        ],
+        [
+          0.5644489748513191,
+          0.05339351064174269,
+          -0.24762012533083094,
+          1.0,
+          0.4050025962808969,
+          -0.6287740190181847,
+          -0.44385544565411605,
+          -0.14274434501507155,
+          0.31543554812368524
+        ],
+        [
+          0.6851772409483873,
+          0.35232994287014074,
+          -0.0495712516554929,
+          0.4050025962808969,
+          1.0,
+          -0.541133908124617,
+          -0.559922680996057,
+          0.048110034234216385,
+          0.5069963874716024
+        ],
+        [
+          -0.8355347556667344,
+          -0.06524452598336876,
+          0.49636336946167253,
+          -0.6287740190181847,
+          -0.541133908124617,
+          1.0,
+          0.4617965822763418,
+          0.14185313544044445,
+          -0.3518872091567071
+        ],
+        [
+          -0.6127521613642913,
+          -0.5154318384115483,
+          -0.25996607584327613,
+          -0.44385544565411605,
+          -0.559922680996057,
+          0.4617965822763418,
+          1.0,
+          0.15241595855500312,
+          -0.7934497617531309
+        ],
+        [
+          -0.08365758005557486,
+          0.5419086370433078,
+          0.015722894540891826,
+          -0.14274434501507155,
+          0.048110034234216385,
+          0.14185313544044445,
+          0.15241595855500312,
+          1.0,
+          -0.10310016884954187
+        ],
+        [
+          0.6342819185554944,
+          0.45257342509932325,
+          0.13262654606310129,
+          0.31543554812368524,
+          0.5069963874716024,
+          -0.3518872091567071,
+          -0.7934497617531309,
+          -0.10310016884954187,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_pearson": [
         [
           1.0,
-          0.4006071989936684
+          0.5725978027153639,
+          -0.03903110081529764,
+          0.4713820402750509,
+          0.7307140452845302,
+          -0.8103089451615045,
+          -0.8559073439478047,
+          -0.013356174272063004,
+          0.784473786691366
         ],
         [
-          0.4006071989936684,
+          0.572597802715364,
+          1.0,
+          -0.11229665992802791,
+          0.19150998928503335,
+          0.46021995302365915,
+          -0.5357416326949795,
+          -0.45537750310570274,
+          0.5034346834536246,
+          0.4537616779277244
+        ],
+        [
+          -0.03903110081529765,
+          -0.11229665992802791,
+          1.0,
+          -0.02592541482228522,
+          -0.06079647971027402,
+          0.04896542282080433,
+          0.027474074234894216,
+          -0.17108644224589895,
+          -0.03758075581596873
+        ],
+        [
+          0.4713820402750509,
+          0.19150998928503335,
+          -0.02592541482228522,
+          1.0,
+          0.36518159246023313,
+          -0.5456143931823965,
+          -0.5223098651629577,
+          -0.11150778287060717,
+          0.33934746865745213
+        ],
+        [
+          0.7307140452845302,
+          0.46021995302365915,
+          -0.06079647971027402,
+          0.3651815924602332,
+          1.0,
+          -0.6279517793675748,
+          -0.5916944152992611,
+          0.07038391201385263,
+          0.5011741611528764
+        ],
+        [
+          -0.8103089451615044,
+          -0.5357416326949794,
+          0.04896542282080432,
+          -0.5456143931823965,
+          -0.6279517793675748,
+          1.0,
+          0.8078599832519348,
+          0.03304929693700977,
+          -0.5189067385361842
+        ],
+        [
+          -0.8559073439478048,
+          -0.45537750310570274,
+          0.027474074234894216,
+          -0.5223098651629579,
+          -0.5916944152992611,
+          0.8078599832519348,
+          1.0,
+          0.24571109181936585,
+          -0.7955163443582395
+        ],
+        [
+          -0.013356174272063006,
+          0.5034346834536246,
+          -0.17108644224589895,
+          -0.11150778287060717,
+          0.07038391201385263,
+          0.03304929693700976,
+          0.24571109181936585,
+          1.0,
+          -0.1523526555537521
+        ],
+        [
+          0.7844737866913661,
+          0.45376167792772437,
+          -0.03758075581596873,
+          0.3393474686574522,
+          0.5011741611528764,
+          -0.5189067385361842,
+          -0.7955163443582395,
+          -0.15235265555375208,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_spearman": [
         [
           1.0,
-          0.3937141602974739
+          0.5867700590795186,
+          -0.06493566341504715,
+          0.52551714181592,
+          0.7436868351137765,
+          -0.8747691436966383,
+          -0.8747279526630872,
+          -0.018158497155576752,
+          0.8020391097748574
         ],
         [
-          0.3937141602974739,
+          0.5867700590795186,
+          1.0,
+          -0.13925051813504896,
+          0.24100541363626418,
+          0.48103247082421513,
+          -0.5710565841446984,
+          -0.4809827434187221,
+          0.47852644525328947,
+          0.4739193773181083
+        ],
+        [
+          -0.06493566341504715,
+          -0.13925051813504896,
+          1.0,
+          -0.025391831339522806,
+          -0.081235477324453,
+          0.05720999295015916,
+          0.052863435480900126,
+          -0.17536904225689254,
+          -0.05749530110577308
+        ],
+        [
+          0.52551714181592,
+          0.24100541363626418,
+          -0.025391831339522806,
+          1.0,
+          0.4004093369526876,
+          -0.5715225692995243,
+          -0.5716998665499254,
+          -0.09825218053740847,
+          0.3979976229268354
+        ],
+        [
+          0.7436868351137765,
+          0.48103247082421513,
+          -0.081235477324453,
+          0.4004093369526876,
+          1.0,
+          -0.6589322403922735,
+          -0.6204777804483824,
+          0.06862884416422775,
+          0.5456688369326056
+        ],
+        [
+          -0.8747691436966383,
+          -0.5710565841446984,
+          0.05720999295015916,
+          -0.5715225692995243,
+          -0.6589322403922735,
+          1.0,
+          0.8690975526093054,
+          0.04526332661868683,
+          -0.6765539670858833
+        ],
+        [
+          -0.8747279526630872,
+          -0.4809827434187221,
+          0.052863435480900126,
+          -0.5716998665499254,
+          -0.6204777804483824,
+          0.8690975526093054,
+          1.0,
+          0.23339241491369284,
+          -0.8178669933281203
+        ],
+        [
+          -0.018158497155576752,
+          0.47852644525328947,
+          -0.17536904225689254,
+          -0.09825218053740847,
+          0.06862884416422775,
+          0.04526332661868683,
+          0.23339241491369284,
+          1.0,
+          -0.1618017919255709
+        ],
+        [
+          0.8020391097748574,
+          0.4739193773181083,
+          -0.05749530110577308,
+          0.3979976229268354,
+          0.5456688369326056,
+          -0.6765539670858833,
+          -0.8178669933281203,
+          -0.1618017919255709,
           1.0
         ]
       ],
       "mean_race_level_ranking_correlation": [
         [
           1.0,
-          0.3540002825102323
+          0.5846117479333387,
+          -0.12439495961153321,
+          0.5152177389656051,
+          0.7173003524851707,
+          -0.8922507376018559,
+          -0.8683508004827556,
+          -0.015983050670704383,
+          0.8237912891081927
         ],
         [
-          0.3540002825102323,
+          0.5846117479333387,
+          1.0,
+          -0.17285920142246639,
+          0.2479103705594548,
+          0.467954832132301,
+          -0.5741550419334627,
+          -0.48990599847316957,
+          0.43700363009642257,
+          0.49198898397366325
+        ],
+        [
+          -0.12439495961153321,
+          -0.17285920142246639,
+          1.0,
+          -0.04578513545101606,
+          -0.11915524286643465,
+          0.12390232280571102,
+          0.10259347807335424,
+          -0.16407115058297025,
+          -0.08933190152953759
+        ],
+        [
+          0.5152177389656051,
+          0.2479103705594548,
+          -0.04578513545101606,
+          1.0,
+          0.3730220395905706,
+          -0.529828229953805,
+          -0.5663725834652601,
+          -0.09300388682813959,
+          0.4367855982464211
+        ],
+        [
+          0.7173003524851707,
+          0.467954832132301,
+          -0.11915524286643465,
+          0.3730220395905706,
+          1.0,
+          -0.6427263235929798,
+          -0.6119428309988479,
+          0.06034463025312537,
+          0.5663983453445564
+        ],
+        [
+          -0.8922507376018559,
+          -0.5741550419334627,
+          0.12390232280571102,
+          -0.529828229953805,
+          -0.6427263235929798,
+          1.0,
+          0.9000996288142926,
+          0.0719136428450395,
+          -0.7995709702226441
+        ],
+        [
+          -0.8683508004827556,
+          -0.48990599847316957,
+          0.10259347807335424,
+          -0.5663725834652601,
+          -0.6119428309988479,
+          0.9000996288142926,
+          1.0,
+          0.19547117865786304,
+          -0.8169092141217513
+        ],
+        [
+          -0.015983050670704383,
+          0.43700363009642257,
+          -0.16407115058297025,
+          -0.09300388682813959,
+          0.06034463025312537,
+          0.0719136428450395,
+          0.19547117865786304,
+          1.0,
+          -0.14078275896597126
+        ],
+        [
+          0.8237912891081927,
+          0.49198898397366325,
+          -0.08933190152953759,
+          0.4367855982464211,
+          0.5663983453445564,
+          -0.7995709702226441,
+          -0.8169092141217513,
+          -0.14078275896597126,
           1.0
         ]
       ],
-      "maximum_absolute_pairwise_expert_correlation": 0.3789411127024544,
+      "maximum_absolute_pairwise_expert_correlation": 0.8165095017480821,
       "specialisation_descriptions": [
-        "stronger usage in runner_experience=unknown (gate uplift +50.6%)",
+        "no obvious specialisation",
+        "no obvious specialisation",
+        "no obvious specialisation",
+        "stronger usage in runner_experience=inexperienced_0-1 (gate uplift +10.9%)",
+        "no obvious specialisation",
+        "no obvious specialisation",
+        "stronger usage in number_of_debutants=one (gate uplift +7.8%)",
+        "stronger usage in runner_experience=unknown (gate uplift +25.7%)",
         "no obvious specialisation"
       ],
       "breakdown": {
@@ -6648,36 +7383,78 @@
             "value": "middle_1200-1799m",
             "runners": 22521,
             "mean_gate_weight_per_expert": [
-              0.008569778874516487,
-              0.9914302229881287
+              0.012998035177588463,
+              0.04759909585118294,
+              0.007522216532379389,
+              0.4844425916671753,
+              0.03708972781896591,
+              0.06561541557312012,
+              0.12014279514551163,
+              0.18570035696029663,
+              0.038890037685632706
             ],
             "top1_routed_expert_frequency": [
-              0.008569779317081834,
-              0.9914302206829182
+              0.0,
+              0.0026197770969317528,
+              4.440300164291106e-05,
+              0.5984192531415123,
+              4.440300164291106e-05,
+              0.01625149860130545,
+              0.11402690821899561,
+              0.26823853292482575,
+              0.0003552240131432885
             ]
           },
           {
             "value": "long_1800m+",
             "runners": 5044,
             "mean_gate_weight_per_expert": [
-              0.006740681827068329,
-              0.9932593107223511
+              0.01703566126525402,
+              0.05659705027937889,
+              0.0038866668473929167,
+              0.5210821628570557,
+              0.05354410037398338,
+              0.06236700341105461,
+              0.08486273884773254,
+              0.15901976823806763,
+              0.04160449281334877
             ],
             "top1_routed_expert_frequency": [
-              0.0067406819984139575,
-              0.9932593180015861
+              0.0,
+              0.005947660586835844,
+              0.0,
+              0.658406026962728,
+              0.0009912767644726407,
+              0.012291831879460745,
+              0.06958762886597938,
+              0.25257731958762886,
+              0.00019825535289452815
             ]
           },
           {
             "value": "short_<1200m",
             "runners": 5913,
             "mean_gate_weight_per_expert": [
-              0.013698630034923553,
-              0.9863013625144958
+              0.014039957895874977,
+              0.04937432333827019,
+              0.012623434886336327,
+              0.44194677472114563,
+              0.029691258445382118,
+              0.07560949772596359,
+              0.1417742520570755,
+              0.18909864127635956,
+              0.04584207758307457
             ],
             "top1_routed_expert_frequency": [
-              0.0136986301369863,
-              0.9863013698630136
+              0.0,
+              0.0028750211398613224,
+              0.0,
+              0.5450701843395908,
+              0.0,
+              0.0228310502283105,
+              0.1491628614916286,
+              0.2793844072382885,
+              0.0006764755623203111
             ]
           }
         ],
@@ -6686,36 +7463,78 @@
             "value": "medium_8-11",
             "runners": 17378,
             "mean_gate_weight_per_expert": [
-              0.005696858279407024,
-              0.9943031668663025
+              0.011303500272333622,
+              0.04955196753144264,
+              0.008509981445968151,
+              0.4652271866798401,
+              0.03397224098443985,
+              0.06553737074136734,
+              0.12653619050979614,
+              0.19827735424041748,
+              0.041083842515945435
             ],
             "top1_routed_expert_frequency": [
-              0.005696858096443779,
-              0.9943031419035562
+              0.0,
+              0.0033950972493957876,
+              0.0,
+              0.5732535389573024,
+              0.00011508804235239959,
+              0.01427091725169755,
+              0.12222350097824836,
+              0.28668431349982737,
+              5.7544021176199794e-05
             ]
           },
           {
             "value": "small_<=7",
             "runners": 2318,
             "mean_gate_weight_per_expert": [
-              0.08024159073829651,
-              0.9197584390640259
+              0.009676618501543999,
+              0.06658924371004105,
+              0.027074744924902916,
+              0.3188255727291107,
+              0.02967744879424572,
+              0.08861290663480759,
+              0.14780257642269135,
+              0.2510818541049957,
+              0.06065911799669266
             ],
             "top1_routed_expert_frequency": [
-              0.08024158757549611,
-              0.9197584124245038
+              0.0,
+              0.008628127696289905,
+              0.0004314063848144953,
+              0.4180327868852459,
+              0.0,
+              0.023295944779982744,
+              0.16479723899913717,
+              0.3796376186367558,
+              0.005176876617773943
             ]
           },
           {
             "value": "large_12+",
             "runners": 13782,
             "mean_gate_weight_per_expert": [
-              0.0016688434407114983,
-              0.9983311295509338
+              0.01761808432638645,
+              0.04599742218852043,
+              0.003846260253340006,
+              0.5317025184631348,
+              0.04511502757668495,
+              0.0649450272321701,
+              0.10379739850759506,
+              0.15053941309452057,
+              0.03643838316202164
             ],
             "top1_routed_expert_frequency": [
-              0.0016688434189522565,
-              0.9983311565810478
+              0.0,
+              0.00195907705703091,
+              0.0,
+              0.6595559425337396,
+              0.0002902336380786533,
+              0.018937744884632127,
+              0.09396314032796402,
+              0.22529386155855463,
+              0.0
             ]
           }
         ],
@@ -6724,120 +7543,260 @@
             "value": "Good (4)",
             "runners": 12633,
             "mean_gate_weight_per_expert": [
-              0.009023984894156456,
-              0.9909760355949402
+              0.01556589175015688,
+              0.047437120229005814,
+              0.006907793693244457,
+              0.4898296892642975,
+              0.035714682191610336,
+              0.06636771559715271,
+              0.10859903693199158,
+              0.18899531662464142,
+              0.040581971406936646
             ],
             "top1_routed_expert_frequency": [
-              0.009023984801709808,
-              0.9909760151982901
+              0.0,
+              0.002849679411066255,
+              0.0,
+              0.6018364600649093,
+              0.00015831552283701418,
+              0.017018918704979024,
+              0.09934299058022639,
+              0.2781603736246339,
+              0.0006332620913480567
             ]
           },
           {
             "value": "Soft (7)",
             "runners": 2761,
             "mean_gate_weight_per_expert": [
-              0.0010865628719329834,
-              0.9989134669303894
+              0.013637136667966843,
+              0.04716210439801216,
+              0.006870535667985678,
+              0.5070332288742065,
+              0.040368467569351196,
+              0.06717994809150696,
+              0.11405464261770248,
+              0.16309624910354614,
+              0.040597621351480484
             ],
             "top1_routed_expert_frequency": [
-              0.0010865628395508873,
-              0.9989134371604491
+              0.0,
+              0.0032596885186526622,
+              0.0,
+              0.6316551973922492,
+              0.0,
+              0.022455632017385006,
+              0.10684534588917059,
+              0.23578413618254257,
+              0.0
             ]
           },
           {
             "value": "Good (3)",
             "runners": 2674,
             "mean_gate_weight_per_expert": [
-              0.02131637930870056,
-              0.978683590888977
+              0.013292212970554829,
+              0.05266633257269859,
+              0.008993302471935749,
+              0.4535878896713257,
+              0.04093195125460625,
+              0.067825086414814,
+              0.1341322511434555,
+              0.1881466954946518,
+              0.04042430594563484
             ],
             "top1_routed_expert_frequency": [
-              0.02131637995512341,
-              0.9786836200448766
+              0.0,
+              0.004113687359760658,
+              0.0,
+              0.5646970830216903,
+              0.0,
+              0.013089005235602094,
+              0.13949139865370233,
+              0.27860882572924456,
+              0.0
             ]
           },
           {
             "value": "Soft (5)",
             "runners": 6395,
             "mean_gate_weight_per_expert": [
-              0.007505863904953003,
-              0.9924941062927246
+              0.013281185179948807,
+              0.04833770543336868,
+              0.007280351128429174,
+              0.48573464155197144,
+              0.03925006836652756,
+              0.06787347048521042,
+              0.12054161727428436,
+              0.1780415028333664,
+              0.03965894505381584
             ],
             "top1_routed_expert_frequency": [
-              0.007505863956215794,
-              0.9924941360437842
+              0.0,
+              0.00218921032056294,
+              0.0,
+              0.5989053948397185,
+              0.0001563721657544957,
+              0.017670054730258015,
+              0.1163408913213448,
+              0.2645817044566067,
+              0.0001563721657544957
             ]
           },
           {
             "value": "Heavy (10)",
             "runners": 1416,
             "mean_gate_weight_per_expert": [
-              0.013418079353868961,
-              0.9865819215774536
+              0.008827042765915394,
+              0.053132519125938416,
+              0.010383638553321362,
+              0.49389320611953735,
+              0.043602071702480316,
+              0.05618589371442795,
+              0.12983718514442444,
+              0.16873031854629517,
+              0.035407792776823044
             ],
             "top1_routed_expert_frequency": [
-              0.013418079096045197,
-              0.9865819209039548
+              0.0,
+              0.0035310734463276836,
+              0.0,
+              0.626412429378531,
+              0.0007062146892655367,
+              0.0035310734463276836,
+              0.125,
+              0.2401129943502825,
+              0.0007062146892655367
             ]
           },
           {
             "value": "Soft (6)",
             "runners": 3643,
             "mean_gate_weight_per_expert": [
-              0.006862476002424955,
-              0.993137538433075
+              0.013719992712140083,
+              0.049362048506736755,
+              0.007039779331535101,
+              0.4865845739841461,
+              0.03997644782066345,
+              0.06901531666517258,
+              0.12180376052856445,
+              0.17175130546092987,
+              0.04074699431657791
             ],
             "top1_routed_expert_frequency": [
-              0.006862475981334065,
-              0.993137524018666
+              0.0,
+              0.0038429865495470767,
+              0.0,
+              0.6066428767499313,
+              0.0,
+              0.019489431786988747,
+              0.11474059840790557,
+              0.25500960746637386,
+              0.0002744990392533626
             ]
           },
           {
             "value": "Good",
             "runners": 888,
             "mean_gate_weight_per_expert": [
-              0.030405405908823013,
-              0.9695945978164673
+              0.013102428056299686,
+              0.06345352530479431,
+              0.014662728644907475,
+              0.44600170850753784,
+              0.032543376088142395,
+              0.05326279625296593,
+              0.10424923151731491,
+              0.22791726887226105,
+              0.044806934893131256
             ],
             "top1_routed_expert_frequency": [
-              0.030405405405405407,
-              0.9695945945945946
+              0.0,
+              0.01126126126126126,
+              0.0011261261261261261,
+              0.5675675675675675,
+              0.0,
+              0.0045045045045045045,
+              0.09684684684684684,
+              0.31644144144144143,
+              0.0022522522522522522
             ]
           },
           {
             "value": "Heavy (8)",
             "runners": 1834,
             "mean_gate_weight_per_expert": [
-              0.0032715376000851393,
-              0.9967284798622131
+              0.010989516973495483,
+              0.04954278841614723,
+              0.010341024026274681,
+              0.4569062292575836,
+              0.03900520130991936,
+              0.07054208964109421,
+              0.1391962766647339,
+              0.1817876249551773,
+              0.04168936237692833
             ],
             "top1_routed_expert_frequency": [
-              0.003271537622682661,
-              0.9967284623773174
+              0.0,
+              0.0016357688113413304,
+              0.0,
+              0.5736095965103599,
+              0.0,
+              0.018538713195201745,
+              0.13631406761177753,
+              0.26990185387131954,
+              0.0
             ]
           },
           {
             "value": "Heavy (9)",
             "runners": 1207,
             "mean_gate_weight_per_expert": [
-              0.007456503808498383,
-              0.9925435185432434
+              0.010153363458812237,
+              0.054717112332582474,
+              0.01153392530977726,
+              0.43808844685554504,
+              0.04106176644563675,
+              0.07546544820070267,
+              0.14783160388469696,
+              0.17608755826950073,
+              0.045060619711875916
             ],
             "top1_routed_expert_frequency": [
-              0.007456503728251864,
-              0.9925434962717481
+              0.0,
+              0.0033140016570008283,
+              0.0,
+              0.5534382767191384,
+              0.0016570008285004142,
+              0.01988400994200497,
+              0.16735708367854185,
+              0.2543496271748136,
+              0.0
             ]
           },
           {
             "value": "Firm",
             "runners": 27,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.01391090638935566,
+              0.06125194579362869,
+              0.02062448486685753,
+              0.3629034757614136,
+              0.017472265288233757,
+              0.04890243709087372,
+              0.06873667985200882,
+              0.36659863591194153,
+              0.039599236100912094
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.48148148148148145,
+              0.0,
+              0.0,
+              0.037037037037037035,
+              0.48148148148148145,
+              0.0
             ]
           }
         ],
@@ -6846,12 +7805,26 @@
             "value": "Horses - Aus/NZ",
             "runners": 33478,
             "mean_gate_weight_per_expert": [
-              0.009200071915984154,
-              0.9907999038696289
+              0.013790395110845566,
+              0.0492686964571476,
+              0.007875458337366581,
+              0.4824565649032593,
+              0.038262270390987396,
+              0.06689109653234482,
+              0.1186474934220314,
+              0.18228064477443695,
+              0.04052698239684105
             ],
             "top1_routed_expert_frequency": [
-              0.009200071688870303,
-              0.9907999283111297
+              0.0,
+              0.003166258438377442,
+              2.9870362626202283e-05,
+              0.5980345301391959,
+              0.0001792221757572137,
+              0.016817014158551885,
+              0.11353724834219488,
+              0.26784754166915586,
+              0.00038831471414062967
             ]
           }
         ],
@@ -6860,48 +7833,104 @@
             "value": "experienced_6+",
             "runners": 28768,
             "mean_gate_weight_per_expert": [
-              0.00705645140260458,
-              0.992943525314331
+              0.014609082601964474,
+              0.054323114454746246,
+              0.006970765069127083,
+              0.4888472557067871,
+              0.0394541397690773,
+              0.06758476793766022,
+              0.10945867747068405,
+              0.17623697221279144,
+              0.04251541942358017
             ],
             "top1_routed_expert_frequency": [
-              0.007056451612903226,
-              0.9929435483870968
+              0.0,
+              0.0036846496106785315,
+              3.476084538375973e-05,
+              0.6121037263626251,
+              0.0002085650723025584,
+              0.01720661846496107,
+              0.10226640711902113,
+              0.2640433815350389,
+              0.0004518909899888765
             ]
           },
           {
             "value": "developing_2-5",
             "runners": 3719,
             "mean_gate_weight_per_expert": [
-              0.011831137351691723,
-              0.9881688356399536
+              0.008991585113108158,
+              0.022300057113170624,
+              0.013668362982571125,
+              0.4078836441040039,
+              0.033458203077316284,
+              0.07110852748155594,
+              0.17356400191783905,
+              0.23738962411880493,
+              0.03163643926382065
             ],
             "top1_routed_expert_frequency": [
-              0.011831137402527562,
-              0.9881688625974724
+              0.0,
+              0.0,
+              0.0,
+              0.48050551223447163,
+              0.0,
+              0.01747781661737026,
+              0.18230707179349287,
+              0.31970959935466525,
+              0.0
             ]
           },
           {
             "value": "inexperienced_0-1",
             "runners": 927,
             "mean_gate_weight_per_expert": [
-              0.03020496293902397,
-              0.9697950482368469
+              0.007236589211970568,
+              0.0033361276146024466,
+              0.01208320539444685,
+              0.5912916660308838,
+              0.021883362904191017,
+              0.030793320387601852,
+              0.1866818368434906,
+              0.13103973865509033,
+              0.01565435342490673
             ],
             "top1_routed_expert_frequency": [
-              0.030204962243797196,
-              0.9697950377562028
+              0.0,
+              0.0,
+              0.0,
+              0.6440129449838188,
+              0.0,
+              0.003236245954692557,
+              0.1941747572815534,
+              0.15857605177993528,
+              0.0
             ]
           },
           {
             "value": "unknown",
             "runners": 64,
             "mean_gate_weight_per_expert": [
-              0.515625,
-              0.484375
+              0.019574550911784172,
+              0.009722692891955376,
+              0.016959620639681816,
+              0.3669351637363434,
+              0.018873373046517372,
+              0.03285091742873192,
+              0.07267575711011887,
+              0.4388523995876312,
+              0.023555533960461617
             ],
             "top1_routed_expert_frequency": [
-              0.515625,
-              0.484375
+              0.0,
+              0.0,
+              0.0,
+              0.4375,
+              0.0,
+              0.0,
+              0.015625,
+              0.546875,
+              0.0
             ]
           }
         ],
@@ -6910,36 +7939,78 @@
             "value": "none",
             "runners": 31779,
             "mean_gate_weight_per_expert": [
-              0.008622045628726482,
-              0.9913779497146606
+              0.014255298301577568,
+              0.051347341388463974,
+              0.007544671650975943,
+              0.4811176657676697,
+              0.03916582837700844,
+              0.06890860199928284,
+              0.11524195969104767,
+              0.1806359440088272,
+              0.04178282618522644
             ],
             "top1_routed_expert_frequency": [
-              0.008622046005223575,
-              0.9913779539947765
+              0.0,
+              0.0033355360458164197,
+              3.1467321186947354e-05,
+              0.6000818150350861,
+              0.00018880392712168414,
+              0.017653167185877467,
+              0.10953774505176374,
+              0.26876239025771737,
+              0.00040907517543031563
             ]
           },
           {
             "value": "one",
             "runners": 586,
             "mean_gate_weight_per_expert": [
-              0.015358361415565014,
-              0.9846416115760803
+              0.004824681207537651,
+              0.014936897903680801,
+              0.015642734244465828,
+              0.465323805809021,
+              0.022658415138721466,
+              0.034703828394412994,
+              0.19703640043735504,
+              0.22588153183460236,
+              0.018991904333233833
             ],
             "top1_routed_expert_frequency": [
-              0.015358361774744027,
-              0.984641638225256
+              0.0,
+              0.0,
+              0.0,
+              0.5170648464163823,
+              0.0,
+              0.0034129692832764505,
+              0.2098976109215017,
+              0.2696245733788396,
+              0.0
             ]
           },
           {
             "value": "two_plus",
             "runners": 1113,
             "mean_gate_weight_per_expert": [
-              0.022461814805865288,
-              0.9775381684303284
+              0.0052367341704666615,
+              0.00799401756376028,
+              0.013230523094534874,
+              0.5297138094902039,
+              0.020678946748375893,
+              0.026234731078147888,
+              0.174618661403656,
+              0.20628753304481506,
+              0.016005247831344604
             ],
             "top1_routed_expert_frequency": [
-              0.022461814914645103,
-              0.977538185085355
+              0.0,
+              0.0,
+              0.0,
+              0.5822102425876011,
+              0.0,
+              0.0,
+              0.17699910152740342,
+              0.2407906558849955,
+              0.0
             ]
           }
         ]
@@ -6947,126 +8018,917 @@
       "top1_selection_agreement": [
         [
           1.0,
-          0.25825545171339565
+          0.3068535825545171,
+          0.11775700934579439,
+          0.2738317757009346,
+          0.38161993769470404,
+          0.0009345794392523365,
+          0.00031152647975077883,
+          0.11869158878504672,
+          0.6862928348909657
         ],
         [
-          0.25825545171339565,
+          0.3068535825545171,
+          1.0,
+          0.0691588785046729,
+          0.1750778816199377,
+          0.23052959501557632,
+          0.006853582554517134,
+          0.020872274143302182,
+          0.3576323987538941,
+          0.3451713395638629
+        ],
+        [
+          0.11775700934579439,
+          0.0691588785046729,
+          1.0,
+          0.1133956386292835,
+          0.09906542056074766,
+          0.16573208722741434,
+          0.1517133956386293,
+          0.05420560747663551,
+          0.11090342679127727
+        ],
+        [
+          0.2738317757009346,
+          0.1750778816199377,
+          0.1133956386292835,
+          1.0,
+          0.21090342679127727,
+          0.0021806853582554517,
+          0.0021806853582554517,
+          0.08193146417445483,
+          0.2822429906542056
+        ],
+        [
+          0.38161993769470404,
+          0.23052959501557632,
+          0.09906542056074766,
+          0.21090342679127727,
+          1.0,
+          0.026168224299065422,
+          0.028037383177570093,
+          0.13395638629283488,
+          0.29470404984423676
+        ],
+        [
+          0.0009345794392523365,
+          0.006853582554517134,
+          0.16573208722741434,
+          0.0021806853582554517,
+          0.026168224299065422,
+          1.0,
+          0.6274143302180686,
+          0.08909657320872275,
+          0.03302180685358255
+        ],
+        [
+          0.00031152647975077883,
+          0.020872274143302182,
+          0.1517133956386293,
+          0.0021806853582554517,
+          0.028037383177570093,
+          0.6274143302180686,
+          1.0,
+          0.1542056074766355,
+          0.022118380062305296
+        ],
+        [
+          0.11869158878504672,
+          0.3576323987538941,
+          0.05420560747663551,
+          0.08193146417445483,
+          0.13395638629283488,
+          0.08909657320872275,
+          0.1542056074766355,
+          1.0,
+          0.12398753894080997
+        ],
+        [
+          0.6862928348909657,
+          0.3451713395638629,
+          0.11090342679127727,
+          0.2822429906542056,
+          0.29470404984423676,
+          0.03302180685358255,
+          0.022118380062305296,
+          0.12398753894080997,
           1.0
         ]
       ],
       "top1_selection_disagreement": [
         [
           0.0,
-          0.7417445482866043
+          0.6931464174454829,
+          0.8822429906542056,
+          0.7261682242990655,
+          0.618380062305296,
+          0.9990654205607477,
+          0.9996884735202493,
+          0.8813084112149533,
+          0.3137071651090343
         ],
         [
-          0.7417445482866043,
+          0.6931464174454829,
+          0.0,
+          0.9308411214953272,
+          0.8249221183800624,
+          0.7694704049844237,
+          0.9931464174454828,
+          0.9791277258566978,
+          0.6423676012461059,
+          0.6548286604361371
+        ],
+        [
+          0.8822429906542056,
+          0.9308411214953272,
+          0.0,
+          0.8866043613707165,
+          0.9009345794392524,
+          0.8342679127725856,
+          0.8482866043613707,
+          0.9457943925233645,
+          0.8890965732087227
+        ],
+        [
+          0.7261682242990655,
+          0.8249221183800624,
+          0.8866043613707165,
+          0.0,
+          0.7890965732087227,
+          0.9978193146417446,
+          0.9978193146417446,
+          0.9180685358255452,
+          0.7177570093457943
+        ],
+        [
+          0.618380062305296,
+          0.7694704049844237,
+          0.9009345794392524,
+          0.7890965732087227,
+          0.0,
+          0.9738317757009346,
+          0.9719626168224299,
+          0.8660436137071651,
+          0.7052959501557632
+        ],
+        [
+          0.9990654205607477,
+          0.9931464174454828,
+          0.8342679127725856,
+          0.9978193146417446,
+          0.9738317757009346,
+          0.0,
+          0.3725856697819314,
+          0.9109034267912772,
+          0.9669781931464174
+        ],
+        [
+          0.9996884735202493,
+          0.9791277258566978,
+          0.8482866043613707,
+          0.9978193146417446,
+          0.9719626168224299,
+          0.3725856697819314,
+          0.0,
+          0.8457943925233645,
+          0.9778816199376947
+        ],
+        [
+          0.8813084112149533,
+          0.6423676012461059,
+          0.9457943925233645,
+          0.9180685358255452,
+          0.8660436137071651,
+          0.9109034267912772,
+          0.8457943925233645,
+          0.0,
+          0.8760124610591901
+        ],
+        [
+          0.3137071651090343,
+          0.6548286604361371,
+          0.8890965732087227,
+          0.7177570093457943,
+          0.7052959501557632,
+          0.9669781931464174,
+          0.9778816199376947,
+          0.8760124610591901,
           0.0
         ]
       ],
       "unique_top1_race_rate_per_expert": [
-        0.7417445482866044,
-        0.7417445482866044
+        0.09813084112149532,
+        0.2336448598130841,
+        0.5018691588785047,
+        0.4130841121495327,
+        0.31557632398753893,
+        0.2825545171339564,
+        0.24454828660436137,
+        0.3781931464174455,
+        0.09813084112149532
       ],
       "unique_top1_winner_race_rate_per_expert": [
-        0.08130841121495327,
-        0.2252336448598131
+        0.009034267912772585,
+        0.029906542056074768,
+        0.038006230529595016,
+        0.04330218068535826,
+        0.03302180685358255,
+        0.012149532710280374,
+        0.0308411214953271,
+        0.06542056074766354,
+        0.01059190031152648
       ],
       "winner_hit_rate_given_unique_top1_per_expert": [
-        0.10961780764384713,
-        0.3036539269214616
+        0.09206349206349207,
+        0.128,
+        0.07572936064556177,
+        0.1048265460030166,
+        0.10463968410661402,
+        0.04299889746416759,
+        0.12611464968152866,
+        0.17298187808896212,
+        0.10793650793650794
       ],
       "expert_specific_winner_hit_rate": [
-        0.17414330218068536,
-        0.3180685358255452
+        0.10747663551401869,
+        0.15358255451713396,
+        0.08660436137071652,
+        0.1205607476635514,
+        0.11433021806853583,
+        0.07663551401869159,
+        0.11277258566978193,
+        0.18629283489096574,
+        0.11744548286604362
       ],
-      "race_dominant_gate_expert_winner_hit_rate": 0.3186915887850467,
+      "race_dominant_gate_expert_winner_hit_rate": 0.1292834890965732,
       "race_dominant_gate_expert_frequency": [
-        0.007476635514018692,
-        0.9925233644859813
+        0.0,
+        0.0006230529595015577,
+        0.0,
+        0.8912772585669781,
+        0.0,
+        0.001557632398753894,
+        0.032398753894081,
+        0.07414330218068536,
+        0.0
       ]
     },
     "validation": {
       "expert_usage_rate": [
-        0.004555808656036446,
-        0.9954441913439636
+        0.394457099468489,
+        0.9493166287015945,
+        0.4527334851936219,
+        0.8511769172361427,
+        0.9570994684889901,
+        0.9650721336370539,
+        0.9572892938496583,
+        0.5041761579347,
+        0.9686788154897494
       ],
       "mean_gate_weight_per_expert": [
-        0.00455580884590745,
-        0.9954441785812378
+        0.009509374387562275,
+        0.05049997568130493,
+        0.007128055207431316,
+        0.5026984214782715,
+        0.03739973157644272,
+        0.06179754436016083,
+        0.12134721875190735,
+        0.17085106670856476,
+        0.03876888379454613
       ],
       "top1_routed_expert_frequency": [
-        0.004555808656036446,
-        0.9954441913439636
+        0.0,
+        0.0026575550493545936,
+        0.0,
+        0.6194001518602885,
+        0.0,
+        0.012528473804100227,
+        0.11256643887623387,
+        0.2524677296886864,
+        0.00037965072133637056
       ],
-      "gate_entropy": 0.5293126106262207,
-      "dominant_expert_rate": 0.9954441913439636,
-      "average_number_of_active_experts": 1.0,
-      "router_balance_loss": 0.25907623767852783,
+      "gate_entropy": 1.1268867254257202,
+      "dominant_expert_rate": 0.6194001518602885,
+      "average_number_of_active_experts": 7.0,
+      "router_balance_loss": 1.6605512499809265,
       "race_dominant_gate_diagnostic_available": true,
       "pairwise_expert_logit_correlations": [
         [
           1.0,
-          0.36330362904651814
+          0.24483602630649007,
+          -0.32660056030641127,
+          0.5149880838333151,
+          0.6616115464566258,
+          -0.8215802283084188,
+          -0.6234351323296025,
+          -0.07471881040748597,
+          0.6145122235032721
         ],
         [
-          0.3633036290465182,
+          0.24483602630649004,
+          1.0,
+          0.31911584339075805,
+          0.08296960254875006,
+          0.38491218182421594,
+          -0.16501639032549448,
+          -0.5175187677930564,
+          0.5549500643133035,
+          0.4429655584871367
+        ],
+        [
+          -0.32660056030641127,
+          0.31911584339075805,
+          1.0,
+          -0.2065616022841793,
+          -0.02095904484538748,
+          0.3952385484951953,
+          -0.21977052872676442,
+          0.004114102442822295,
+          0.1156418861393064
+        ],
+        [
+          0.5149880838333151,
+          0.08296960254875005,
+          -0.20656160228417927,
+          1.0,
+          0.35504967486857925,
+          -0.6008908296565778,
+          -0.4544862970713231,
+          -0.16743632288885946,
+          0.28474692761716913
+        ],
+        [
+          0.6616115464566258,
+          0.38491218182421594,
+          -0.020959044845387475,
+          0.3550496748685792,
+          1.0,
+          -0.5120232657842266,
+          -0.5219239925627313,
+          0.09930216629453835,
+          0.4310723257842576
+        ],
+        [
+          -0.8215802283084188,
+          -0.16501639032549448,
+          0.3952385484951953,
+          -0.6008908296565777,
+          -0.5120232657842266,
+          1.0,
+          0.5498360340100586,
+          0.12376220966411255,
+          -0.3437271328404073
+        ],
+        [
+          -0.6234351323296026,
+          -0.5175187677930565,
+          -0.21977052872676445,
+          -0.4544862970713231,
+          -0.5219239925627313,
+          0.5498360340100588,
+          1.0,
+          0.16207774208612966,
+          -0.7638679840839828
+        ],
+        [
+          -0.07471881040748597,
+          0.5549500643133035,
+          0.004114102442822295,
+          -0.16743632288885946,
+          0.09930216629453835,
+          0.12376220966411255,
+          0.16207774208612966,
+          1.0,
+          -0.09815501068208143
+        ],
+        [
+          0.6145122235032721,
+          0.4429655584871367,
+          0.1156418861393064,
+          0.2847469276171692,
+          0.4310723257842576,
+          -0.3437271328404073,
+          -0.7638679840839828,
+          -0.09815501068208142,
           1.0
         ]
       ],
       "pairwise_expert_logit_pearson": [
         [
           1.0,
-          0.36330362904651814
+          0.24483602630649007,
+          -0.32660056030641127,
+          0.5149880838333151,
+          0.6616115464566258,
+          -0.8215802283084188,
+          -0.6234351323296025,
+          -0.07471881040748597,
+          0.6145122235032721
         ],
         [
-          0.3633036290465182,
+          0.24483602630649004,
+          1.0,
+          0.31911584339075805,
+          0.08296960254875006,
+          0.38491218182421594,
+          -0.16501639032549448,
+          -0.5175187677930564,
+          0.5549500643133035,
+          0.4429655584871367
+        ],
+        [
+          -0.32660056030641127,
+          0.31911584339075805,
+          1.0,
+          -0.2065616022841793,
+          -0.02095904484538748,
+          0.3952385484951953,
+          -0.21977052872676442,
+          0.004114102442822295,
+          0.1156418861393064
+        ],
+        [
+          0.5149880838333151,
+          0.08296960254875005,
+          -0.20656160228417927,
+          1.0,
+          0.35504967486857925,
+          -0.6008908296565778,
+          -0.4544862970713231,
+          -0.16743632288885946,
+          0.28474692761716913
+        ],
+        [
+          0.6616115464566258,
+          0.38491218182421594,
+          -0.020959044845387475,
+          0.3550496748685792,
+          1.0,
+          -0.5120232657842266,
+          -0.5219239925627313,
+          0.09930216629453835,
+          0.4310723257842576
+        ],
+        [
+          -0.8215802283084188,
+          -0.16501639032549448,
+          0.3952385484951953,
+          -0.6008908296565777,
+          -0.5120232657842266,
+          1.0,
+          0.5498360340100586,
+          0.12376220966411255,
+          -0.3437271328404073
+        ],
+        [
+          -0.6234351323296026,
+          -0.5175187677930565,
+          -0.21977052872676445,
+          -0.4544862970713231,
+          -0.5219239925627313,
+          0.5498360340100588,
+          1.0,
+          0.16207774208612966,
+          -0.7638679840839828
+        ],
+        [
+          -0.07471881040748597,
+          0.5549500643133035,
+          0.004114102442822295,
+          -0.16743632288885946,
+          0.09930216629453835,
+          0.12376220966411255,
+          0.16207774208612966,
+          1.0,
+          -0.09815501068208143
+        ],
+        [
+          0.6145122235032721,
+          0.4429655584871367,
+          0.1156418861393064,
+          0.2847469276171692,
+          0.4310723257842576,
+          -0.3437271328404073,
+          -0.7638679840839828,
+          -0.09815501068208142,
           1.0
         ]
       ],
       "pairwise_expert_logit_spearman": [
         [
           1.0,
-          0.35699916711917357
+          0.27576591073024675,
+          -0.32473409018430655,
+          0.5834311960258727,
+          0.6875665260211888,
+          -0.8455623808784477,
+          -0.6601994712550613,
+          -0.07539901918166823,
+          0.6468276374251868
         ],
         [
-          0.35699916711917357,
+          0.27576591073024675,
+          1.0,
+          0.3183781370504516,
+          0.1225230585257315,
+          0.3977357764166177,
+          -0.1715782953335206,
+          -0.5175161838648347,
+          0.5344206183683994,
+          0.4472905563463189
+        ],
+        [
+          -0.32473409018430655,
+          0.3183781370504516,
+          1.0,
+          -0.2251695473668485,
+          -0.025661061253718538,
+          0.4305325804179866,
+          -0.21048775288069366,
+          0.01716558587593094,
+          0.11898668736321426
+        ],
+        [
+          0.5834311960258727,
+          0.1225230585257315,
+          -0.2251695473668485,
+          1.0,
+          0.40612685403764964,
+          -0.6610368421758646,
+          -0.5119399333952827,
+          -0.1587915736055649,
+          0.3552488445180959
+        ],
+        [
+          0.6875665260211888,
+          0.3977357764166177,
+          -0.025661061253718538,
+          0.40612685403764964,
+          1.0,
+          -0.5389951618019897,
+          -0.5500737849569994,
+          0.09998885558651421,
+          0.4812886199088569
+        ],
+        [
+          -0.8455623808784477,
+          -0.1715782953335206,
+          0.4305325804179866,
+          -0.6610368421758646,
+          -0.5389951618019897,
+          1.0,
+          0.5594973694971819,
+          0.13077724910873295,
+          -0.40692394761706036
+        ],
+        [
+          -0.6601994712550613,
+          -0.5175161838648347,
+          -0.21048775288069366,
+          -0.5119399333952827,
+          -0.5500737849569994,
+          0.5594973694971819,
+          1.0,
+          0.1676783733300306,
+          -0.7898518593456004
+        ],
+        [
+          -0.07539901918166823,
+          0.5344206183683994,
+          0.01716558587593094,
+          -0.1587915736055649,
+          0.09998885558651421,
+          0.13077724910873295,
+          0.1676783733300306,
+          1.0,
+          -0.12643475213190708
+        ],
+        [
+          0.6468276374251868,
+          0.4472905563463189,
+          0.11898668736321426,
+          0.3552488445180959,
+          0.4812886199088569,
+          -0.40692394761706036,
+          -0.7898518593456004,
+          -0.12643475213190708,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_pearson": [
         [
           1.0,
-          0.3678930057928569
+          0.5820927662668187,
+          -0.038140472001920556,
+          0.5101533102557998,
+          0.7299317966144377,
+          -0.8240044953235464,
+          -0.8565897414881842,
+          -0.008760803861316436,
+          0.7747484584814184
         ],
         [
-          0.3678930057928569,
+          0.5820927662668186,
+          1.0,
+          -0.09656636406182208,
+          0.24912389823305378,
+          0.474845761514274,
+          -0.5641243264341177,
+          -0.47033177312560404,
+          0.5097461019908711,
+          0.44696270965922374
+        ],
+        [
+          -0.038140472001920556,
+          -0.09656636406182208,
+          1.0,
+          -0.03673082368729012,
+          -0.04891487321244936,
+          0.04508168538825717,
+          0.026931315674030856,
+          -0.16178823128470424,
+          -0.026617215390965492
+        ],
+        [
+          0.5101533102557998,
+          0.2491238982330538,
+          -0.03673082368729012,
+          1.0,
+          0.3901475221340778,
+          -0.5913398091785932,
+          -0.5749415163755104,
+          -0.13460753902513597,
+          0.37295535485633485
+        ],
+        [
+          0.7299317966144377,
+          0.474845761514274,
+          -0.04891487321244936,
+          0.3901475221340777,
+          1.0,
+          -0.6197016699562061,
+          -0.5708439950772796,
+          0.10583232071281837,
+          0.46497655225026985
+        ],
+        [
+          -0.8240044953235465,
+          -0.5641243264341177,
+          0.045081685388257166,
+          -0.5913398091785932,
+          -0.6197016699562062,
+          1.0,
+          0.8376408450576083,
+          0.030374765370632245,
+          -0.5439158108471774
+        ],
+        [
+          -0.8565897414881842,
+          -0.47033177312560404,
+          0.026931315674030856,
+          -0.5749415163755104,
+          -0.5708439950772796,
+          0.8376408450576082,
+          1.0,
+          0.24511793409279126,
+          -0.793041036551424
+        ],
+        [
+          -0.008760803861316436,
+          0.5097461019908711,
+          -0.16178823128470424,
+          -0.13460753902513597,
+          0.10583232071281838,
+          0.030374765370632245,
+          0.24511793409279128,
+          1.0,
+          -0.16292978011472262
+        ],
+        [
+          0.7747484584814183,
+          0.4469627096592237,
+          -0.026617215390965492,
+          0.3729553548563349,
+          0.4649765522502699,
+          -0.5439158108471774,
+          -0.7930410365514239,
+          -0.16292978011472262,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_spearman": [
         [
           1.0,
-          0.35488995699744175
+          0.5989531349581854,
+          -0.06330533230915693,
+          0.5604887011305685,
+          0.7423986610890537,
+          -0.879077121933712,
+          -0.8734590462496428,
+          -0.012519340040337687,
+          0.7896422747265299
         ],
         [
-          0.35488995699744175,
+          0.5989531349581854,
+          1.0,
+          -0.1379813973995441,
+          0.2977763187900302,
+          0.49811055452536274,
+          -0.5900225179582139,
+          -0.49543952919032425,
+          0.47890186037204135,
+          0.46502323569390347
+        ],
+        [
+          -0.06330533230915693,
+          -0.1379813973995441,
+          1.0,
+          -0.02579919119958385,
+          -0.061335425719671696,
+          0.05830202623307577,
+          0.05250901469099094,
+          -0.17460458934583206,
+          -0.04916458312349544
+        ],
+        [
+          0.5604887011305685,
+          0.2977763187900302,
+          -0.02579919119958385,
+          1.0,
+          0.4169331640496496,
+          -0.6126928065656988,
+          -0.6219910284718656,
+          -0.12524899711750015,
+          0.4381782571253177
+        ],
+        [
+          0.7423986610890537,
+          0.49811055452536274,
+          -0.061335425719671696,
+          0.4169331640496496,
+          1.0,
+          -0.6440987317924248,
+          -0.5975296608675541,
+          0.10710479746397064,
+          0.5129335021127892
+        ],
+        [
+          -0.879077121933712,
+          -0.5900225179582139,
+          0.05830202623307577,
+          -0.6126928065656988,
+          -0.6440987317924248,
+          1.0,
+          0.8811907126299782,
+          0.04377989321297349,
+          -0.6781295127053626
+        ],
+        [
+          -0.8734590462496428,
+          -0.49543952919032425,
+          0.05250901469099094,
+          -0.6219910284718656,
+          -0.5975296608675541,
+          0.8811907126299782,
+          1.0,
+          0.235799336092809,
+          -0.8157653201066714
+        ],
+        [
+          -0.012519340040337687,
+          0.47890186037204135,
+          -0.17460458934583206,
+          -0.12524899711750015,
+          0.10710479746397064,
+          0.04377989321297349,
+          0.235799336092809,
+          1.0,
+          -0.17897575844584793
+        ],
+        [
+          0.7896422747265299,
+          0.46502323569390347,
+          -0.04916458312349544,
+          0.4381782571253177,
+          0.5129335021127892,
+          -0.6781295127053626,
+          -0.8157653201066714,
+          -0.17897575844584793,
           1.0
         ]
       ],
       "mean_race_level_ranking_correlation": [
         [
           1.0,
-          0.3177380511645217
+          0.5956039215686274,
+          -0.11217926681161976,
+          0.5502837074690016,
+          0.7042219584337231,
+          -0.8980581859317154,
+          -0.8684393430099312,
+          -0.006527541086364622,
+          0.8107166049636637
         ],
         [
-          0.3177380511645217,
+          0.5956039215686274,
+          1.0,
+          -0.1743345115668645,
+          0.3040724060253472,
+          0.4740145119586296,
+          -0.5971068696009872,
+          -0.5105320473644003,
+          0.4358977855477855,
+          0.488882102211514
+        ],
+        [
+          -0.11217926681161976,
+          -0.1743345115668645,
+          1.0,
+          -0.043842944310591374,
+          -0.09217614738202973,
+          0.11738059783353902,
+          0.09602553035200094,
+          -0.17187454016571663,
+          -0.07808496405555229
+        ],
+        [
+          0.5502837074690016,
+          0.3040724060253472,
+          -0.043842944310591374,
+          1.0,
+          0.3854269475622417,
+          -0.5689377142465378,
+          -0.6036522555875496,
+          -0.10960070028011204,
+          0.4712536052183111
+        ],
+        [
+          0.7042219584337231,
+          0.4740145119586296,
+          -0.09217614738202973,
+          0.3854269475622417,
+          1.0,
+          -0.627470086775969,
+          -0.5869996650408416,
+          0.09294620477561653,
+          0.525475063172122
+        ],
+        [
+          -0.8980581859317154,
+          -0.5971068696009872,
+          0.11738059783353902,
+          -0.5689377142465378,
+          -0.627470086775969,
+          1.0,
+          0.908391380188439,
+          0.06038344596579891,
+          -0.7968624140565317
+        ],
+        [
+          -0.8684393430099312,
+          -0.5105320473644003,
+          0.09602553035200094,
+          -0.6036522555875496,
+          -0.5869996650408416,
+          0.908391380188439,
+          1.0,
+          0.18727087226498992,
+          -0.8181020685197156
+        ],
+        [
+          -0.006527541086364622,
+          0.4358977855477855,
+          -0.17187454016571663,
+          -0.10960070028011204,
+          0.09294620477561653,
+          0.06038344596579891,
+          0.18727087226498992,
+          1.0,
+          -0.15403194158782396
+        ],
+        [
+          0.8107166049636637,
+          0.488882102211514,
+          -0.07808496405555229,
+          0.4712536052183111,
+          0.525475063172122,
+          -0.7968624140565317,
+          -0.8181020685197156,
+          -0.15403194158782396,
           1.0
         ]
       ],
-      "maximum_absolute_pairwise_expert_correlation": 0.36330362904651814,
+      "maximum_absolute_pairwise_expert_correlation": 0.8215802283084188,
       "specialisation_descriptions": [
-        "stronger usage in field_size=small_<=7 (gate uplift +5.7%)",
+        "no obvious specialisation",
+        "stronger usage in track_condition=Good (gate uplift +3.1%)",
+        "no obvious specialisation",
+        "stronger usage in number_of_debutants=two_plus (gate uplift +9.3%)",
+        "no obvious specialisation",
+        "no obvious specialisation",
+        "stronger usage in number_of_debutants=one (gate uplift +7.2%)",
+        "stronger usage in track_condition=Good (gate uplift +7.9%)",
         "no obvious specialisation"
       ],
       "breakdown": {
@@ -7075,36 +8937,78 @@
             "value": "long_1800m+",
             "runners": 711,
             "mean_gate_weight_per_expert": [
-              0.001406469731591642,
-              0.9985935091972351
+              0.010116751305758953,
+              0.05605572089552879,
+              0.0039342911913990974,
+              0.5644806623458862,
+              0.050318002700805664,
+              0.05527579039335251,
+              0.08955357223749161,
+              0.13214078545570374,
+              0.038124240934848785
             ],
             "top1_routed_expert_frequency": [
-              0.0014064697609001407,
-              0.9985935302390999
+              0.0,
+              0.0028129395218002813,
+              0.0,
+              0.7130801687763713,
+              0.0,
+              0.007032348804500703,
+              0.06469760900140648,
+              0.21237693389592124,
+              0.0
             ]
           },
           {
             "value": "short_<1200m",
             "runners": 895,
             "mean_gate_weight_per_expert": [
-              0.007821229286491871,
-              0.9921787977218628
+              0.01058919820934534,
+              0.05223917216062546,
+              0.01139832567423582,
+              0.45438358187675476,
+              0.0302801001816988,
+              0.0688907727599144,
+              0.14832018315792084,
+              0.17968356609344482,
+              0.04421514645218849
             ],
             "top1_routed_expert_frequency": [
-              0.00782122905027933,
-              0.9921787709497206
+              0.0,
+              0.004469273743016759,
+              0.0,
+              0.5642458100558659,
+              0.0,
+              0.013407821229050279,
+              0.14860335195530727,
+              0.2681564245810056,
+              0.0011173184357541898
             ]
           },
           {
             "value": "middle_1200-1799m",
             "runners": 3662,
             "mean_gate_weight_per_expert": [
-              0.0043691969476640224,
-              0.9956308007240295
+              0.009127532131969929,
+              0.04899633303284645,
+              0.006704483646899462,
+              0.5025110840797424,
+              0.036631785333156586,
+              0.061330221593379974,
+              0.12092786282300949,
+              0.1762082427740097,
+              0.03756282851099968
             ],
             "top1_routed_expert_frequency": [
-              0.004369197160021846,
-              0.9956308028399782
+              0.0,
+              0.002184598580010923,
+              0.0,
+              0.6146914254505734,
+              0.0,
+              0.013380666302566903,
+              0.11305297651556527,
+              0.2564172583287821,
+              0.00027307482250136535
             ]
           }
         ],
@@ -7113,36 +9017,78 @@
             "value": "medium_8-11",
             "runners": 2670,
             "mean_gate_weight_per_expert": [
-              0.000749063678085804,
-              0.9992509484291077
+              0.007983545772731304,
+              0.050430428236722946,
+              0.007204592227935791,
+              0.4949464201927185,
+              0.034212399274110794,
+              0.060091532766819,
+              0.12530691921710968,
+              0.1809004545211792,
+              0.03892409801483154
             ],
             "top1_routed_expert_frequency": [
-              0.000749063670411985,
-              0.9992509363295881
+              0.0,
+              0.003745318352059925,
+              0.0,
+              0.6041198501872659,
+              0.0,
+              0.008614232209737827,
+              0.11685393258426967,
+              0.2662921348314607,
+              0.0003745318352059925
             ]
           },
           {
             "value": "large_12+",
             "runners": 2243,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.011619756929576397,
+              0.046936310827732086,
+              0.004044742323458195,
+              0.5412848591804504,
+              0.042769577354192734,
+              0.06055651605129242,
+              0.11038060486316681,
+              0.14758950471878052,
+              0.034818410873413086
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.6696388765046812,
+              0.0,
+              0.017387427552385197,
+              0.09808292465448061,
+              0.21489077128845296,
+              0.0
             ]
           },
           {
             "value": "small_<=7",
             "runners": 355,
             "mean_gate_weight_per_expert": [
-              0.06197183206677437,
-              0.9380281567573547
+              0.00765122240409255,
+              0.07354019582271576,
+              0.026033718138933182,
+              0.3172025978565216,
+              0.027446292340755463,
+              0.08246975392103195,
+              0.1608545184135437,
+              0.2422414869070053,
+              0.06256025284528732
             ],
             "top1_routed_expert_frequency": [
-              0.061971830985915494,
-              0.9380281690140845
+              0.0,
+              0.011267605633802818,
+              0.0,
+              0.4169014084507042,
+              0.0,
+              0.011267605633802818,
+              0.17183098591549295,
+              0.38591549295774646,
+              0.0028169014084507044
             ]
           }
         ],
@@ -7151,108 +9097,234 @@
             "value": "Soft (7)",
             "runners": 864,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.009172581136226654,
+              0.04849608242511749,
+              0.005741230212152004,
+              0.5284757614135742,
+              0.03846263140439987,
+              0.06067613139748573,
+              0.11780618131160736,
+              0.15543116629123688,
+              0.035738155245780945
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0023148148148148147,
+              0.0,
+              0.6423611111111112,
+              0.0,
+              0.01273148148148148,
+              0.10185185185185185,
+              0.24074074074074073,
+              0.0
             ]
           },
           {
             "value": "Heavy (8)",
             "runners": 430,
             "mean_gate_weight_per_expert": [
-              0.004651162773370743,
-              0.9953488111495972
+              0.0055130054242908955,
+              0.048296306282281876,
+              0.008594497106969357,
+              0.4902437925338745,
+              0.03812173753976822,
+              0.062489718198776245,
+              0.15261325240135193,
+              0.15936970710754395,
+              0.03475780412554741
             ],
             "top1_routed_expert_frequency": [
+              0.0,
+              0.002325581395348837,
+              0.0,
+              0.5906976744186047,
+              0.0,
               0.004651162790697674,
-              0.9953488372093023
+              0.16279069767441862,
+              0.23953488372093024,
+              0.0
             ]
           },
           {
             "value": "Good (3)",
             "runners": 658,
             "mean_gate_weight_per_expert": [
-              0.0030395137146115303,
-              0.996960461139679
+              0.008078625425696373,
+              0.04986504837870598,
+              0.008362768217921257,
+              0.4698803424835205,
+              0.03780284896492958,
+              0.06290005147457123,
+              0.14398890733718872,
+              0.1811768114566803,
+              0.037944257259368896
             ],
             "top1_routed_expert_frequency": [
-              0.00303951367781155,
-              0.9969604863221885
+              0.0,
+              0.004559270516717325,
+              0.0,
+              0.5638297872340425,
+              0.0,
+              0.0060790273556231,
+              0.15653495440729484,
+              0.2689969604863222,
+              0.0
             ]
           },
           {
             "value": "Good (4)",
             "runners": 1028,
             "mean_gate_weight_per_expert": [
-              0.0009727626456879079,
-              0.9990272521972656
+              0.012529310770332813,
+              0.053114812821149826,
+              0.0054269274696707726,
+              0.4800425171852112,
+              0.03448094055056572,
+              0.06481806188821793,
+              0.10770460963249207,
+              0.19779540598392487,
+              0.044087376445531845
             ],
             "top1_routed_expert_frequency": [
-              0.0009727626459143969,
-              0.9990272373540856
+              0.0,
+              0.0019455252918287938,
+              0.0,
+              0.5963035019455253,
+              0.0,
+              0.019455252918287938,
+              0.09241245136186771,
+              0.28891050583657585,
+              0.0009727626459143969
             ]
           },
           {
             "value": "Heavy (9)",
             "runners": 533,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.0069606420584023,
+              0.04646427184343338,
+              0.006326157599687576,
+              0.5263365507125854,
+              0.038757093250751495,
+              0.06299931555986404,
+              0.13142696022987366,
+              0.14251680672168732,
+              0.038212232291698456
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.6660412757973734,
+              0.0,
+              0.0075046904315197,
+              0.12195121951219512,
+              0.2045028142589118,
+              0.0
             ]
           },
           {
             "value": "Soft (5)",
             "runners": 677,
             "mean_gate_weight_per_expert": [
-              0.004431314766407013,
-              0.9955686926841736
+              0.008234903216362,
+              0.047562118619680405,
+              0.006736500188708305,
+              0.4927433431148529,
+              0.032811809331178665,
+              0.06037982925772667,
+              0.12216547131538391,
+              0.19105911254882812,
+              0.038306597620248795
             ],
             "top1_routed_expert_frequency": [
-              0.004431314623338257,
-              0.9955686853766618
+              0.0,
+              0.0029542097488921715,
+              0.0,
+              0.6026587887740029,
+              0.0,
+              0.008862629246676515,
+              0.11816838995568685,
+              0.2673559822747415,
+              0.0
             ]
           },
           {
             "value": "Heavy (10)",
             "runners": 376,
             "mean_gate_weight_per_expert": [
-              0.010638297535479069,
-              0.9893617033958435
+              0.006134196650236845,
+              0.04838656261563301,
+              0.009774286299943924,
+              0.5640788674354553,
+              0.04263700917363167,
+              0.04377371072769165,
+              0.12054304033517838,
+              0.13728117942810059,
+              0.027391040697693825
             ],
             "top1_routed_expert_frequency": [
-              0.010638297872340425,
-              0.9893617021276596
+              0.0,
+              0.0,
+              0.0,
+              0.6914893617021277,
+              0.0,
+              0.0026595744680851063,
+              0.10638297872340426,
+              0.19946808510638298,
+              0.0
             ]
           },
           {
             "value": "Soft (6)",
             "runners": 459,
             "mean_gate_weight_per_expert": [
-              0.0021786491852253675,
-              0.9978213310241699
+              0.01430150493979454,
+              0.045829325914382935,
+              0.0032756237778812647,
+              0.5626752972602844,
+              0.04197936877608299,
+              0.06825165450572968,
+              0.09986408799886703,
+              0.12405263632535934,
+              0.03977013751864433
             ],
             "top1_routed_expert_frequency": [
-              0.002178649237472767,
-              0.9978213507625272
+              0.0,
+              0.0,
+              0.0,
+              0.7037037037037037,
+              0.0,
+              0.037037037037037035,
+              0.0784313725490196,
+              0.18082788671023964,
+              0.0
             ]
           },
           {
             "value": "Good",
             "runners": 243,
             "mean_gate_weight_per_expert": [
-              0.045267488807439804,
-              0.9547325372695923
+              0.014188914559781551,
+              0.08131161332130432,
+              0.01934920996427536,
+              0.38540729880332947,
+              0.03665314242243767,
+              0.06580772995948792,
+              0.09244818240404129,
+              0.2502371370792389,
+              0.0545969232916832
             ],
             "top1_routed_expert_frequency": [
-              0.04526748971193416,
-              0.9547325102880658
+              0.0,
+              0.01646090534979424,
+              0.0,
+              0.5102880658436214,
+              0.0,
+              0.00411522633744856,
+              0.06584362139917696,
+              0.3991769547325103,
+              0.00411522633744856
             ]
           }
         ],
@@ -7261,12 +9333,26 @@
             "value": "Horses - Aus/NZ",
             "runners": 5268,
             "mean_gate_weight_per_expert": [
-              0.00455580884590745,
-              0.9954441785812378
+              0.009509374387562275,
+              0.05049997568130493,
+              0.007128055207431316,
+              0.5026984214782715,
+              0.03739973157644272,
+              0.06179754436016083,
+              0.12134721875190735,
+              0.17085106670856476,
+              0.03876888379454613
             ],
             "top1_routed_expert_frequency": [
-              0.004555808656036446,
-              0.9954441913439636
+              0.0,
+              0.0026575550493545936,
+              0.0,
+              0.6194001518602885,
+              0.0,
+              0.012528473804100227,
+              0.11256643887623387,
+              0.2524677296886864,
+              0.00037965072133637056
             ]
           }
         ],
@@ -7275,36 +9361,78 @@
             "value": "experienced_6+",
             "runners": 4737,
             "mean_gate_weight_per_expert": [
-              0.004433185327798128,
-              0.9955667853355408
+              0.01004619337618351,
+              0.05381285399198532,
+              0.0066445693373680115,
+              0.5091525316238403,
+              0.038060031831264496,
+              0.06213199719786644,
+              0.11350060999393463,
+              0.16659104824066162,
+              0.04006059467792511
             ],
             "top1_routed_expert_frequency": [
-              0.004433185560481318,
-              0.9955668144395187
+              0.0,
+              0.002955457040320878,
+              0.0,
+              0.6312011821828162,
+              0.0,
+              0.013088452607135318,
+              0.10154105974245303,
+              0.25079164027865736,
+              0.0004222081486172683
             ]
           },
           {
             "value": "developing_2-5",
             "runners": 445,
             "mean_gate_weight_per_expert": [
-              0.006741573102772236,
-              0.9932584166526794
+              0.004051993601024151,
+              0.02390526793897152,
+              0.0114354332908988,
+              0.41719159483909607,
+              0.032620325684547424,
+              0.06344858556985855,
+              0.1932474672794342,
+              0.22483491897583008,
+              0.029264401644468307
             ],
             "top1_routed_expert_frequency": [
-              0.006741573033707865,
-              0.9932584269662922
+              0.0,
+              0.0,
+              0.0,
+              0.48764044943820223,
+              0.0,
+              0.008988764044943821,
+              0.2157303370786517,
+              0.2876404494382023,
+              0.0
             ]
           },
           {
             "value": "inexperienced_0-1",
             "runners": 86,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.008179827593266964,
+              0.005635259207338095,
+              0.011470922268927097,
+              0.589634358882904,
+              0.02576318196952343,
+              0.0348362922668457,
+              0.181514173746109,
+              0.12616823613643646,
+              0.016797734424471855
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.6511627906976745,
+              0.0,
+              0.0,
+              0.18604651162790697,
+              0.16279069767441862,
+              0.0
             ]
           }
         ],
@@ -7313,36 +9441,78 @@
             "value": "none",
             "runners": 5142,
             "mean_gate_weight_per_expert": [
-              0.004472967702895403,
-              0.9955270290374756
+              0.009631897322833538,
+              0.05149377882480621,
+              0.007010234519839287,
+              0.502029299736023,
+              0.037878457456827164,
+              0.06269359588623047,
+              0.11982559412717819,
+              0.17007233202457428,
+              0.0393650121986866
             ],
             "top1_routed_expert_frequency": [
-              0.004472967716841696,
-              0.9955270322831583
+              0.0,
+              0.0027226760015558148,
+              0.0,
+              0.6205756514974718,
+              0.0,
+              0.012835472578763127,
+              0.11124076234928043,
+              0.25223648385842085,
+              0.00038895371450797355
             ]
           },
           {
             "value": "two_plus",
             "runners": 62,
             "mean_gate_weight_per_expert": [
-              0.016129031777381897,
-              0.9838709831237793
+              0.00712796114385128,
+              0.003972487058490515,
+              0.009732217527925968,
+              0.5956527590751648,
+              0.019756782799959183,
+              0.020963190123438835,
+              0.17317785322666168,
+              0.15616941452026367,
+              0.01344731543213129
             ],
             "top1_routed_expert_frequency": [
-              0.016129032258064516,
-              0.9838709677419355
+              0.0,
+              0.0,
+              0.0,
+              0.6290322580645161,
+              0.0,
+              0.0,
+              0.16129032258064516,
+              0.20967741935483872,
+              0.0
             ]
           },
           {
             "value": "one",
             "runners": 64,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.0019727929029613733,
+              0.015728063881397247,
+              0.014071619138121605,
+              0.46639955043792725,
+              0.01603068970143795,
+              0.02936508320271969,
+              0.1933906078338623,
+              0.24763713777065277,
+              0.015404398553073406
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.515625,
+              0.0,
+              0.0,
+              0.171875,
+              0.3125,
+              0.0
             ]
           }
         ]
@@ -7350,126 +9520,917 @@
       "top1_selection_agreement": [
         [
           1.0,
-          0.264
+          0.306,
+          0.116,
+          0.288,
+          0.414,
+          0.002,
+          0.0,
+          0.118,
+          0.666
         ],
         [
-          0.264,
+          0.306,
+          1.0,
+          0.084,
+          0.172,
+          0.214,
+          0.006,
+          0.018,
+          0.392,
+          0.336
+        ],
+        [
+          0.116,
+          0.084,
+          1.0,
+          0.076,
+          0.102,
+          0.146,
+          0.156,
+          0.05,
+          0.126
+        ],
+        [
+          0.288,
+          0.172,
+          0.076,
+          1.0,
+          0.196,
+          0.004,
+          0.0,
+          0.096,
+          0.276
+        ],
+        [
+          0.414,
+          0.214,
+          0.102,
+          0.196,
+          1.0,
+          0.026,
+          0.038,
+          0.128,
+          0.312
+        ],
+        [
+          0.002,
+          0.006,
+          0.146,
+          0.004,
+          0.026,
+          1.0,
+          0.634,
+          0.048,
+          0.034
+        ],
+        [
+          0.0,
+          0.018,
+          0.156,
+          0.0,
+          0.038,
+          0.634,
+          1.0,
+          0.108,
+          0.022
+        ],
+        [
+          0.118,
+          0.392,
+          0.05,
+          0.096,
+          0.128,
+          0.048,
+          0.108,
+          1.0,
+          0.146
+        ],
+        [
+          0.666,
+          0.336,
+          0.126,
+          0.276,
+          0.312,
+          0.034,
+          0.022,
+          0.146,
           1.0
         ]
       ],
       "top1_selection_disagreement": [
         [
           0.0,
-          0.736
+          0.694,
+          0.884,
+          0.712,
+          0.5860000000000001,
+          0.998,
+          1.0,
+          0.882,
+          0.33399999999999996
         ],
         [
-          0.736,
+          0.694,
+          0.0,
+          0.916,
+          0.8280000000000001,
+          0.786,
+          0.994,
+          0.982,
+          0.608,
+          0.6639999999999999
+        ],
+        [
+          0.884,
+          0.916,
+          0.0,
+          0.924,
+          0.898,
+          0.854,
+          0.844,
+          0.95,
+          0.874
+        ],
+        [
+          0.712,
+          0.8280000000000001,
+          0.924,
+          0.0,
+          0.804,
+          0.996,
+          1.0,
+          0.904,
+          0.724
+        ],
+        [
+          0.5860000000000001,
+          0.786,
+          0.898,
+          0.804,
+          0.0,
+          0.974,
+          0.962,
+          0.872,
+          0.688
+        ],
+        [
+          0.998,
+          0.994,
+          0.854,
+          0.996,
+          0.974,
+          0.0,
+          0.366,
+          0.952,
+          0.966
+        ],
+        [
+          1.0,
+          0.982,
+          0.844,
+          1.0,
+          0.962,
+          0.366,
+          0.0,
+          0.892,
+          0.978
+        ],
+        [
+          0.882,
+          0.608,
+          0.95,
+          0.904,
+          0.872,
+          0.952,
+          0.892,
+          0.0,
+          0.854
+        ],
+        [
+          0.33399999999999996,
+          0.6639999999999999,
+          0.874,
+          0.724,
+          0.688,
+          0.966,
+          0.978,
+          0.854,
           0.0
         ]
       ],
       "unique_top1_race_rate_per_expert": [
-        0.736,
-        0.736
+        0.102,
+        0.236,
+        0.542,
+        0.452,
+        0.336,
+        0.296,
+        0.222,
+        0.39,
+        0.122
       ],
       "unique_top1_winner_race_rate_per_expert": [
+        0.006,
+        0.046,
+        0.04,
+        0.052,
+        0.038,
+        0.026,
+        0.02,
         0.078,
-        0.24
+        0.01
       ],
       "winner_hit_rate_given_unique_top1_per_expert": [
-        0.10597826086956522,
-        0.32608695652173914
+        0.058823529411764705,
+        0.19491525423728814,
+        0.07380073800738007,
+        0.11504424778761062,
+        0.1130952380952381,
+        0.08783783783783784,
+        0.09009009009009009,
+        0.2,
+        0.08196721311475409
       ],
       "expert_specific_winner_hit_rate": [
-        0.168,
-        0.33
+        0.114,
+        0.162,
+        0.094,
+        0.124,
+        0.128,
+        0.086,
+        0.112,
+        0.204,
+        0.118
       ],
-      "race_dominant_gate_expert_winner_hit_rate": 0.328,
+      "race_dominant_gate_expert_winner_hit_rate": 0.126,
       "race_dominant_gate_expert_frequency": [
-        0.002,
-        0.998
+        0.0,
+        0.0,
+        0.0,
+        0.928,
+        0.0,
+        0.0,
+        0.02,
+        0.052,
+        0.0
       ]
     },
     "test": {
       "expert_usage_rate": [
-        0.002329192546583851,
-        0.9976708074534162
+        0.37111801242236025,
+        0.9283773291925466,
+        0.46913819875776397,
+        0.8689829192546584,
+        0.952542701863354,
+        0.9703998447204969,
+        0.9553571428571429,
+        0.5168866459627329,
+        0.9671972049689441
       ],
       "mean_gate_weight_per_expert": [
-        0.002329192589968443,
-        0.9976708292961121
+        0.008246379904448986,
+        0.048425331711769104,
+        0.007157591637223959,
+        0.5166139602661133,
+        0.0355587936937809,
+        0.05781911686062813,
+        0.11333140730857849,
+        0.17612458765506744,
+        0.036722954362630844
       ],
       "top1_routed_expert_frequency": [
-        0.002329192546583851,
-        0.9976708074534162
+        0.0,
+        0.00281444099378882,
+        0.0,
+        0.6315993788819876,
+        0.0002911490683229814,
+        0.010093167701863354,
+        0.10025232919254658,
+        0.2549495341614907,
+        0.0
       ],
-      "gate_entropy": 0.5107742547988892,
-      "dominant_expert_rate": 0.9976708074534162,
-      "average_number_of_active_experts": 1.0,
-      "router_balance_loss": 0.2858612537384033,
+      "gate_entropy": 1.099800944328308,
+      "dominant_expert_rate": 0.6315993788819876,
+      "average_number_of_active_experts": 7.0,
+      "router_balance_loss": 1.7721456289291382,
       "race_dominant_gate_diagnostic_available": true,
       "pairwise_expert_logit_correlations": [
         [
           1.0,
-          0.3615877253028648
+          0.22790958647793605,
+          -0.3356979340076908,
+          0.48268202823808265,
+          0.6692267513440869,
+          -0.794218678788937,
+          -0.5877600697134902,
+          -0.055774311111992964,
+          0.5956448778946333
         ],
         [
-          0.3615877253028648,
+          0.22790958647793608,
+          1.0,
+          0.30878510636621603,
+          0.024534874587596026,
+          0.3717266441385868,
+          -0.11362813056750642,
+          -0.5059111978597559,
+          0.5778548825438132,
+          0.44191850742547134
+        ],
+        [
+          -0.3356979340076908,
+          0.3087851063662161,
+          1.0,
+          -0.22198482846347384,
+          -0.04908000915266451,
+          0.42572821584913784,
+          -0.2227956176351497,
+          0.002781947209674126,
+          0.10000800196991583
+        ],
+        [
+          0.4826820282380826,
+          0.024534874587596026,
+          -0.2219848284634738,
+          1.0,
+          0.3306742125825732,
+          -0.546496257168609,
+          -0.3818675539358036,
+          -0.1553720635871047,
+          0.24122061920600274
+        ],
+        [
+          0.6692267513440869,
+          0.3717266441385868,
+          -0.04908000915266451,
+          0.33067421258257323,
+          1.0,
+          -0.5213321230363833,
+          -0.509994393899075,
+          0.10267152675556511,
+          0.43750857473324756
+        ],
+        [
+          -0.794218678788937,
+          -0.11362813056750644,
+          0.4257282158491378,
+          -0.5464962571686091,
+          -0.5213321230363834,
+          1.0,
+          0.4692210108749507,
+          0.09799866559566542,
+          -0.2633044343928011
+        ],
+        [
+          -0.58776006971349,
+          -0.5059111978597559,
+          -0.22279561763514968,
+          -0.38186755393580357,
+          -0.509994393899075,
+          0.4692210108749507,
+          1.0,
+          0.14398186110264308,
+          -0.7545617225333866
+        ],
+        [
+          -0.05577431111199296,
+          0.5778548825438131,
+          0.0027819472096741265,
+          -0.1553720635871047,
+          0.10267152675556512,
+          0.09799866559566542,
+          0.14398186110264308,
+          1.0,
+          -0.07081741226543924
+        ],
+        [
+          0.5956448778946332,
+          0.4419185074254714,
+          0.10000800196991583,
+          0.24122061920600274,
+          0.4375085747332475,
+          -0.2633044343928011,
+          -0.7545617225333866,
+          -0.07081741226543925,
           1.0
         ]
       ],
       "pairwise_expert_logit_pearson": [
         [
           1.0,
-          0.3615877253028648
+          0.22790958647793605,
+          -0.3356979340076908,
+          0.48268202823808265,
+          0.6692267513440869,
+          -0.794218678788937,
+          -0.5877600697134902,
+          -0.055774311111992964,
+          0.5956448778946333
         ],
         [
-          0.3615877253028648,
+          0.22790958647793608,
+          1.0,
+          0.30878510636621603,
+          0.024534874587596026,
+          0.3717266441385868,
+          -0.11362813056750642,
+          -0.5059111978597559,
+          0.5778548825438132,
+          0.44191850742547134
+        ],
+        [
+          -0.3356979340076908,
+          0.3087851063662161,
+          1.0,
+          -0.22198482846347384,
+          -0.04908000915266451,
+          0.42572821584913784,
+          -0.2227956176351497,
+          0.002781947209674126,
+          0.10000800196991583
+        ],
+        [
+          0.4826820282380826,
+          0.024534874587596026,
+          -0.2219848284634738,
+          1.0,
+          0.3306742125825732,
+          -0.546496257168609,
+          -0.3818675539358036,
+          -0.1553720635871047,
+          0.24122061920600274
+        ],
+        [
+          0.6692267513440869,
+          0.3717266441385868,
+          -0.04908000915266451,
+          0.33067421258257323,
+          1.0,
+          -0.5213321230363833,
+          -0.509994393899075,
+          0.10267152675556511,
+          0.43750857473324756
+        ],
+        [
+          -0.794218678788937,
+          -0.11362813056750644,
+          0.4257282158491378,
+          -0.5464962571686091,
+          -0.5213321230363834,
+          1.0,
+          0.4692210108749507,
+          0.09799866559566542,
+          -0.2633044343928011
+        ],
+        [
+          -0.58776006971349,
+          -0.5059111978597559,
+          -0.22279561763514968,
+          -0.38186755393580357,
+          -0.509994393899075,
+          0.4692210108749507,
+          1.0,
+          0.14398186110264308,
+          -0.7545617225333866
+        ],
+        [
+          -0.05577431111199296,
+          0.5778548825438131,
+          0.0027819472096741265,
+          -0.1553720635871047,
+          0.10267152675556512,
+          0.09799866559566542,
+          0.14398186110264308,
+          1.0,
+          -0.07081741226543924
+        ],
+        [
+          0.5956448778946332,
+          0.4419185074254714,
+          0.10000800196991583,
+          0.24122061920600274,
+          0.4375085747332475,
+          -0.2633044343928011,
+          -0.7545617225333866,
+          -0.07081741226543925,
           1.0
         ]
       ],
       "pairwise_expert_logit_spearman": [
         [
           1.0,
-          0.3569841049154999
+          0.2481366472919261,
+          -0.3324368949380476,
+          0.5618923889104733,
+          0.6945140972757672,
+          -0.8228828150555502,
+          -0.6234185234496834,
+          -0.058121989310636016,
+          0.6353239263123929
         ],
         [
-          0.3569841049154999,
+          0.2481366472919261,
+          1.0,
+          0.32578011778308597,
+          0.06974987333147323,
+          0.3758715485823335,
+          -0.09952118736823981,
+          -0.5018435613821965,
+          0.560041835561209,
+          0.451085537829495
+        ],
+        [
+          -0.3324368949380476,
+          0.32578011778308597,
+          1.0,
+          -0.2577421625122688,
+          -0.05648001292361402,
+          0.47406329316459345,
+          -0.22775115975509294,
+          0.020221590119287303,
+          0.10639656601512337
+        ],
+        [
+          0.5618923889104733,
+          0.06974987333147323,
+          -0.2577421625122688,
+          1.0,
+          0.40074803391226954,
+          -0.6275594884076416,
+          -0.45709546356423875,
+          -0.14132662225107484,
+          0.3211443671745733
+        ],
+        [
+          0.6945140972757672,
+          0.3758715485823335,
+          -0.05648001292361402,
+          0.40074803391226954,
+          1.0,
+          -0.5471397802389963,
+          -0.542399051711624,
+          0.10137982998849776,
+          0.49566379781127723
+        ],
+        [
+          -0.8228828150555502,
+          -0.09952118736823981,
+          0.47406329316459345,
+          -0.6275594884076416,
+          -0.5471397802389963,
+          1.0,
+          0.4816555383444148,
+          0.11148193968208854,
+          -0.3551947024240765
+        ],
+        [
+          -0.6234185234496834,
+          -0.5018435613821965,
+          -0.22775115975509294,
+          -0.45709546356423875,
+          -0.542399051711624,
+          0.4816555383444148,
+          1.0,
+          0.15713239241286517,
+          -0.7888264296464024
+        ],
+        [
+          -0.058121989310636016,
+          0.560041835561209,
+          0.020221590119287303,
+          -0.14132662225107484,
+          0.10137982998849776,
+          0.11148193968208854,
+          0.15713239241286517,
+          1.0,
+          -0.0956288671473498
+        ],
+        [
+          0.6353239263123929,
+          0.451085537829495,
+          0.10639656601512337,
+          0.3211443671745733,
+          0.49566379781127723,
+          -0.3551947024240765,
+          -0.7888264296464024,
+          -0.0956288671473498,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_pearson": [
         [
           1.0,
-          0.3875408852951296
+          0.584345944737658,
+          -0.047737716398579606,
+          0.4589832029531103,
+          0.7286809607610851,
+          -0.8029540089653716,
+          -0.8423659112498346,
+          0.012246433707514647,
+          0.7707552749110049
         ],
         [
-          0.3875408852951296,
+          0.584345944737658,
+          1.0,
+          -0.1038579275439656,
+          0.19537410126306579,
+          0.49660877465496267,
+          -0.5456537587224489,
+          -0.45130014701017307,
+          0.5173052494233455,
+          0.45913072200704536
+        ],
+        [
+          -0.047737716398579606,
+          -0.10385792754396561,
+          1.0,
+          -0.03651255291156971,
+          -0.06851270654485421,
+          0.06033338776772417,
+          0.05284070267417227,
+          -0.1272084123672136,
+          -0.055913010819422765
+        ],
+        [
+          0.4589832029531103,
+          0.19537410126306576,
+          -0.03651255291156971,
+          1.0,
+          0.3602496196846542,
+          -0.5346131666027633,
+          -0.525179496516166,
+          -0.12444270474095244,
+          0.3373373348143568
+        ],
+        [
+          0.7286809607610851,
+          0.49660877465496267,
+          -0.0685127065448542,
+          0.36024961968465424,
+          1.0,
+          -0.6231981319644638,
+          -0.5722187033372823,
+          0.13009361827295185,
+          0.4908374334637957
+        ],
+        [
+          -0.8029540089653716,
+          -0.5456537587224489,
+          0.06033338776772417,
+          -0.5346131666027633,
+          -0.6231981319644637,
+          1.0,
+          0.8053345576678054,
+          0.010649180211428234,
+          -0.5115569685901672
+        ],
+        [
+          -0.8423659112498347,
+          -0.45130014701017307,
+          0.05284070267417227,
+          -0.5251794965161661,
+          -0.5722187033372823,
+          0.8053345576678053,
+          1.0,
+          0.24473621660796482,
+          -0.7897775021931667
+        ],
+        [
+          0.012246433707514647,
+          0.5173052494233455,
+          -0.12720841236721364,
+          -0.12444270474095245,
+          0.13009361827295182,
+          0.010649180211428232,
+          0.24473621660796482,
+          1.0,
+          -0.13415226085385012
+        ],
+        [
+          0.7707552749110049,
+          0.45913072200704536,
+          -0.05591301081942276,
+          0.3373373348143568,
+          0.49083743346379566,
+          -0.5115569685901672,
+          -0.7897775021931667,
+          -0.1341522608538501,
           1.0
         ]
       ],
       "pairwise_race_centred_expert_logit_spearman": [
         [
           1.0,
-          0.37823549375167953
+          0.598795405463988,
+          -0.08052510588276227,
+          0.5184268323708743,
+          0.7411867546300326,
+          -0.8666071358947969,
+          -0.8601880687807658,
+          0.006061073236787774,
+          0.7873558472440032
         ],
         [
-          0.37823549375167953,
+          0.598795405463988,
+          1.0,
+          -0.1366662075031466,
+          0.2485377217613563,
+          0.5137812734978959,
+          -0.5750869096590913,
+          -0.47783102285428164,
+          0.4910933099512718,
+          0.47544456935234986
+        ],
+        [
+          -0.08052510588276227,
+          -0.1366662075031466,
+          1.0,
+          -0.04127367233858048,
+          -0.09604206463808164,
+          0.07911177385436473,
+          0.08147387901591167,
+          -0.14197779943764735,
+          -0.07376879329792085
+        ],
+        [
+          0.5184268323708743,
+          0.2485377217613563,
+          -0.04127367233858048,
+          1.0,
+          0.39862737118350405,
+          -0.5674010158456778,
+          -0.5810208930189065,
+          -0.1129613189132826,
+          0.40018539196180464
+        ],
+        [
+          0.7411867546300326,
+          0.5137812734978959,
+          -0.09604206463808164,
+          0.39862737118350405,
+          1.0,
+          -0.651800806422111,
+          -0.6023015097723957,
+          0.12458103152603883,
+          0.5365851086557263
+        ],
+        [
+          -0.8666071358947969,
+          -0.5750869096590913,
+          0.07911177385436473,
+          -0.5674010158456778,
+          -0.651800806422111,
+          1.0,
+          0.8665143233717324,
+          0.029120951215640244,
+          -0.6659926134767742
+        ],
+        [
+          -0.8601880687807658,
+          -0.47783102285428164,
+          0.08147387901591167,
+          -0.5810208930189065,
+          -0.6023015097723957,
+          0.8665143233717324,
+          1.0,
+          0.2360506613289834,
+          -0.8112901506149159
+        ],
+        [
+          0.006061073236787774,
+          0.4910933099512718,
+          -0.14197779943764735,
+          -0.1129613189132826,
+          0.12458103152603883,
+          0.029120951215640244,
+          0.2360506613289834,
+          1.0,
+          -0.14886669745849815
+        ],
+        [
+          0.7873558472440032,
+          0.47544456935234986,
+          -0.07376879329792085,
+          0.40018539196180464,
+          0.5365851086557263,
+          -0.6659926134767742,
+          -0.8112901506149159,
+          -0.14886669745849815,
           1.0
         ]
       ],
       "mean_race_level_ranking_correlation": [
         [
           1.0,
-          0.34345449843993786
+          0.5966274395109535,
+          -0.12267157690091128,
+          0.516079221140057,
+          0.7101709244058315,
+          -0.8878056434020056,
+          -0.8570727725061316,
+          0.017696864487421766,
+          0.8059115744936177
         ],
         [
-          0.34345449843993786,
+          0.5966274395109535,
+          1.0,
+          -0.16626302670497717,
+          0.2647212269670474,
+          0.49548310969216536,
+          -0.5816547414917383,
+          -0.4915870236316831,
+          0.4610054737058607,
+          0.4926172676652553
+        ],
+        [
+          -0.12267157690091128,
+          -0.16626302670497717,
+          1.0,
+          -0.060504337045823114,
+          -0.11836694726841784,
+          0.13861156704492616,
+          0.1188936340491294,
+          -0.1454525251322465,
+          -0.09144754930312206
+        ],
+        [
+          0.516079221140057,
+          0.2647212269670474,
+          -0.060504337045823114,
+          1.0,
+          0.3828537259438188,
+          -0.5417453416552487,
+          -0.5772374445471969,
+          -0.10192011474078037,
+          0.4397559521489862
+        ],
+        [
+          0.7101709244058315,
+          0.49548310969216536,
+          -0.11836694726841784,
+          0.3828537259438188,
+          1.0,
+          -0.6367685359789849,
+          -0.5942901705621519,
+          0.1212829139384867,
+          0.5493267973770296
+        ],
+        [
+          -0.8878056434020056,
+          -0.5816547414917383,
+          0.13861156704492616,
+          -0.5417453416552487,
+          -0.6367685359789849,
+          1.0,
+          0.899314470462458,
+          0.04168421086137805,
+          -0.7889748755372594
+        ],
+        [
+          -0.8570727725061316,
+          -0.4915870236316831,
+          0.1188936340491294,
+          -0.5772374445471969,
+          -0.5942901705621519,
+          0.899314470462458,
+          1.0,
+          0.1848114042562185,
+          -0.806080761060405
+        ],
+        [
+          0.017696864487421766,
+          0.4610054737058607,
+          -0.1454525251322465,
+          -0.10192011474078037,
+          0.1212829139384867,
+          0.04168421086137805,
+          0.1848114042562185,
+          1.0,
+          -0.11821378451270091
+        ],
+        [
+          0.8059115744936177,
+          0.4926172676652553,
+          -0.09144754930312206,
+          0.4397559521489862,
+          0.5493267973770296,
+          -0.7889748755372594,
+          -0.806080761060405,
+          -0.11821378451270091,
           1.0
         ]
       ],
-      "maximum_absolute_pairwise_expert_correlation": 0.3615877253028648,
+      "maximum_absolute_pairwise_expert_correlation": 0.794218678788937,
       "specialisation_descriptions": [
         "no obvious specialisation",
+        "stronger usage in track_condition=Good (gate uplift +3.3%)",
+        "no obvious specialisation",
+        "stronger usage in track_condition=Heavy (9) (gate uplift +5.5%)",
+        "no obvious specialisation",
+        "no obvious specialisation",
+        "stronger usage in runner_experience=inexperienced_0-1 (gate uplift +9.3%)",
+        "stronger usage in track_condition=Soft (gate uplift +13.6%)",
         "no obvious specialisation"
       ],
       "breakdown": {
@@ -7478,36 +10439,78 @@
             "value": "middle_1200-1799m",
             "runners": 7039,
             "mean_gate_weight_per_expert": [
-              0.0011365250684320927,
-              0.9988634586334229
+              0.007711980026215315,
+              0.047141142189502716,
+              0.006584890652447939,
+              0.5223312377929688,
+              0.03448529541492462,
+              0.057317931205034256,
+              0.11264102905988693,
+              0.17616623640060425,
+              0.03561965376138687
             ],
             "top1_routed_expert_frequency": [
-              0.001136525074584458,
-              0.9988634749254155
+              0.0,
+              0.0028413126864611452,
+              0.0,
+              0.6346071885210968,
+              0.00014206563432305724,
+              0.010086660036937065,
+              0.09901974712317091,
+              0.2533030259980111,
+              0.0
             ]
           },
           {
             "value": "short_<1200m",
             "runners": 1930,
             "mean_gate_weight_per_expert": [
-              0.005699481815099716,
-              0.9943005442619324
+              0.008336011320352554,
+              0.04411660507321358,
+              0.010781017132103443,
+              0.48381099104881287,
+              0.026131069287657738,
+              0.06237981468439102,
+              0.13743948936462402,
+              0.18806104362010956,
+              0.03894457593560219
             ],
             "top1_routed_expert_frequency": [
-              0.005699481865284974,
-              0.994300518134715
+              0.0,
+              0.0005181347150259067,
+              0.0,
+              0.5823834196891192,
+              0.0,
+              0.010362694300518135,
+              0.14093264248704662,
+              0.26580310880829017,
+              0.0
             ]
           },
           {
             "value": "long_1800m+",
             "runners": 1335,
             "mean_gate_weight_per_expert": [
-              0.00374531839042902,
-              0.9962546825408936
+              0.010934513062238693,
+              0.06142567843198776,
+              0.0049389321357011795,
+              0.533887505531311,
+              0.054848987609148026,
+              0.053868893533945084,
+              0.08211719989776611,
+              0.15864889323711395,
+              0.0393291637301445
             ],
             "top1_routed_expert_frequency": [
-              0.003745318352059925,
-              0.9962546816479401
+              0.0,
+              0.00599250936329588,
+              0.0,
+              0.6868913857677903,
+              0.00149812734082397,
+              0.009737827715355805,
+              0.04794007490636704,
+              0.24794007490636705,
+              0.0
             ]
           }
         ],
@@ -7516,36 +10519,78 @@
             "value": "small_<=7",
             "runners": 582,
             "mean_gate_weight_per_expert": [
-              0.030927835032343864,
-              0.969072163105011
+              0.007519256789237261,
+              0.06854218989610672,
+              0.02226225845515728,
+              0.3662398159503937,
+              0.026251599192619324,
+              0.07365649193525314,
+              0.12811394035816193,
+              0.25230640172958374,
+              0.05510804057121277
             ],
             "top1_routed_expert_frequency": [
-              0.030927835051546393,
-              0.9690721649484536
+              0.0,
+              0.010309278350515464,
+              0.0,
+              0.47079037800687284,
+              0.0,
+              0.015463917525773196,
+              0.13573883161512026,
+              0.36769759450171824,
+              0.0
             ]
           },
           {
             "value": "medium_8-11",
             "runners": 5891,
             "mean_gate_weight_per_expert": [
-              0.0003395009262021631,
-              0.9996604919433594
+              0.0070577035658061504,
+              0.0488172210752964,
+              0.007414919789880514,
+              0.5039275288581848,
+              0.03190292418003082,
+              0.05712036415934563,
+              0.11646278947591782,
+              0.18980899453163147,
+              0.037486858665943146
             ],
             "top1_routed_expert_frequency": [
-              0.00033950093362756747,
-              0.9996604990663724
+              0.0,
+              0.0030555084026481073,
+              0.0,
+              0.6136479375318282,
+              0.0,
+              0.010015277542013241,
+              0.10371753522322186,
+              0.2695637413002886,
+              0.0
             ]
           },
           {
             "value": "large_12+",
             "runners": 3831,
             "mean_gate_weight_per_expert": [
-              0.001044113771058619,
-              0.9989559054374695
+              0.010184679180383682,
+              0.04476669058203697,
+              0.0044672321528196335,
+              0.5589649081230164,
+              0.04259448125958443,
+              0.056488003581762314,
+              0.10627007484436035,
+              0.14350876212120056,
+              0.03275545313954353
             ],
             "top1_routed_expert_frequency": [
-              0.0010441138084051162,
-              0.9989558861915949
+              0.0,
+              0.0013051422605063951,
+              0.0,
+              0.6836335160532498,
+              0.0007830853563038371,
+              0.009397024275646046,
+              0.08953275907073871,
+              0.2153484729835552,
+              0.0
             ]
           }
         ],
@@ -7554,132 +10599,286 @@
             "value": "Heavy (9)",
             "runners": 664,
             "mean_gate_weight_per_expert": [
-              0.0015060240402817726,
-              0.9984939694404602
+              0.005927389021962881,
+              0.04554576054215431,
+              0.007868091575801373,
+              0.5717911124229431,
+              0.04143361747264862,
+              0.047644276171922684,
+              0.11578378081321716,
+              0.13557922840118408,
+              0.028426609933376312
             ],
             "top1_routed_expert_frequency": [
-              0.0015060240963855422,
-              0.9984939759036144
+              0.0,
+              0.0,
+              0.0,
+              0.6822289156626506,
+              0.0030120481927710845,
+              0.010542168674698794,
+              0.10993975903614457,
+              0.19427710843373494,
+              0.0
             ]
           },
           {
             "value": "Soft (7)",
             "runners": 1166,
             "mean_gate_weight_per_expert": [
-              0.0017152659129351377,
-              0.9982847571372986
+              0.008221471682190895,
+              0.04963841661810875,
+              0.006320824846625328,
+              0.5287778377532959,
+              0.037236377596855164,
+              0.05617086589336395,
+              0.12632407248020172,
+              0.15116733312606812,
+              0.036143068224191666
             ],
             "top1_routed_expert_frequency": [
-              0.0017152658662092624,
-              0.9982847341337907
+              0.0,
+              0.004288164665523156,
+              0.0,
+              0.6569468267581475,
+              0.0,
+              0.004288164665523156,
+              0.11663807890222985,
+              0.21783876500857632,
+              0.0
             ]
           },
           {
             "value": "Soft (6)",
             "runners": 1124,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.008686301298439503,
+              0.04560123383998871,
+              0.004853527527302504,
+              0.5484349727630615,
+              0.03650470823049545,
+              0.062127355486154556,
+              0.10513776540756226,
+              0.15076014399528503,
+              0.03789414092898369
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.6743772241992882,
+              0.0,
+              0.009786476868327402,
+              0.09163701067615658,
+              0.22419928825622776,
+              0.0
             ]
           },
           {
             "value": "Good (4)",
             "runners": 2672,
             "mean_gate_weight_per_expert": [
-              0.003368263365700841,
-              0.9966317415237427
+              0.009438220411539078,
+              0.04483851417899132,
+              0.005779401399195194,
+              0.5158360004425049,
+              0.03178612142801285,
+              0.06044977903366089,
+              0.10147654265165329,
+              0.19138984382152557,
+              0.039005156606435776
             ],
             "top1_routed_expert_frequency": [
-              0.0033682634730538923,
-              0.9966317365269461
+              0.0,
+              0.001122754491017964,
+              0.0,
+              0.6227544910179641,
+              0.00037425149700598805,
+              0.01721556886227545,
+              0.08233532934131736,
+              0.27619760479041916,
+              0.0
             ]
           },
           {
             "value": "Good",
             "runners": 507,
             "mean_gate_weight_per_expert": [
-              0.013806706294417381,
-              0.9861932992935181
+              0.015480739995837212,
+              0.08097093552350998,
+              0.0120760602876544,
+              0.41990628838539124,
+              0.036799099296331406,
+              0.06379631161689758,
+              0.08611885458230972,
+              0.23177453875541687,
+              0.05307730287313461
             ],
             "top1_routed_expert_frequency": [
-              0.013806706114398421,
-              0.9861932938856016
+              0.0,
+              0.023668639053254437,
+              0.0,
+              0.5522682445759369,
+              0.0,
+              0.005917159763313609,
+              0.06903353057199212,
+              0.34911242603550297,
+              0.0
             ]
           },
           {
             "value": "Soft (5)",
             "runners": 1489,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.007541068363934755,
+              0.04241346940398216,
+              0.005943206138908863,
+              0.5174075961112976,
+              0.03206198662519455,
+              0.05729018896818161,
+              0.11065832525491714,
+              0.19248145818710327,
+              0.03420235961675644
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0020147750167897917,
+              0.0,
+              0.6171927468099395,
+              0.0,
+              0.010073875083948958,
+              0.09670920080591,
+              0.2740094022834117,
+              0.0
             ]
           },
           {
             "value": "Heavy (10)",
             "runners": 693,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.0057351794093847275,
+              0.05182204023003578,
+              0.010041204281151295,
+              0.5290236473083496,
+              0.049287524074316025,
+              0.04859935864806175,
+              0.12628541886806488,
+              0.14835846424102783,
+              0.0308469720184803
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.001443001443001443,
+              0.0,
+              0.6666666666666666,
+              0.0,
+              0.001443001443001443,
+              0.11255411255411256,
+              0.2178932178932179,
+              0.0
             ]
           },
           {
             "value": "Good (3)",
             "runners": 1244,
             "mean_gate_weight_per_expert": [
-              0.001607717014849186,
-              0.9983922839164734
+              0.0068300398997962475,
+              0.04859672859311104,
+              0.00941221322864294,
+              0.4939673840999603,
+              0.033882249146699905,
+              0.05928397551178932,
+              0.12587182223796844,
+              0.1856335550546646,
+              0.03652213513851166
             ],
             "top1_routed_expert_frequency": [
+              0.0,
               0.001607717041800643,
-              0.9983922829581994
+              0.0,
+              0.6004823151125402,
+              0.0,
+              0.011254019292604502,
+              0.11334405144694534,
+              0.2733118971061093,
+              0.0
             ]
           },
           {
             "value": "Heavy (8)",
             "runners": 685,
             "mean_gate_weight_per_expert": [
-              0.004379562102258205,
-              0.9956204295158386
+              0.00644788658246398,
+              0.05210453271865845,
+              0.009005607105791569,
+              0.49636149406433105,
+              0.03628668561577797,
+              0.05713408440351486,
+              0.14120492339134216,
+              0.1668827384710312,
+              0.03457215428352356
             ],
             "top1_routed_expert_frequency": [
+              0.0,
               0.004379562043795621,
-              0.9956204379562044
+              0.0,
+              0.6160583941605839,
+              0.0,
+              0.00291970802919708,
+              0.14744525547445256,
+              0.2291970802919708,
+              0.0
             ]
           },
           {
             "value": "unknown",
             "runners": 34,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.0092025026679039,
+              0.053580280393362045,
+              0.007938827387988567,
+              0.49909132719039917,
+              0.0334339439868927,
+              0.0516137033700943,
+              0.09559193253517151,
+              0.21703211963176727,
+              0.032515354454517365
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.6470588235294118,
+              0.0,
+              0.0,
+              0.058823529411764705,
+              0.29411764705882354,
+              0.0
             ]
           },
           {
             "value": "Soft",
             "runners": 26,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.007238597609102726,
+              0.06553458422422409,
+              0.006974680349230766,
+              0.4157479405403137,
+              0.031087739393115044,
+              0.050561659038066864,
+              0.06779129058122635,
+              0.31177324056625366,
+              0.04329035431146622
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.5769230769230769,
+              0.0,
+              0.0,
+              0.0,
+              0.4230769230769231,
+              0.0
             ]
           }
         ],
@@ -7688,12 +10887,26 @@
             "value": "Horses - Aus/NZ",
             "runners": 10304,
             "mean_gate_weight_per_expert": [
-              0.002329192589968443,
-              0.9976708292961121
+              0.008246379904448986,
+              0.048425331711769104,
+              0.007157591637223959,
+              0.5166139602661133,
+              0.0355587936937809,
+              0.05781911686062813,
+              0.11333140730857849,
+              0.17612458765506744,
+              0.036722954362630844
             ],
             "top1_routed_expert_frequency": [
-              0.002329192546583851,
-              0.9976708074534162
+              0.0,
+              0.00281444099378882,
+              0.0,
+              0.6315993788819876,
+              0.0002911490683229814,
+              0.010093167701863354,
+              0.10025232919254658,
+              0.2549495341614907,
+              0.0
             ]
           }
         ],
@@ -7702,36 +10915,78 @@
             "value": "developing_2-5",
             "runners": 1003,
             "mean_gate_weight_per_expert": [
-              0.0019940179772675037,
-              0.9980059862136841
+              0.0046593667939305305,
+              0.022147003561258316,
+              0.01129316259175539,
+              0.4450833797454834,
+              0.03159657120704651,
+              0.05799798294901848,
+              0.17991268634796143,
+              0.2199121117591858,
+              0.027397653087973595
             ],
             "top1_routed_expert_frequency": [
+              0.0,
+              0.0,
+              0.0,
+              0.5104685942173479,
+              0.0,
               0.0019940179461615153,
-              0.9980059820538385
+              0.19541375872382852,
+              0.292123629112662,
+              0.0
             ]
           },
           {
             "value": "inexperienced_0-1",
             "runners": 316,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.008171618916094303,
+              0.00309198722243309,
+              0.009940983727574348,
+              0.5369783043861389,
+              0.022829055786132812,
+              0.03151937201619148,
+              0.2061278223991394,
+              0.16462484002113342,
+              0.01671629399061203
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.5664556962025317,
+              0.0,
+              0.0031645569620253164,
+              0.24050632911392406,
+              0.189873417721519,
+              0.0
             ]
           },
           {
             "value": "experienced_6+",
             "runners": 8985,
             "mean_gate_weight_per_expert": [
-              0.0024485252797603607,
-              0.9975515007972717
+              0.008649421855807304,
+              0.05295320227742195,
+              0.006598053500056267,
+              0.5238827466964722,
+              0.03644881770014763,
+              0.05872426554560661,
+              0.10263516008853912,
+              0.17164099216461182,
+              0.038467589765787125
             ],
             "top1_routed_expert_frequency": [
-              0.0024485253199777405,
-              0.9975514746800223
+              0.0,
+              0.003227601558152476,
+              0.0,
+              0.6474123539232054,
+              0.000333889816360601,
+              0.011240957150806901,
+              0.08469671675013912,
+              0.25308848080133556,
+              0.0
             ]
           }
         ],
@@ -7740,36 +10995,78 @@
             "value": "none",
             "runners": 9623,
             "mean_gate_weight_per_expert": [
-              0.00239010713994503,
-              0.9976099133491516
+              0.008475259877741337,
+              0.05120277404785156,
+              0.006816796027123928,
+              0.5166198015213013,
+              0.03664032742381096,
+              0.06003618985414505,
+              0.10848315060138702,
+              0.17352363467216492,
+              0.03820221871137619
             ],
             "top1_routed_expert_frequency": [
-              0.0023901070352280993,
-              0.9976098929647719
+              0.0,
+              0.0030136132183310816,
+              0.0,
+              0.6361841421594098,
+              0.0003117530915514912,
+              0.010807440507118363,
+              0.09425335134573418,
+              0.2554296996778551,
+              0.0
             ]
           },
           {
             "value": "two_plus",
             "runners": 309,
             "mean_gate_weight_per_expert": [
-              0.0,
-              1.0
+              0.006515407469123602,
+              0.00694696418941021,
+              0.01189480535686016,
+              0.5023592114448547,
+              0.019674234092235565,
+              0.025115512311458588,
+              0.20200121402740479,
+              0.21086056530475616,
+              0.014632223173975945
             ],
             "top1_routed_expert_frequency": [
               0.0,
-              1.0
+              0.0,
+              0.0,
+              0.540453074433657,
+              0.0,
+              0.0,
+              0.2168284789644013,
+              0.24271844660194175,
+              0.0
             ]
           },
           {
             "value": "one",
             "runners": 372,
             "mean_gate_weight_per_expert": [
-              0.0026881720405071974,
-              0.9973118305206299
+              0.003763379994779825,
+              0.011031883768737316,
+              0.012038538232445717,
+              0.5283035039901733,
+              0.02077600546181202,
+              0.027634205296635628,
+              0.16509325802326202,
+              0.2145531326532364,
+              0.016806231811642647
             ],
             "top1_routed_expert_frequency": [
-              0.002688172043010753,
-              0.9973118279569892
+              0.0,
+              0.0,
+              0.0,
+              0.5887096774193549,
+              0.0,
+              0.0,
+              0.1586021505376344,
+              0.25268817204301075,
+              0.0
             ]
           }
         ]
@@ -7777,50 +11074,267 @@
       "top1_selection_agreement": [
         [
           1.0,
-          0.245
+          0.304,
+          0.105,
+          0.293,
+          0.383,
+          0.0,
+          0.001,
+          0.124,
+          0.669
         ],
         [
-          0.245,
+          0.304,
+          1.0,
+          0.073,
+          0.172,
+          0.229,
+          0.003,
+          0.009,
+          0.372,
+          0.359
+        ],
+        [
+          0.105,
+          0.073,
+          1.0,
+          0.1,
+          0.093,
+          0.165,
+          0.137,
+          0.055,
+          0.085
+        ],
+        [
+          0.293,
+          0.172,
+          0.1,
+          1.0,
+          0.213,
+          0.0,
+          0.002,
+          0.071,
+          0.287
+        ],
+        [
+          0.383,
+          0.229,
+          0.093,
+          0.213,
+          1.0,
+          0.024,
+          0.03,
+          0.149,
+          0.285
+        ],
+        [
+          0.0,
+          0.003,
+          0.165,
+          0.0,
+          0.024,
+          1.0,
+          0.628,
+          0.073,
+          0.037
+        ],
+        [
+          0.001,
+          0.009,
+          0.137,
+          0.002,
+          0.03,
+          0.628,
+          1.0,
+          0.14,
+          0.027
+        ],
+        [
+          0.124,
+          0.372,
+          0.055,
+          0.071,
+          0.149,
+          0.073,
+          0.14,
+          1.0,
+          0.149
+        ],
+        [
+          0.669,
+          0.359,
+          0.085,
+          0.287,
+          0.285,
+          0.037,
+          0.027,
+          0.149,
           1.0
         ]
       ],
       "top1_selection_disagreement": [
         [
           0.0,
-          0.755
+          0.696,
+          0.895,
+          0.7070000000000001,
+          0.617,
+          1.0,
+          0.999,
+          0.876,
+          0.33099999999999996
         ],
         [
-          0.755,
+          0.696,
+          0.0,
+          0.927,
+          0.8280000000000001,
+          0.771,
+          0.997,
+          0.991,
+          0.628,
+          0.641
+        ],
+        [
+          0.895,
+          0.927,
+          0.0,
+          0.9,
+          0.907,
+          0.835,
+          0.863,
+          0.945,
+          0.915
+        ],
+        [
+          0.7070000000000001,
+          0.8280000000000001,
+          0.9,
+          0.0,
+          0.787,
+          1.0,
+          0.998,
+          0.929,
+          0.7130000000000001
+        ],
+        [
+          0.617,
+          0.771,
+          0.907,
+          0.787,
+          0.0,
+          0.976,
+          0.97,
+          0.851,
+          0.7150000000000001
+        ],
+        [
+          1.0,
+          0.997,
+          0.835,
+          1.0,
+          0.976,
+          0.0,
+          0.372,
+          0.927,
+          0.963
+        ],
+        [
+          0.999,
+          0.991,
+          0.863,
+          0.998,
+          0.97,
+          0.372,
+          0.0,
+          0.86,
+          0.973
+        ],
+        [
+          0.876,
+          0.628,
+          0.945,
+          0.929,
+          0.851,
+          0.927,
+          0.86,
+          0.0,
+          0.851
+        ],
+        [
+          0.33099999999999996,
+          0.641,
+          0.915,
+          0.7130000000000001,
+          0.7150000000000001,
+          0.963,
+          0.973,
+          0.851,
           0.0
         ]
       ],
       "unique_top1_race_rate_per_expert": [
-        0.755,
-        0.755
+        0.106,
+        0.23,
+        0.527,
+        0.426,
+        0.309,
+        0.281,
+        0.246,
+        0.361,
+        0.106
       ],
       "unique_top1_winner_race_rate_per_expert": [
-        0.076,
-        0.212
+        0.007,
+        0.02,
+        0.043,
+        0.047,
+        0.027,
+        0.02,
+        0.035,
+        0.071,
+        0.006
       ],
       "winner_hit_rate_given_unique_top1_per_expert": [
-        0.10066225165562914,
-        0.280794701986755
+        0.0660377358490566,
+        0.08695652173913043,
+        0.08159392789373814,
+        0.11032863849765258,
+        0.08737864077669903,
+        0.0711743772241993,
+        0.14227642276422764,
+        0.19667590027700832,
+        0.05660377358490566
       ],
       "expert_specific_winner_hit_rate": [
-        0.159,
-        0.295
+        0.107,
+        0.138,
+        0.095,
+        0.123,
+        0.122,
+        0.099,
+        0.13,
+        0.203,
+        0.111
       ],
-      "race_dominant_gate_expert_winner_hit_rate": 0.295,
+      "race_dominant_gate_expert_winner_hit_rate": 0.118,
       "race_dominant_gate_expert_frequency": [
-        0.002,
-        0.998
+        0.0,
+        0.0,
+        0.0,
+        0.93,
+        0.0,
+        0.0,
+        0.013,
+        0.057,
+        0.0
       ]
     }
   },
   "training_config": {
     "db": "db/race_runners.sqlite",
     "features_json": "tabfm_features.json",
-    "feature_map_json": "configs/race_moe_feature_map_2_experts.json",
+    "feature_map_json": "configs/race_moe_feature_map.json",
     "output": "outputs/race_winner_moe_feature_map_2_experts.pt",
     "include_market_features": true,
     "validation_races": 500,
@@ -7838,8 +11352,8 @@
     "max_grad_norm": 1.0,
     "early_stopping_patience": 8,
     "dropout": 0.2,
-    "moe_num_experts": 2,
-    "moe_top_k": 1,
+    "moe_num_experts": 9,
+    "moe_top_k": 7,
     "moe_gate_temperature": 1.25,
     "moe_router_balance_weight": 0.01,
     "moe_expert_hidden_dims": [

@@ -1,0 +1,50 @@
+{
+  "models_dir": "/home/theo/yy1/outputs",
+  "database": "/home/theo/yy1/db/race_runners.sqlite",
+  "split": "test",
+  "leaderboard": [
+    {
+      "cohort_id": "039dd0a2e9c0",
+      "races": 1000,
+      "model": "race_winner_moe_feature_map_2_experts",
+      "checkpoint_type": "race_winner_moe_feature_map",
+      "path": "/home/theo/yy1/outputs/race_winner_moe_feature_map_2_experts.pt",
+      "top1": 0.302,
+      "top2": 0.478,
+      "top3": 0.608,
+      "mrr": 0.503184102009102,
+      "logloss": 2.0410912133331376,
+      "avg_winner_probability": 0.198315357696265,
+      "cohort_rank": 1
+    },
+    {
+      "cohort_id": "039dd0a2e9c0",
+      "races": 1000,
+      "model": "race_winner_moe_feature_map_1_experts",
+      "checkpoint_type": "race_winner_moe_feature_map",
+      "path": "/home/theo/yy1/outputs/race_winner_moe_feature_map_1_experts.pt",
+      "top1": 0.205,
+      "top2": 0.363,
+      "top3": 0.504,
+      "mrr": 0.4173486957486957,
+      "logloss": 2.1648043918548208,
+      "avg_winner_probability": 0.1392845110706985,
+      "cohort_rank": 2
+    },
+    {
+      "cohort_id": "039dd0a2e9c0",
+      "races": 1000,
+      "model": "race_winner_moe_feature_map_uniform",
+      "checkpoint_type": "race_winner_moe_feature_map",
+      "path": "/home/theo/yy1/outputs/race_winner_moe_feature_map_uniform.pt",
+      "top1": 0.207,
+      "top2": 0.351,
+      "top3": 0.5,
+      "mrr": 0.41498102453102453,
+      "logloss": 2.1785333554608854,
+      "avg_winner_probability": 0.13766539758164437,
+      "cohort_rank": 3
+    }
+  ],
+  "skipped": []
+}

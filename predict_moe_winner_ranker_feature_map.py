@@ -89,6 +89,12 @@ def build_model_from_checkpoint_config(model_config: dict) -> RaceMixtureOfExper
         router_hidden_dim=model_config["router_hidden_dim"],
         routing_mode=model_config.get("routing_mode", "learned"),
         feature_map=feature_map,
+        router_feature_indices=tuple(
+            model_config.get(
+                "router_feature_indices",
+                range(model_config["feature_count"]),
+            )
+        ),
     )
     return RaceMixtureOfExpertsFeatureMap(config)
 

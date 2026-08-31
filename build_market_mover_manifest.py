@@ -12,14 +12,24 @@ from feature_hinter import candidate_features, database_schema
 from feature_population_report import NON_FEATURE_COLUMNS
 from src.config import DEFAULT_DB
 
-BASE_FEATURES = [ 
-  "active_field_size",
+BASE_FEATURES = [
+    "active_field_size",
     "distance_m",
-    "field_size"
-    
-
-
-                  ]
+    "field_size",
+    "draw_number",
+    "weight_kg",
+    "recent_days_since_last_run",
+    "recent_5_margin",
+    "distance_minus_recent_avg",
+    "historical_run_quality_last1",
+    "recent_market_edge_weighted",
+    "recent_1_starting_price",
+    "jockey_trainer_history_win_excess",
+    "jockey_history_starts",
+    "hidden_sectional_run_last1",
+    "recent_5_weight_kg",
+    "historical_run_quality_avg_3",
+]
 
 # Optional permanent exclusions. Add race_runners feature names here when they
 # should be neither a base feature nor an independently tested tN feature.
@@ -37,9 +47,7 @@ EXCLUDED_FEATURES: list[str] = [
     "historical_market_overperformance_avg_6",
 ]
 
-EXCLUDED_FEATURES: list[str] = [
- 
-]
+# EXCLUDED_FEATURES: list[str] = []
 
 
 def parse_feature_list(value: str) -> list[str]:
@@ -127,9 +135,7 @@ def build_manifest(
     categorical_columns = [
         name
         for name, declared_type in schema
-        if any(
-            token in declared_type.upper() for token in ("CHAR", "CLOB", "TEXT")
-        )
+        if any(token in declared_type.upper() for token in ("CHAR", "CLOB", "TEXT"))
     ]
     categorical_additions = [
         name

@@ -1058,3 +1058,42 @@ python train_moe_winner_ranker_feature_map.py \
 --moe-router-balance-weight 0.001
 
 
+┌──(.venv)─(theo㉿kaballas)-[~/yy1]
+└─$ python train_moe_winner_ranker_feature_map.py \
+  --feature-map-json configs/race_moe_feature_map.json \
+  --db db/race_runners.sqlite \
+  --features-json tabfm_features.json \
+  --train-competition-id 999 \
+  --validation-competition-id 999 \
+  --validation-races 500 \
+  --test-races 1000 \
+  --moe-num-experts 5 \
+  --moe-routing-mode fixed_uniform \
+  --epochs 50 \
+  --early-stopping-patience 8 \
+  --output outputs/race_winner_moe_feature_map_uniform.pt
+  
+  
+  
+ python train_moe_winner_ranker_feature_map.py \
+  --feature-map-json configs/race_moe_feature_map.json \
+  --db db/race_runners.sqlite \
+  --features-json tabfm_features.json \
+  --train-competition-id 999 \
+  --validation-competition-id 999 \
+  --validation-races 500 \
+  --test-races 1000 \
+  --moe-num-experts 5 \
+  --moe-top-k 5 \
+  --moe-router-balance-weight 0.01 \
+  --moe-gate-temperature 1.25 \
+  --epochs 30 \
+  --early-stopping-patience 8 \
+  --output outputs/race_winner_moe_feature_map_2_experts.pt
+   
+ python backtest_winner_ranker_checkpoints.py \
+  --models-dir outputs \
+  --db db/race_runners.sqlite \
+  --split test \
+  --output-json outputs/winner_ranker_backtest_test.json \
+  --output-csv outputs/winner_ranker_backtest_test.csv

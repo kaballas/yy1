@@ -4,6 +4,11 @@
     "distance_m",
     "field_size"
   ],
+  "router_features": [
+    "active_field_size",
+    "distance_m",
+    "field_size"
+  ],
 
   "experts": {
     "0": [
