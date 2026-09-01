@@ -18,17 +18,15 @@ BASE_FEATURES = [
     "field_size",
     "draw_number",
     "weight_kg",
-    "recent_days_since_last_run",
-    "recent_5_margin",
-    "distance_minus_recent_avg",
-    "historical_run_quality_last1",
-    "recent_market_edge_weighted",
-    "recent_1_starting_price",
-    "jockey_trainer_history_win_excess",
-    "jockey_history_starts",
-    "hidden_sectional_run_last1",
-    "recent_5_weight_kg",
-    "historical_run_quality_avg_3",
+    "open_price_rank",
+    "fluc2_price_rank",
+    "fluc1_price_rank",
+    "race_consensus_rank",
+    "race_consensus_score",
+    "market_total_abs_movement",
+    "market_implied_prob_change_fluc1_to_fluc2",
+    "recent_finish_percentile_weighted_6_minus_race_mean",
+    "historical_market_overperformance_avg_6",
 ]
 
 # Optional permanent exclusions. Add race_runners feature names here when they
@@ -47,7 +45,7 @@ EXCLUDED_FEATURES: list[str] = [
     "historical_market_overperformance_avg_6",
 ]
 
-# EXCLUDED_FEATURES: list[str] = []
+EXCLUDED_FEATURES: list[str] = []
 
 
 def parse_feature_list(value: str) -> list[str]:
