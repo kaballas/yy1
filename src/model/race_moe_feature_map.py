@@ -29,6 +29,7 @@ class FeatureMappedRaceWinnerConfig:
     routing_mode: str = "learned"
     feature_map: tuple[tuple[int, ...], ...] = ()
     router_feature_indices: tuple[int, ...] = ()
+    judge_hidden_dims: tuple[int, ...] = ()
 
 
 def _normalise_expert_map(raw: Any, feature_names: list[str], num_experts: int) -> tuple[tuple[int, ...], ...]:
@@ -170,6 +171,24 @@ class FeatureMappedExpert(nn.Module):
         return self.network(features).squeeze(-1)
 
 
+class RaceJudge(nn.Module):
+    """Learn a residual final score from expert opinions and routing decisions."""
+
+    def __init__(self, input_dim: int, hidden_dims: tuple[int, ...], dropout: float):
+        super().__init__()
+        widths = (input_dim, *hidden_dims)
+        layers: list[nn.Module] = []
+        for source, target in zip(widths, widths[1:]):
+            layers.extend((nn.Linear(source, target), nn.GELU(), nn.Dropout(dropout)))
+        self.hidden = nn.Sequential(*layers)
+        self.output = nn.Linear(widths[-1], 1)
+        nn.init.zeros_(self.output.weight)
+        nn.init.zeros_(self.output.bias)
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        return self.output(self.hidden(features)).squeeze(-1)
+
+
 class RaceMixtureOfExpertsFeatureMap(nn.Module):
     """Mixture of experts with an explicit feature allowlist per expert."""
 
@@ -192,6 +211,14 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
         self.router = (
             MoERouter(router_input_dim, config.router_hidden_dim, config.num_experts)
             if config.routing_mode == "learned" else None
+        )
+        self.judge = (
+            RaceJudge(
+                2 * config.num_experts + 1,
+                config.judge_hidden_dims,
+                config.dropout,
+            )
+            if config.judge_hidden_dims else None
         )
 
     @property
@@ -238,7 +265,21 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
             else:
                 selected = torch.ones_like(dense_weights, dtype=torch.bool)
                 router_weights = dense_weights
-        final_logits = (router_weights * expert_logits_tensor).sum(dim=-1)
+        base_logits = (router_weights * expert_logits_tensor).sum(dim=-1)
+        if self.judge is None:
+            judge_adjustment = torch.zeros_like(base_logits)
+        else:
+            base_probabilities = F.softmax(
+                base_logits.masked_fill(~valid_mask, torch.finfo(base_logits.dtype).min),
+                dim=1,
+            ).masked_fill(~valid_mask, 0.0)
+            judge_input = torch.cat((
+                expert_logits_tensor,
+                router_weights,
+                base_probabilities.unsqueeze(-1),
+            ), dim=-1)
+            judge_adjustment = self.judge(judge_input)
+        final_logits = base_logits + judge_adjustment
         final_logits = final_logits.masked_fill(~valid_mask, 0.0)
 
         if not return_diagnostics:
@@ -246,6 +287,8 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
 
         return {
             "logits": final_logits,
+            "base_logits": base_logits.masked_fill(~valid_mask, 0.0),
+            "judge_adjustment": judge_adjustment.masked_fill(~valid_mask, 0.0),
             "expert_logits": expert_logits_tensor.masked_fill(~valid_mask.unsqueeze(-1), 0.0),
             "router_logits": router_logits.masked_fill(~valid_mask.unsqueeze(-1), 0.0),
             "dense_router_weights": dense_weights.masked_fill(~valid_mask.unsqueeze(-1), 0.0),
@@ -264,7 +307,8 @@ class RaceMixtureOfExpertsFeatureMap(nn.Module):
         else:
             active = sorted(expert_counts, reverse=True)[: self.model_config.top_k]
         router = 0 if self.router is None else sum(p.numel() for p in self.router.parameters())
-        return router + sum(active)
+        judge = 0 if self.judge is None else sum(p.numel() for p in self.judge.parameters())
+        return router + sum(active) + judge
 
     def executed_parameter_count(self) -> int:
         return self.trainable_parameter_count()

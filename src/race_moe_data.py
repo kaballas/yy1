@@ -16,7 +16,8 @@ from src.database import quote_identifier
 
 DIAGNOSTIC_COLUMNS = (
     "distance_m", "class_name", "field_size", "active_field_size",
-    "track_status", "career_starts", "runner_number", "runner_name",
+    "track_status", "career_starts", "race_number", "runner_number",
+    "runner_name",
 )
 
 # Intentionally conservative: a market-blind experiment must reject indirect

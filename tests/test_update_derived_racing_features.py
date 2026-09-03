@@ -5,6 +5,7 @@ import pandas as pd
 
 from update_derived_racing_features import (
     CALCULATION_VERSION,
+    add_race_relative_history_features,
     add_race_aggregate_features,
     add_preparation_features,
     add_market_disagreement_features,
@@ -109,6 +110,22 @@ def test_preparation_features_use_only_dates_before_the_current_race():
     assert result["second_up_flag"].iloc[:3].tolist() == [0, 1, 0]
     assert result["third_up_flag"].iloc[:3].tolist() == [0, 0, 0]
     assert result.loc[3, "preparation_run_number"] != result.loc[3, "preparation_run_number"]
+
+
+def test_race_relative_history_ranks_only_eligible_runners():
+    frame = pd.DataFrame({
+        "race_id": [1, 1, 1, 2, None],
+        "recent_1_starting_price": [10.0, 5.0, 2.0, 4.0, 3.0],
+    })
+    eligible = pd.Series([True, True, False, True, True])
+
+    result = add_race_relative_history_features(frame, eligible)
+
+    assert result["recent_1_starting_price_rank_in_race"].iloc[:2].tolist() == [2.0, 1.0]
+    assert result["recent_1_implied_probability_rank_in_race"].iloc[:2].tolist() == [2.0, 1.0]
+    assert result.iloc[2].isna().all()
+    assert result.iloc[3].tolist() == [1.0, 1.0]
+    assert result.iloc[4].isna().all()
 
 
 def test_missing_version_column_makes_every_race_pending_for_dry_run_migration():

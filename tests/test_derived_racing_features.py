@@ -44,6 +44,53 @@ def test_derived_features_use_only_input_history_and_handle_missing():
     )
 
 
+def test_recent_market_and_weight_trajectory_features():
+    frame = _frame()
+    frame["weight_kg"] = 54.0
+    frame["recent_1_starting_price"] = 5.0
+    frame["recent_2_starting_price"] = 10.0
+    frame["recent_1_weight_kg"] = 57.0
+    frame["recent_2_weight_kg"] = 59.0
+
+    result = derive_racing_features(frame)
+
+    assert result.loc[0, "recent_1_starting_price_log"] == np.float32(np.log(5.0))
+    assert result.loc[0, "recent_1_implied_probability"] == np.float32(0.2)
+    assert result.loc[0, "historical_market_expectation_change"] == np.float32(
+        np.log(0.5)
+    )
+    assert result.loc[0, "recent_2_weight_change_from_current"] == -5.0
+    assert result.loc[0, "recent_2_weight_change_pct_from_current"] == np.float32(
+        -5.0 / 59.0
+    )
+    assert result.loc[0, "recent_1_vs_recent_2_weight_change"] == -2.0
+    assert result.loc[0, "recent_1_vs_recent_2_weight_change_pct"] == np.float32(
+        -2.0 / 59.0
+    )
+
+
+def test_recent_market_and_weight_features_reject_invalid_inputs():
+    frame = _frame()
+    frame["weight_kg"] = 54.0
+    frame["recent_1_starting_price"] = 0.0
+    frame["recent_2_starting_price"] = -2.0
+    frame["recent_1_weight_kg"] = 57.0
+    frame["recent_2_weight_kg"] = 0.0
+
+    result = derive_racing_features(frame)
+
+    names = [
+        "recent_1_starting_price_log",
+        "recent_1_implied_probability",
+        "historical_market_expectation_change",
+        "recent_2_weight_change_from_current",
+        "recent_2_weight_change_pct_from_current",
+        "recent_1_vs_recent_2_weight_change",
+        "recent_1_vs_recent_2_weight_change_pct",
+    ]
+    assert result.loc[0, names].isna().all()
+
+
 def test_pairwise_audit_fits_adjustment_in_evidence_direction():
     market = np.zeros(4)
     feature = np.asarray([1.0, 0.5, -0.5, -1.0])

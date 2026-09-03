@@ -1,0 +1,73 @@
+{
+  "shared_features": [
+    "historical_market_overperformance_avg_6",
+    "recent_finish_percentile_last1",
+    "career_starts",
+    "condition_top3_rate_smoothed",
+    "hidden_sectional_run_best_3_minus_race_median",
+    "fluc2_price_rank",
+    "fluc1_price_rank",
+    "open_price",
+    "open_price_rank",
+    "fluc1",
+    "race_consensus_score"
+  ],
+  "router_features": [
+    "distance_m",
+    "active_field_size",
+    "race_number",
+    "race_field_avg_speed_rating",
+    "race_field_avg_prize_money",
+    "market_total_abs_movement",
+    "market_open_to_fluc2_move_pct",
+    "dry_rating",
+    "recent_days_since_last_run",
+    "preparation_run_number",
+    "weight_vs_field_mean"
+  ],
+  "experts": {
+    "0": [
+      "career_rank_minus_market_rank",
+      "market_open_to_fluc2_move_pct",
+      "recent_1_starting_price"
+    ],
+    "1": [
+      "recent_finish_percentile_last_minus_avg3",
+      "recent_margin_last_minus_avg3",
+      "recent_weighted_avg_margin_rank",
+      "recent_margin_weighted_3",
+      "recent_finish_percentile_slope_6",
+      "recent_margin_slope_3",
+      "recent_avg_place",
+      "class_adjusted_finish_percentile_last1"
+    ],
+    "2": [
+      "trainer_recent_top3_excess",
+      "jockey_trainer_history_smoothed_win_rate",
+      "jockey_trainer_synergy",
+      "same_track_finish_percentile",
+      "dry_rating_rank",
+      "secondUpWinner",
+      "preparation_run_number",
+      "recent_days_since_last_run"
+    ],
+    "3": [
+      "prize_money_rank",
+      "current_form_strength_gap_to_best",
+      "form_barrier_percentile_weighted_6",
+      "weight_vs_field_mean",
+      "distance_step_down_pct",
+      "recent_1_distance_m",
+      "historical_run_quality_last1",
+      "recent_2_weight_kg"
+    ],
+    "4": [
+      "career_starts",
+      "fluc2",
+      "recent_6_margin",
+      "historical_step_up_finish_percentile",
+      "class_step_up",
+      "weight_kg"
+    ]
+  }
+}

@@ -87,7 +87,30 @@
     "historical_market_overperformance_weighted_3_zscore_in_race",
     "historical_market_overperformance_weighted_3_rank_in_race",
     "recent_last600_slope_6",
-    "open_price_rank"
+    "open_price_rank",
+    "recent_margin_slope_3",
+    "recent_finish_percentile_std_6",
+    "recent_last600_avg_3",
+    "historical_run_quality_slope_3",
+    "recent_max_weight_kg",
+    "recent_5_barrier",
+    "recent_finish_percentile_weighted",
+    "horse_jockey_wins",
+    "jockey_trainer_history_smoothed_top3_rate_rank_in_race",
+    "recent_2_total_runners",
+    "recent_same_condition_runs",
+    "historical_market_overperformance_weighted_3_minus_race_median",
+    "recent_6_starting_price",
+    "distance_step_down_pct",
+    "recent_finish_percentile_rank",
+    "recent_4_total_runners",
+    "class_adjusted_margin_quality_weighted_6",
+    "historical_run_quality_weighted_3",
+    "jockey_trainer_history_smoothed_top3_rate",
+    "market_implied_prob_change_open_to_fluc2",
+    "margin_rank_minus_market_rank",
+    "class_change_vs_recent_3",
+    "abs_distance_minus_recent_weighted_avg"
   ],
   "experts": {
     "0": [
@@ -214,6 +237,41 @@
       "career_starts",
       "jockey_trainer_history_smoothed_top3_rate_rank_in_race",
       "recent_2_total_runners"
+    ],
+    "10": [
+      "recent_same_condition_runs",
+      "market_fluc1_to_fluc2_move_pct",
+      "historical_market_overperformance_weighted_3_minus_race_median",
+      "recent_barrier_percentile_std_6",
+      "recent_6_starting_price",
+      "distance_step_down_pct"
+    ],
+    "11": [
+      "distance_starts",
+      "recent_finish_percentile_rank",
+      "dry_rating",
+      "recent_4_total_runners"
+    ],
+    "12": [
+      "distance_wins",
+      "dry_rating",
+      "class_adjusted_margin_quality_weighted_6",
+      "historical_run_quality_weighted_3",
+      "jockey_trainer_history_smoothed_top3_rate",
+      "sectional_last600_std_6"
+    ],
+    "13": [
+      "market_open_to_fluc2_move_pct",
+      "historical_market_overperformance_weighted_3_zscore_in_race",
+      "recent_3_distance_m",
+      "historical_run_quality_slope_3",
+      "soft_wins",
+        "recent_best_speed_rank",
+  "market_fluc1_to_fluc2_move",
+  "jockey_trainer_history_smoothed_top3_rate_zscore_in_race",
+  "current_form_strength_gap_to_best",
+  "market_open_to_fluc1_move_pct"
+
     ]
   }
 }

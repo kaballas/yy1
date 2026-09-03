@@ -13,20 +13,9 @@ from feature_population_report import NON_FEATURE_COLUMNS
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [
-    "active_field_size",
-    "distance_m",
-    "field_size",
-    "draw_number",
-    "weight_kg",
-    "open_price_rank",
-    "fluc2_price_rank",
-    "fluc1_price_rank",
-    "race_consensus_rank",
-    "race_consensus_score",
-    "market_total_abs_movement",
-    "market_implied_prob_change_fluc1_to_fluc2",
-    "recent_finish_percentile_weighted_6_minus_race_mean",
-    "historical_market_overperformance_avg_6",
+ "career_starts"
+
+
 ]
 
 # Optional permanent exclusions. Add race_runners feature names here when they
@@ -43,6 +32,13 @@ EXCLUDED_FEATURES: list[str] = [
     "market_implied_prob_change_fluc1_to_fluc2",
     "recent_finish_percentile_weighted_6_minus_race_mean",
     "historical_market_overperformance_avg_6",
+    "fluc2_price_rank",
+    "historical_market_overperformance_avg_6",
+    "recent_finish_percentile_last1",
+    "hidden_sectional_run_best_3_minus_race_median",
+    "fluc1_price_rank",
+    "career_starts",
+    "condition_top3_rate_smoothed",
 ]
 
 EXCLUDED_FEATURES: list[str] = []

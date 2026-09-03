@@ -41,6 +41,8 @@ DERIVED_FEATURE_NAMES = (
     "historical_market_overperformance_slope_3",
     "historical_implied_probability_weighted_3",
     "historical_implied_probability_weighted_6",
+    "recent_1_starting_price_log", "recent_1_implied_probability",
+    "historical_market_expectation_change",
     # Distance suitability and transitions.
     "distance_change_last_run", "abs_distance_change_last_run",
     "distance_change_pct_last_run", "distance_minus_recent_avg",
@@ -58,6 +60,10 @@ DERIVED_FEATURE_NAMES = (
     "current_barrier_percentile", "current_minus_recent_barrier_percentile",
     "current_weight_minus_last", "current_weight_minus_recent_avg",
     "current_weight_minus_recent_weighted_avg", "current_weight_change_pct",
+    "recent_2_weight_change_from_current",
+    "recent_2_weight_change_pct_from_current",
+    "recent_1_vs_recent_2_weight_change",
+    "recent_1_vs_recent_2_weight_change_pct",
     "best_finish_percentile_at_equal_or_higher_weight",
     "best_margin_quality_at_equal_or_higher_weight",
     # Ceiling, consistency, and best-run recency.
@@ -167,6 +173,14 @@ def derive_racing_features(frame: pd.DataFrame) -> pd.DataFrame:
     margin_quality = np.exp(-np.maximum(margin, 0) / 5)
     implied = np.divide(1, price, out=np.full(price.shape, np.nan),
                         where=np.isfinite(price) & (price > 0))
+    recent_1_price = price[:, 0]
+    recent_2_price = price[:, 1]
+    valid_recent_1_price = np.isfinite(recent_1_price) & (recent_1_price > 0)
+    valid_price_change = (
+        valid_recent_1_price
+        & np.isfinite(recent_2_price)
+        & (recent_2_price > 0)
+    )
     # No historical field-level price table exists: this transparent proxy compares
     # realised finish percentile with the horse's own historical implied probability.
     market_over = finish - implied
@@ -236,6 +250,23 @@ def derive_racing_features(frame: pd.DataFrame) -> pd.DataFrame:
         result[f"historical_implied_probability_weighted_{n}"] = _weighted_mean(implied, n)
     result["historical_market_overperformance_best_3"] = _best(market_over, 3)
     result["historical_market_overperformance_slope_3"] = _slope(market_over, 3)
+    result["recent_1_starting_price_log"] = np.log(
+        recent_1_price,
+        out=np.full(len(frame), np.nan),
+        where=valid_recent_1_price,
+    )
+    result["recent_1_implied_probability"] = implied[:, 0]
+    price_ratio = np.divide(
+        recent_1_price,
+        recent_2_price,
+        out=np.full(len(frame), np.nan),
+        where=valid_price_change,
+    )
+    result["historical_market_expectation_change"] = np.log(
+        price_ratio,
+        out=np.full(len(frame), np.nan),
+        where=valid_price_change,
+    )
     result["distance_change_last_run"] = delta
     result["abs_distance_change_last_run"] = np.abs(delta)
     result["distance_change_pct_last_run"] = np.divide(delta, distance[:, 0], out=np.full(len(frame), np.nan), where=np.isfinite(distance[:, 0]) & (distance[:, 0] > 0))
@@ -269,6 +300,24 @@ def derive_racing_features(frame: pd.DataFrame) -> pd.DataFrame:
     result["current_weight_minus_recent_avg"] = current_weight - _mean(weight, 6)
     result["current_weight_minus_recent_weighted_avg"] = current_weight - _weighted_mean(weight, 6)
     result["current_weight_change_pct"] = np.divide(current_weight - weight[:, 0], weight[:, 0], out=np.full(len(frame), np.nan), where=np.isfinite(weight[:, 0]) & (weight[:, 0] > 0))
+    result["recent_2_weight_change_from_current"] = current_weight - weight[:, 1]
+    result["recent_2_weight_change_pct_from_current"] = np.divide(
+        current_weight - weight[:, 1],
+        weight[:, 1],
+        out=np.full(len(frame), np.nan),
+        where=np.isfinite(weight[:, 1]) & (weight[:, 1] > 0),
+    )
+    result["recent_1_vs_recent_2_weight_change"] = weight[:, 0] - weight[:, 1]
+    result["recent_1_vs_recent_2_weight_change_pct"] = np.divide(
+        weight[:, 0] - weight[:, 1],
+        weight[:, 1],
+        out=np.full(len(frame), np.nan),
+        where=(
+            np.isfinite(weight[:, 0])
+            & np.isfinite(weight[:, 1])
+            & (weight[:, 1] > 0)
+        ),
+    )
     result["best_finish_percentile_at_equal_or_higher_weight"] = _best(np.where(equal_higher, finish, np.nan), 6)
     result["best_margin_quality_at_equal_or_higher_weight"] = _best(np.where(equal_higher, margin_quality, np.nan), 6)
     finish_std, margin_std = _std(finish, 6), _std(margin_quality, 6)

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -86,6 +87,23 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Latest chronological races (after excluding --test-races) used "
             "to score each candidate feature/model during selection."
+        ),
+    )
+    parser.add_argument(
+        "--random-validation",
+        action="store_true",
+        help=(
+            "Randomly sample whole validation races from all eligible races "
+            "before the sealed test cohort. The one sampled cohort is fixed "
+            "for the baseline, every candidate, and every forward round."
+        ),
+    )
+    parser.add_argument(
+        "--validation-seed",
+        type=int,
+        help=(
+            "Random seed for --random-validation. Required with that option "
+            "so the exact split can be reproduced from the printed output."
         ),
     )
     parser.add_argument(
@@ -343,6 +361,94 @@ def recommended_validation_races(total_races: int) -> int:
     if total_races < 2:
         raise ValueError("At least two eligible races are required")
     return min(1000, max(1, int(round(total_races * 0.20))))
+
+
+def split_race_ids(
+    races: pd.DataFrame,
+    validation_races: int,
+    test_races: int,
+    *,
+    random_validation: bool = False,
+    validation_seed: int | None = None,
+) -> tuple[list[int], list[int], list[int]]:
+    """Split whole races while always sealing the latest test cohort."""
+    held_out_races = validation_races + test_races
+    if len(races) <= held_out_races:
+        raise ValueError(
+            f"Need more than {held_out_races:,} eligible races; found "
+            f"{len(races):,}"
+        )
+    ordered_ids = races["race_id"].astype(int).tolist()
+    test_ids = ordered_ids[-test_races:]
+    pretest_ids = ordered_ids[:-test_races]
+    if not random_validation:
+        return (
+            pretest_ids[:-validation_races],
+            pretest_ids[-validation_races:],
+            test_ids,
+        )
+    if validation_seed is None:
+        raise ValueError("--validation-seed is required with --random-validation")
+    generator = np.random.default_rng(validation_seed)
+    sampled_positions = set(map(int, generator.choice(
+        len(pretest_ids), size=validation_races, replace=False
+    )))
+    train_ids = [
+        race_id for position, race_id in enumerate(pretest_ids)
+        if position not in sampled_positions
+    ]
+    validation_ids = [
+        race_id for position, race_id in enumerate(pretest_ids)
+        if position in sampled_positions
+    ]
+    return train_ids, validation_ids, test_ids
+
+
+def split_diagnostics(
+    races: pd.DataFrame,
+    train_ids: list[int],
+    validation_ids: list[int],
+    test_ids: list[int],
+    *,
+    random_validation: bool,
+    validation_seed: int | None,
+) -> dict[str, Any]:
+    """Return printable and persistable evidence describing an exact split."""
+    def fingerprint(ids: list[int]) -> str:
+        encoded = ",".join(map(str, ids)).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()[:16]
+
+    indexed = races.set_index("race_id")
+
+    def cohort(ids: list[int]) -> dict[str, Any]:
+        selected = indexed.loc[ids]
+        starts = pd.to_datetime(selected["start_time"], utc=True)
+        return {
+            "races": len(ids),
+            "first_start": starts.min().isoformat(),
+            "last_start": starts.max().isoformat(),
+            "race_id_fingerprint": fingerprint(ids),
+        }
+
+    train_set = set(train_ids)
+    validation_set = set(validation_ids)
+    test_set = set(test_ids)
+    overlaps = {
+        "train_validation": len(train_set & validation_set),
+        "train_test": len(train_set & test_set),
+        "validation_test": len(validation_set & test_set),
+    }
+    return {
+        "mode": "random_race_holdout" if random_validation else "chronological",
+        "validation_seed": validation_seed if random_validation else None,
+        "eligible_races": len(races),
+        "pretest_sampling_pool_races": len(races) - len(test_ids),
+        "train": cohort(train_ids),
+        "validation": cohort(validation_ids),
+        "sealed_test": cohort(test_ids),
+        "overlaps": overlaps,
+        "overlap_check": "PASS" if not any(overlaps.values()) else "FAIL",
+    }
 
 
 def top3_capture_fast(
@@ -622,6 +728,7 @@ def save_forward_results(
     selection_direction: str,
     minimum_uplift: float,
     test_races: int,
+    split_details: dict[str, Any] | None = None,
     sealed_test: dict[str, Any] | None = None,
 ) -> None:
     target = "is_winner" if selection_objective == "winner" else "top3_mask"
@@ -645,6 +752,7 @@ def save_forward_results(
         "train_races": train_races,
         "validation_races": validation_races,
         "test_races": test_races,
+        "split": split_details,
         "competition_ids": competition_ids,
         "initial_base_features": initial_base_features,
         "selected_features": selected_features,
@@ -680,6 +788,7 @@ def run_forward_selection(
     base_features: list[str],
     feature_sets: dict[str, list[str]],
     added_features: dict[str, str],
+    split_details: dict[str, Any],
 ) -> None:
     primary_metric = (
         "winner_hit_rate"
@@ -740,6 +849,7 @@ def run_forward_selection(
             selection_direction=selection_direction,
             minimum_uplift=args.minimum_uplift,
             test_races=int(test["race_id"].nunique()),
+            split_details=split_details,
             sealed_test=sealed_test,
         )
 
@@ -778,6 +888,18 @@ def run_forward_selection(
                 validation_top3, validation_winner, tested_features,
                 args.selection_objective,
             )
+            train_values = train_matrix_all[feature]
+            validation_values = validation_matrix_all[feature]
+            result.update({
+                "train_non_missing_rate": float(train_values.notna().mean()),
+                "validation_non_missing_rate": float(
+                    validation_values.notna().mean()
+                ),
+                "train_unique_values": int(train_values.nunique(dropna=True)),
+                "validation_unique_values": int(
+                    validation_values.nunique(dropna=True)
+                ),
+            })
             return candidate_order, label, feature, result
 
         candidate_workers = min(args.candidate_jobs, len(remaining))
@@ -820,6 +942,12 @@ def run_forward_selection(
                     f"top3={result['top3_capture_rate']:.2%} "
                     f"winner#1={result['winner_hit_rate']:.2%} "
                     f"primary_delta={primary_delta:+.2%} "
+                    f"trees={result['best_iteration']} "
+                    f"coverage(train/val)="
+                    f"{result['train_non_missing_rate']:.0%}/"
+                    f"{result['validation_non_missing_rate']:.0%} "
+                    f"unique(train/val)={result['train_unique_values']}/"
+                    f"{result['validation_unique_values']} "
                     f"status={result['status'].upper()}",
                     flush=True,
                 )
@@ -828,6 +956,26 @@ def run_forward_selection(
                     or candidate_order + 1 == len(remaining)
                 ):
                     save_progress(completed=False)
+                    deltas = [
+                        float(candidate[primary_metric]) - baseline_rate
+                        for candidate in candidate_results
+                    ]
+                    best_so_far = max(
+                        candidate_results,
+                        key=lambda candidate: float(candidate[primary_metric]),
+                    )
+                    print(
+                        f"  ROUND PROGRESS tested={len(candidate_results)}/"
+                        f"{len(remaining)} "
+                        f"above_baseline={sum(delta > 0 for delta in deltas)} "
+                        f"equal_baseline={sum(delta == 0 for delta in deltas)} "
+                        f"below_baseline={sum(delta < 0 for delta in deltas)} "
+                        f"meeting_uplift={sum(delta + 1e-12 >= args.minimum_uplift for delta in deltas)} "
+                        f"best_feature={best_so_far['added_feature']} "
+                        f"best_delta={max(deltas):+.4%} "
+                        f"best_trees={best_so_far['best_iteration']}",
+                        flush=True,
+                    )
         finally:
             if candidate_workers > 1:
                 executor.shutdown(wait=True, cancel_futures=True)
@@ -838,6 +986,21 @@ def run_forward_selection(
             metric=primary_metric,
             minimum_uplift=args.minimum_uplift,
             reverse=args.reverse_select,
+        )
+        completed_deltas = [
+            float(candidate[primary_metric]) - baseline_rate
+            for candidate in candidate_results
+        ]
+        print(
+            f"ROUND SUMMARY round={round_number} tested={len(candidate_results)} "
+            f"above_baseline={sum(delta > 0 for delta in completed_deltas)} "
+            f"equal_baseline={sum(delta == 0 for delta in completed_deltas)} "
+            f"below_baseline={sum(delta < 0 for delta in completed_deltas)} "
+            f"meeting_uplift="
+            f"{sum(delta + 1e-12 >= args.minimum_uplift for delta in completed_deltas)} "
+            f"best_delta={max(completed_deltas):+.4%} "
+            f"worst_delta={min(completed_deltas):+.4%}",
+            flush=True,
         )
         if best is None:
             round_record["stop_reason"] = (
@@ -1005,6 +1168,7 @@ def save_results(
     selection_objective: str,
     minimum_uplift: float,
     test_races: int,
+    split_details: dict[str, Any] | None = None,
     sealed_test: dict[str, Any] | None = None,
 ) -> None:
     primary_metric = (
@@ -1029,6 +1193,7 @@ def save_results(
         "train_races": train_races,
         "validation_races": validation_races,
         "test_races": test_races,
+        "split": split_details,
         "base_features": base_features,
         "competition_ids": competition_ids,
         "base_result": base_result,
@@ -1087,6 +1252,10 @@ def main() -> None:
         )
     if not 0.0 < args.minimum_uplift < 1.0:
         raise ValueError("--minimum-uplift must be between zero and one")
+    if args.random_validation and args.validation_seed is None:
+        raise ValueError("--validation-seed is required with --random-validation")
+    if args.validation_seed is not None and not args.random_validation:
+        raise ValueError("--validation-seed requires --random-validation")
     if args.jobs * args.candidate_jobs > CPU_THREADS:
         print(
             "WARNING: --jobs × --candidate-jobs exceeds available logical "
@@ -1154,10 +1323,21 @@ def main() -> None:
             f"found {len(races):,} eligible races. Reduce the two holdouts; a "
             f"rough validation suggestion is {suggested:,} races."
         )
-    ordered_ids = races["race_id"].astype(int).tolist()
-    train_ids = ordered_ids[:-held_out_races]
-    validation_ids = ordered_ids[-held_out_races:-args.test_races]
-    test_ids = ordered_ids[-args.test_races:]
+    train_ids, validation_ids, test_ids = split_race_ids(
+        races,
+        args.validation_races,
+        args.test_races,
+        random_validation=args.random_validation,
+        validation_seed=args.validation_seed,
+    )
+    split_details = split_diagnostics(
+        races,
+        train_ids,
+        validation_ids,
+        test_ids,
+        random_validation=args.random_validation,
+        validation_seed=args.validation_seed,
+    )
     training = rows_for_races(frame, train_ids)
     validation = rows_for_races(frame, validation_ids)
     test = rows_for_races(frame, test_ids)
@@ -1193,6 +1373,28 @@ def main() -> None:
         f"native_categorical_features={json.dumps(manifest_categorical)}",
         flush=True,
     )
+    print(
+        f"split_mode={split_details['mode']}\n"
+        f"validation_seed={split_details['validation_seed']}\n"
+        f"eligible_races={split_details['eligible_races']:,} "
+        f"pretest_sampling_pool_races="
+        f"{split_details['pretest_sampling_pool_races']:,}\n"
+        f"split_overlap_check={split_details['overlap_check']} "
+        f"overlaps={json.dumps(split_details['overlaps'], sort_keys=True)}\n"
+        f"train_split={json.dumps(split_details['train'], sort_keys=True)}\n"
+        f"validation_split="
+        f"{json.dumps(split_details['validation'], sort_keys=True)}\n"
+        f"sealed_test_split="
+        f"{json.dumps(split_details['sealed_test'], sort_keys=True)}",
+        flush=True,
+    )
+    if args.random_validation:
+        print(
+            "random_validation_note=the sampled validation race IDs are fixed "
+            "for the baseline and every candidate in this run; the latest "
+            "test races remain sealed",
+            flush=True,
+        )
 
     parameter_args = SimpleNamespace(jobs=args.jobs)
     if args.forward_select:
@@ -1201,7 +1403,7 @@ def main() -> None:
             training, validation, test, train_matrix_all, validation_matrix_all,
             test_matrix_all, train_y, validation_y, train_groups, validation_groups,
             len(train_ids), len(validation_ids),
-            base_features, feature_sets, added_features,
+            base_features, feature_sets, added_features, split_details,
         )
         return
 
@@ -1255,6 +1457,7 @@ def main() -> None:
         selection_objective=args.selection_objective,
         minimum_uplift=args.minimum_uplift,
         test_races=len(test_ids),
+        split_details=split_details,
     )
 
     for index, (label, features) in enumerate(feature_sets.items(), start=1):
@@ -1319,6 +1522,7 @@ def main() -> None:
                 selection_objective=args.selection_objective,
                 minimum_uplift=args.minimum_uplift,
                 test_races=len(test_ids),
+                split_details=split_details,
             )
         primary_uplift = float(result[
             "winner_uplift_vs_base"
@@ -1378,6 +1582,7 @@ def main() -> None:
         selection_objective=args.selection_objective,
         minimum_uplift=args.minimum_uplift,
         test_races=len(test_ids),
+        split_details=split_details,
         sealed_test=sealed_test,
     )
     print("\n" + "=" * 88)

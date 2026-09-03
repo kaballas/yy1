@@ -52,18 +52,23 @@ PREPARATION_FEATURE_NAMES = (
     "second_up_flag",
     "third_up_flag",
 )
+RACE_RELATIVE_HISTORY_FEATURE_NAMES = (
+    "recent_1_starting_price_rank_in_race",
+    "recent_1_implied_probability_rank_in_race",
+)
 FEATURES_TO_STORE = (
     *DERIVED_FEATURE_NAMES,
     *ADVANCED_FEATURE_NAMES,
     *MARKET_DISAGREEMENT_FEATURE_NAMES,
     *RACE_AGGREGATE_FEATURE_NAMES,
     *PREPARATION_FEATURE_NAMES,
+    *RACE_RELATIVE_HISTORY_FEATURE_NAMES,
 )
 CALCULATION_VERSION_COLUMN = "derived_racing_features_version"
 # Increment this whenever a formula or registry change requires existing rows to
 # be rebuilt. A version marker is reliable where feature NULLs are not: many
 # leakage-safe features are legitimately NULL because a horse has no history.
-CALCULATION_VERSION = "2026-08-22-1"
+CALCULATION_VERSION = "2026-09-04-1"
 
 
 def add_race_aggregate_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -129,6 +134,33 @@ def add_preparation_features(
     df["second_up_flag"] = run_number.eq(2).astype(float).where(run_number.notna())
     df["third_up_flag"] = run_number.eq(3).astype(float).where(run_number.notna())
     return df
+
+
+def add_race_relative_history_features(
+    df: pd.DataFrame,
+    eligible_mask: pd.Series,
+) -> pd.DataFrame:
+    """Rank last-start market expectations within today's eligible field."""
+    result = pd.DataFrame(index=df.index)
+    race_id = df["race_id"]
+    recent_1_price = pd.to_numeric(
+        df["recent_1_starting_price"], errors="coerce"
+    )
+    recent_1_implied = 1.0 / recent_1_price.where(recent_1_price > 0)
+    eligible_price = recent_1_price.where(eligible_mask)
+    eligible_implied = recent_1_implied.where(eligible_mask)
+
+    result["recent_1_starting_price_rank_in_race"] = (
+        eligible_price.groupby(race_id, sort=False).rank(
+            method="average", ascending=True
+        )
+    )
+    result["recent_1_implied_probability_rank_in_race"] = (
+        eligible_implied.groupby(race_id, sort=False).rank(
+            method="average", ascending=False
+        )
+    )
+    return result
 
 
 def add_market_disagreement_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -297,10 +329,14 @@ def main() -> None:
             derived = pd.concat([base, derive_context_features(frame, base)], axis=1)
             race_aggregates = add_race_aggregate_features(frame)
             preparation = add_preparation_features(frame)
+            race_relative_history = add_race_relative_history_features(
+                frame, context_eligible
+            )
             derived = pd.concat([
                 derived,
                 race_aggregates.loc[:, RACE_AGGREGATE_FEATURE_NAMES],
                 preparation.loc[:, PREPARATION_FEATURE_NAMES],
+                race_relative_history.loc[:, RACE_RELATIVE_HISTORY_FEATURE_NAMES],
             ], axis=1)
             disagreement_inputs = pd.concat([
                 derived,

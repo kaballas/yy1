@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -23,8 +25,18 @@ from src.race_moe_snapshot import (
 from train_moe_winner_ranker_feature_map import (
     _competition_population,
     _selection,
+    available_trainable_components,
+    fine_tune_command,
+    freeze_base_model_for_judge,
+    initial_training_command,
     main as feature_map_main,
+    next_fine_tuned_output,
     parse_args,
+    previous_fine_tune_checkpoint,
+    set_trainable_components,
+    training_command,
+    training_arguments,
+    validate_args,
 )
 
 
@@ -90,6 +102,292 @@ def test_feature_mapped_router_uses_only_allowlisted_features():
 
     assert model.router is not None
     assert model.router.network[1].in_features == 3
+
+
+def test_feature_mapped_judge_only_uses_moe_outputs_and_starts_as_identity():
+    model = RaceMixtureOfExpertsFeatureMap(FeatureMappedRaceWinnerConfig(
+        feature_count=3,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        feature_map=((0, 1), (1, 2)),
+        router_feature_indices=(1,),
+        judge_hidden_dims=(8,),
+    )).eval()
+    x = torch.randn(1, 4, 3)
+    valid = torch.tensor([[True, True, True, False]])
+
+    output = model(x, valid, return_diagnostics=True)
+
+    assert model.judge is not None
+    assert model.judge.hidden[0].in_features == 5
+    assert torch.allclose(output["logits"], output["base_logits"])
+    assert torch.count_nonzero(output["judge_adjustment"]) == 0
+
+
+def test_freezing_base_model_leaves_only_judge_trainable():
+    model = RaceMixtureOfExpertsFeatureMap(FeatureMappedRaceWinnerConfig(
+        feature_count=3,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        feature_map=((0, 1), (1, 2)),
+        judge_hidden_dims=(8,),
+    ))
+
+    freeze_base_model_for_judge(model)
+
+    assert all(
+        parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if name.startswith("judge.")
+    )
+    assert all(
+        not parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if not name.startswith("judge.")
+    )
+
+
+def test_trainable_component_selection_supports_individual_experts():
+    model = RaceMixtureOfExpertsFeatureMap(FeatureMappedRaceWinnerConfig(
+        feature_count=3,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        feature_map=((0, 1), (1, 2)),
+        judge_hidden_dims=(8,),
+    ))
+
+    assert available_trainable_components(model) == (
+        "expert_0", "expert_1", "router", "judge",
+    )
+    assert set_trainable_components(model, ["expert_1", "judge"]) == (
+        "expert_1", "judge",
+    )
+    assert all(
+        parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if name.startswith("experts.1.") or name.startswith("judge.")
+    )
+    assert all(
+        not parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if name.startswith("experts.0.") or name.startswith("router.")
+    )
+    with pytest.raises(ValueError, match="Unknown"):
+        set_trainable_components(model, ["missing"])
+
+
+def test_trainable_component_selection_accepts_comma_separated_components():
+    model = RaceMixtureOfExpertsFeatureMap(FeatureMappedRaceWinnerConfig(
+        feature_count=3,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        feature_map=((0, 1), (1, 2)),
+        judge_hidden_dims=(8,),
+    ))
+
+    selected = set_trainable_components(model, ["router,judge,expert_1"])
+
+    assert selected == ("router", "judge", "expert_1")
+    assert all(
+        parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if (
+            name.startswith("router.")
+            or name.startswith("judge.")
+            or name.startswith("experts.1.")
+        )
+    )
+    assert all(
+        not parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if name.startswith("experts.0.")
+    )
+
+
+def test_training_arguments_include_defaults_and_are_json_safe():
+    args = parse_args([
+        "--feature-map-json", "map.json",
+        "--moe-expert-hidden-dims", "64,32",
+    ])
+
+    values = training_arguments(args)
+
+    assert values["feature_map_json"] == "map.json"
+    assert values["moe_expert_hidden_dims"] == [64, 32]
+    assert values["learning_rate"] == pytest.approx(3e-4)
+
+
+def test_trainer_rejects_overwriting_initial_checkpoint(tmp_path):
+    checkpoint = tmp_path / "same.pt"
+    args = parse_args([
+        "--feature-map-json", str(tmp_path / "map.json"),
+        "--initial-checkpoint", str(checkpoint),
+        "--output", str(checkpoint),
+    ])
+
+    with pytest.raises(ValueError, match="must differ"):
+        validate_args(args)
+
+
+def test_fine_tune_command_preserves_architecture_and_uses_safe_output(tmp_path):
+    args = parse_args([
+        "--feature-map-json", str(tmp_path / "map.json"),
+        "--db", str(tmp_path / "races.sqlite"),
+        "--features-json", str(tmp_path / "features.json"),
+        "--train-competition-id", "7", "8",
+        "--validation-competition-id", "7", "8",
+        "--validation-races", "400",
+        "--test-races", "50",
+        "--moe-num-experts", "4",
+        "--moe-top-k", "2",
+        "--moe-router-balance-weight", "0.05",
+        "--moe-gate-temperature", "1.25",
+        "--epochs", "2000",
+        "--learning-rate", "0.0003",
+    ])
+    checkpoint = tmp_path / "winner.pt"
+
+    command, output, learning_rate, epochs = fine_tune_command(
+        args,
+        checkpoint,
+        ("expert_0", "expert_1", "expert_2", "expert_3", "router", "judge"),
+    )
+
+    assert output == tmp_path / "winner_finetuned.pt"
+    assert learning_rate == pytest.approx(0.0001)
+    assert epochs == 200
+    assert "--initial-checkpoint" in command
+    assert str(checkpoint.resolve()) in command
+    assert "--output" in command
+    assert str(output) in command
+    assert "--moe-top-k 2" in command
+    assert "--moe-router-balance-weight 0.05" in command
+    assert "--train-competition-id 7 8" in command
+    assert (
+        "--trainable-components "
+        "expert_0,expert_1,expert_2,expert_3,router,judge"
+    ) in command
+
+
+def test_fine_tune_output_uses_versions_instead_of_repeated_suffixes(tmp_path):
+    assert next_fine_tuned_output(tmp_path / "winner.pt") == (
+        tmp_path / "winner_finetuned.pt"
+    )
+    assert next_fine_tuned_output(tmp_path / "winner_finetuned.pt") == (
+        tmp_path / "winner_finetuned_2.pt"
+    )
+    assert next_fine_tuned_output(
+        tmp_path / "winner_finetuned_finetuned.pt"
+    ) == (tmp_path / "winner_finetuned_3.pt")
+    assert next_fine_tuned_output(tmp_path / "winner_finetuned_3.pt") == (
+        tmp_path / "winner_finetuned_4.pt"
+    )
+
+
+def test_initial_training_command_traces_to_root_without_initializer(tmp_path):
+    root_checkpoint = tmp_path / "root.pt"
+    child_checkpoint = tmp_path / "child_finetuned.pt"
+    current_output = tmp_path / "current_finetuned.pt"
+    root_args = parse_args([
+        "--feature-map-json", str(tmp_path / "map.json"),
+        "--db", str(tmp_path / "races.sqlite"),
+        "--features-json", str(tmp_path / "features.json"),
+        "--learning-rate", "0.0003",
+        "--output", str(root_checkpoint),
+    ])
+    root_checkpoint.with_suffix(".report.json").write_text(json.dumps({
+        "initial_checkpoint": None,
+        "training_config": training_arguments(root_args),
+        "trainable_components": [
+            "expert_0", "expert_1", "expert_2", "expert_3", "router", "judge",
+        ],
+    }))
+    child_checkpoint.with_suffix(".report.json").write_text(json.dumps({
+        "initial_checkpoint": str(root_checkpoint),
+        "training_config": training_arguments(root_args),
+        "trainable_components": ["router", "judge"],
+    }))
+    current_args = parse_args([
+        "--feature-map-json", str(tmp_path / "map.json"),
+        "--initial-checkpoint", str(child_checkpoint),
+        "--learning-rate", "0.00003",
+        "--output", str(current_output),
+    ])
+
+    command, checkpoint, depth = initial_training_command(
+        current_args, current_output, ("router", "judge"),
+    )
+
+    assert checkpoint == root_checkpoint
+    assert depth == 1
+    assert "--learning-rate 0.0003" in command
+    assert "--initial-checkpoint" not in command
+    assert f"--output {root_checkpoint}" in command
+
+
+def test_initial_training_command_recovers_legacy_self_referencing_report(tmp_path):
+    root_checkpoint = tmp_path / "winner.pt"
+    child_checkpoint = tmp_path / "winner_finetuned.pt"
+    root_args = parse_args([
+        "--feature-map-json", str(tmp_path / "map.json"),
+        "--output", str(root_checkpoint),
+    ])
+    root_checkpoint.with_suffix(".report.json").write_text(json.dumps({
+        "initial_checkpoint": None,
+        "training_config": training_arguments(root_args),
+        "trainable_components": [
+            "expert_0", "expert_1", "expert_2", "expert_3", "router", "judge",
+        ],
+    }))
+    child_checkpoint.with_suffix(".report.json").write_text(json.dumps({
+        "initial_checkpoint": str(child_checkpoint),
+        "training_config": training_arguments(root_args),
+        "trainable_components": ["router", "judge"],
+    }))
+    current_args = parse_args([
+        "--feature-map-json", str(tmp_path / "map.json"),
+        "--initial-checkpoint", str(child_checkpoint),
+    ])
+
+    command, checkpoint, depth = initial_training_command(
+        current_args, tmp_path / "current.pt", ("router", "judge"),
+    )
+
+    assert previous_fine_tune_checkpoint(child_checkpoint) == root_checkpoint
+    assert checkpoint == root_checkpoint
+    assert depth == 1
+    assert "--initial-checkpoint" not in command
+
+
+def test_training_command_prints_complete_reproducible_invocation(tmp_path):
+    args = parse_args([
+        "--feature-map-json", str(tmp_path / "map.json"),
+        "--db", str(tmp_path / "races.sqlite"),
+        "--features-json", str(tmp_path / "features.json"),
+        "--competition-id", "999",
+        "--validation-competition-id", "999",
+        "--moe-top-k", "all",
+        "--no-include-market-features",
+        "--initial-checkpoint", str(tmp_path / "initial.pt"),
+        "--trainable-components", "router,judge",
+        "--output", str(tmp_path / "trained.pt"),
+    ])
+
+    command = training_command(
+        args, args.output, ("router", "judge"),
+    )
+
+    assert "--train-competition-id 999" in command
+    assert "--validation-competition-id 999" in command
+    assert "--moe-top-k all" in command
+    assert "--no-include-market-features" in command
+    assert f"--initial-checkpoint {(tmp_path / 'initial.pt').resolve()}" in command
+    assert "--trainable-components router,judge" in command
+    assert f"--output {(tmp_path / 'trained.pt').resolve()}" in command
 
 
 def test_feature_mapped_fixed_uniform_routing_bypasses_router():

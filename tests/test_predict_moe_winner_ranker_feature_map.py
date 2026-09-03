@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
@@ -5,7 +7,10 @@ from predict_moe_winner_ranker_feature_map import (
     build_model_from_checkpoint_config,
     expert_influence_line,
     expert_usage_line,
+    model_top_summary,
+    parse_args,
     prediction_view,
+    unique_top_summary,
 )
 
 
@@ -17,18 +22,58 @@ def test_default_prediction_view_only_shows_rank_number_and_name():
         "winner_probability": [0.14],
         "rank": [1],
         "expert_0_gate": [0.5],
+        "open_price": [4.5],
+        "fluc1": [3.8],
+        "fluc2": [3.7],
     })
 
     view = prediction_view(result, diagnostics=False)
 
-    assert view.columns.tolist() == ["rank", "runner_number", "runner_name"]
-    assert view.iloc[0].tolist() == [1, 4, "Nankeen"]
+    assert view.columns.tolist() == [
+        "rank", "runner_number", "runner_name", "open_price", "fluc1", "fluc2",
+    ]
+    assert view.iloc[0].tolist() == [1, 4, "Nankeen", 4.5, 3.8, 3.7]
 
 
 def test_diagnostic_prediction_view_keeps_all_columns():
     result = pd.DataFrame({"rank": [1], "expert_0_gate": [0.5]})
 
     assert prediction_view(result, diagnostics=True) is result
+
+
+def test_cli_accepts_models_directory_and_top_count():
+    args = parse_args([
+        "--models-dir", "outputs", "--race-id", "123", "--top", "4",
+    ])
+
+    assert args.models_dir == Path("outputs")
+    assert args.checkpoint is None
+    assert args.top == 4
+
+
+def test_model_top_summary_lists_runner_numbers_in_prediction_order():
+    summary = model_top_summary([
+        ("a1", [1, 8, 4, 5, 2]),
+        ("nested/a2", [8, 1, 5, 4, 3]),
+    ], 4)
+
+    assert summary.to_dict(orient="records") == [
+        {"model": "a1", "top4": "1, 8, 4, 5"},
+        {"model": "nested/a2", "top4": "8, 1, 5, 4"},
+    ]
+
+
+def test_unique_top_summary_groups_models_with_matching_ordered_picks():
+    summary = unique_top_summary([
+        ("a1", [1, 8, 4, 5, 2]),
+        ("a2", [1, 8, 4, 5, 3]),
+        ("a3", [8, 1, 4, 5, 2]),
+    ], 4)
+
+    assert summary.to_dict(orient="records") == [
+        {"top4": "1, 8, 4, 5", "model_count": 2, "models": "a1, a2"},
+        {"top4": "8, 1, 4, 5", "model_count": 1, "models": "a3"},
+    ]
 
 
 def test_expert_usage_line_reports_mean_gate_percentages():

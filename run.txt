@@ -1097,3 +1097,111 @@ python train_moe_winner_ranker_feature_map.py \
   --split test \
   --output-json outputs/winner_ranker_backtest_test.json \
   --output-csv outputs/winner_ranker_backtest_test.csv
+
+
+
+  python train_moe_winner_ranker_feature_map.py \
+  --feature-map-json configs/race_moe_feature_map.json \
+  --db db/race_runners.sqlite \
+  --features-json tabfm_features.json \
+  --train-competition-id 999 \
+  --validation-competition-id 999 \
+  --validation-races 500 \
+  --test-races 1000 \
+  --moe-num-experts 14 \
+  --moe-top-k 14 \
+  --judge-hidden-dims 32 \
+  --initial-checkpoint outputs/x4.pt \
+  --learning-rate 0.0001 \
+  --trainable-components expert_0,expert_1,expert_2,expert_3,expert_4,expert_5,expert_6,expert_7,expert_8,expert_9,expert_10,expert_11, expert_12,expert_13,router,judge \
+  --output outputs/x4.pt
+
+
+python train_moe_winner_ranker_feature_map.py \
+  --feature-map-json configs/race_moe_feature_map.json \
+  --db db/race_runners.sqlite \
+  --features-json tabfm_features.json \
+  --train-competition-id 999 \
+  --validation-competition-id 999 \
+  --validation-races 2400  \
+  --test-races 100 \
+  --moe-num-experts 14 \
+  --moe-top-k 14 \
+  --judge-hidden-dims 32 \
+  --output outputs/a4.pt --epochs 200 --races-per-batch 2 
+
+
+
+
+    python train_moe_winner_ranker_feature_map.py \
+    --feature-map-json configs/race_moe_feature_map.json \
+    --db db/race_runners.sqlite \
+    --features-json tabfm_features.json \
+    --train-competition-id 999 \
+    --validation-competition-id 999 \
+    --validation-races 100 \
+    --test-races 100 \
+    --moe-num-experts 14 \
+    --moe-top-k 14 \
+    --judge-hidden-dims 32 \
+    --initial-checkpoint outputs/a1.pt \
+    --learning-rate 0.0001 \
+    --trainable-components expert_0,expert_1,expert_2,expert_3,expert_4,expert_5,expert_6,expert_7,expert_8,expert_9,expert_10,expert_11, expert_12,expert_13,router,judge \
+    --output outputs/a1.pt --epochs 100 --races-per-batch 2
+
+
+python train_moe_winner_ranker_feature_map.py \
+  --feature-map-json configs/race_moe_feature_map.json \
+  --db db/race_runners.sqlite \
+  --features-json tabfm_features.json \
+  --train-competition-id 999 \
+  --validation-competition-id 999 \
+  --validation-races 100  \
+  --test-races 100 \
+  --moe-num-experts 14 \
+  --moe-top-k 14 \
+  --judge-hidden-dims 1 \
+  --output outputs/b8.pt --epochs 2000 --races-per-batch 5 --moe-expert-hidden-dims 1 --moe-router-hidden-dim 1 --learning-rate 0.000001
+  
+python train_moe_winner_ranker_feature_map.py \
+  --feature-map-json configs/race_moe_feature_map.json \
+  --db db/race_runners.sqlite \
+  --features-json tabfm_features.json \
+  --train-competition-id 999 \
+  --validation-competition-id 999 \
+  --validation-races 100  \
+  --test-races 100 \
+  --moe-num-experts 14 \
+  --moe-top-k 14 \
+  --judge-hidden-dims 1 \
+  --output outputs/c1.pt --epochs 2000 --races-per-batch 500 --moe-expert-hidden-dims 2 --moe-router-hidden-dim 2 --learning-rate 0.000001
+
+
+  train_moe_winner_ranker_feature_map.py \
+  --feature-map-json /home/theo/yy1/configs/x2.json \
+  --db /home/theo/yy1/db/race_runners.sqlite \
+  --features-json /home/theo/yy1/tabfm_features.json \
+  --train-competition-id 999 \
+  --validation-competition-id 999 \
+  --validation-races 400 \
+  --test-races 50 \
+  --include-market-features \
+  --moe-num-experts 4 \
+  --moe-top-k 4 \
+  --moe-router-balance-weight 0.05 \
+  --moe-gate-temperature 1.25 \
+  --moe-expert-hidden-dims 64 \
+  --moe-router-hidden-dim 64 \
+  --moe-routing-mode learned \
+  --judge-hidden-dims 32 \
+  --races-per-batch 1000 \
+  --learning-rate 0.0003 \
+  --weight-decay 0.001 \
+  --max-grad-norm 1 \
+  --dropout 0.2 \
+  --standardized-clip 5 \
+  --epochs 2000 \
+  --early-stopping-patience 5 \
+  --seed 42 \
+  --device cpu \
+  --output /home/theo/yy1/outputs/x2_v1.pt
