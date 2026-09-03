@@ -2,7 +2,12 @@
   "schema_version": 1,
   "description": "Market-mover ablation models: every shared base feature plus one independently tested race_runners feature.",
   "base_features": [
-    "career_starts"
+    "career_starts",
+    "fluc2",
+    "recent_6_margin",
+    "historical_step_up_finish_percentile",
+    "class_step_up",
+    "weight_kg"
   ],
   "excluded_features": [],
   "categorical_features": [],
@@ -10,2508 +15,4543 @@
     "t1": {
       "features": [
         "career_starts",
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
         "distance_m"
       ]
     },
     "t2": {
       "features": [
         "career_starts",
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
         "field_size"
       ]
     },
     "t3": {
       "features": [
         "career_starts",
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
         "active_field_size"
       ]
     },
     "t4": {
       "features": [
         "career_starts",
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
         "draw_number"
       ]
     },
     "t5": {
       "features": [
         "career_starts",
-        "weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "age"
       ]
     },
     "t6": {
       "features": [
         "career_starts",
-        "age"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "speed_rating"
       ]
     },
     "t7": {
       "features": [
         "career_starts",
-        "speed_rating"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "dry_rating"
       ]
     },
     "t8": {
       "features": [
         "career_starts",
-        "dry_rating"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "wet_rating"
       ]
     },
     "t9": {
       "features": [
         "career_starts",
-        "wet_rating"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "win_percentage"
       ]
     },
     "t10": {
       "features": [
         "career_starts",
-        "win_percentage"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "place_percentage"
       ]
     },
     "t11": {
       "features": [
         "career_starts",
-        "place_percentage"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "prize_money"
       ]
     },
     "t12": {
       "features": [
         "career_starts",
-        "prize_money"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "career_wins"
       ]
     },
     "t13": {
       "features": [
         "career_starts",
-        "career_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "career_seconds"
       ]
     },
     "t14": {
       "features": [
         "career_starts",
-        "career_seconds"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "career_thirds"
       ]
     },
     "t15": {
       "features": [
         "career_starts",
-        "career_thirds"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "good_starts"
       ]
     },
     "t16": {
       "features": [
         "career_starts",
-        "good_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "good_wins"
       ]
     },
     "t17": {
       "features": [
         "career_starts",
-        "good_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "soft_starts"
       ]
     },
     "t18": {
       "features": [
         "career_starts",
-        "soft_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "soft_wins"
       ]
     },
     "t19": {
       "features": [
         "career_starts",
-        "soft_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "heavy_starts"
       ]
     },
     "t20": {
       "features": [
         "career_starts",
-        "heavy_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "heavy_wins"
       ]
     },
     "t21": {
       "features": [
         "career_starts",
-        "heavy_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_starts"
       ]
     },
     "t22": {
       "features": [
         "career_starts",
-        "distance_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_wins"
       ]
     },
     "t23": {
       "features": [
         "career_starts",
-        "distance_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "track_starts"
       ]
     },
     "t24": {
       "features": [
         "career_starts",
-        "track_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "track_wins"
       ]
     },
     "t25": {
       "features": [
         "career_starts",
-        "track_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "first_up_starts"
       ]
     },
     "t26": {
       "features": [
         "career_starts",
-        "first_up_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "first_up_wins"
       ]
     },
     "t27": {
       "features": [
         "career_starts",
-        "first_up_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "second_up_starts"
       ]
     },
     "t28": {
       "features": [
         "career_starts",
-        "second_up_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "second_up_wins"
       ]
     },
     "t29": {
       "features": [
         "career_starts",
-        "second_up_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "horse_jockey_starts"
       ]
     },
     "t30": {
       "features": [
         "career_starts",
-        "horse_jockey_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "horse_jockey_wins"
       ]
     },
     "t31": {
       "features": [
         "career_starts",
-        "horse_jockey_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "open_price"
       ]
     },
     "t32": {
       "features": [
         "career_starts",
-        "open_price"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "fluc1"
       ]
     },
     "t33": {
       "features": [
         "career_starts",
-        "fluc1"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_1_place"
       ]
     },
     "t34": {
       "features": [
         "career_starts",
-        "fluc2"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_1_distance_m"
       ]
     },
     "t35": {
       "features": [
         "career_starts",
-        "recent_1_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_1_weight_kg"
       ]
     },
     "t36": {
       "features": [
         "career_starts",
-        "recent_1_distance_m"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_1_barrier"
       ]
     },
     "t37": {
       "features": [
         "career_starts",
-        "recent_1_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_1_track_status_value"
       ]
     },
     "t38": {
       "features": [
         "career_starts",
-        "recent_1_barrier"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_1_starting_price"
       ]
     },
     "t39": {
       "features": [
         "career_starts",
-        "recent_1_track_status_value"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_1_margin"
       ]
     },
     "t40": {
       "features": [
         "career_starts",
-        "recent_1_starting_price"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_1_total_runners"
       ]
     },
     "t41": {
       "features": [
         "career_starts",
-        "recent_1_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_2_place"
       ]
     },
     "t42": {
       "features": [
         "career_starts",
-        "recent_1_total_runners"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_2_distance_m"
       ]
     },
     "t43": {
       "features": [
         "career_starts",
-        "recent_2_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_2_weight_kg"
       ]
     },
     "t44": {
       "features": [
         "career_starts",
-        "recent_2_distance_m"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_2_barrier"
       ]
     },
     "t45": {
       "features": [
         "career_starts",
-        "recent_2_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_2_track_status_value"
       ]
     },
     "t46": {
       "features": [
         "career_starts",
-        "recent_2_barrier"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_2_starting_price"
       ]
     },
     "t47": {
       "features": [
         "career_starts",
-        "recent_2_track_status_value"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_2_margin"
       ]
     },
     "t48": {
       "features": [
         "career_starts",
-        "recent_2_starting_price"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_2_total_runners"
       ]
     },
     "t49": {
       "features": [
         "career_starts",
-        "recent_2_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_3_place"
       ]
     },
     "t50": {
       "features": [
         "career_starts",
-        "recent_2_total_runners"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_3_distance_m"
       ]
     },
     "t51": {
       "features": [
         "career_starts",
-        "recent_3_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_3_weight_kg"
       ]
     },
     "t52": {
       "features": [
         "career_starts",
-        "recent_3_distance_m"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_3_barrier"
       ]
     },
     "t53": {
       "features": [
         "career_starts",
-        "recent_3_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_3_track_status_value"
       ]
     },
     "t54": {
       "features": [
         "career_starts",
-        "recent_3_barrier"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_3_starting_price"
       ]
     },
     "t55": {
       "features": [
         "career_starts",
-        "recent_3_track_status_value"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_3_margin"
       ]
     },
     "t56": {
       "features": [
         "career_starts",
-        "recent_3_starting_price"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_3_total_runners"
       ]
     },
     "t57": {
       "features": [
         "career_starts",
-        "recent_3_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_4_place"
       ]
     },
     "t58": {
       "features": [
         "career_starts",
-        "recent_3_total_runners"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_4_distance_m"
       ]
     },
     "t59": {
       "features": [
         "career_starts",
-        "recent_4_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_4_weight_kg"
       ]
     },
     "t60": {
       "features": [
         "career_starts",
-        "recent_4_distance_m"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_4_barrier"
       ]
     },
     "t61": {
       "features": [
         "career_starts",
-        "recent_4_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_4_track_status_value"
       ]
     },
     "t62": {
       "features": [
         "career_starts",
-        "recent_4_barrier"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_4_starting_price"
       ]
     },
     "t63": {
       "features": [
         "career_starts",
-        "recent_4_track_status_value"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_4_margin"
       ]
     },
     "t64": {
       "features": [
         "career_starts",
-        "recent_4_starting_price"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_4_total_runners"
       ]
     },
     "t65": {
       "features": [
         "career_starts",
-        "recent_4_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_5_place"
       ]
     },
     "t66": {
       "features": [
         "career_starts",
-        "recent_4_total_runners"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_5_distance_m"
       ]
     },
     "t67": {
       "features": [
         "career_starts",
-        "recent_5_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_5_weight_kg"
       ]
     },
     "t68": {
       "features": [
         "career_starts",
-        "recent_5_distance_m"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_5_barrier"
       ]
     },
     "t69": {
       "features": [
         "career_starts",
-        "recent_5_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_5_track_status_value"
       ]
     },
     "t70": {
       "features": [
         "career_starts",
-        "recent_5_barrier"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_5_starting_price"
       ]
     },
     "t71": {
       "features": [
         "career_starts",
-        "recent_5_track_status_value"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_5_margin"
       ]
     },
     "t72": {
       "features": [
         "career_starts",
-        "recent_5_starting_price"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_5_total_runners"
       ]
     },
     "t73": {
       "features": [
         "career_starts",
-        "recent_5_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_6_place"
       ]
     },
     "t74": {
       "features": [
         "career_starts",
-        "recent_5_total_runners"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_6_distance_m"
       ]
     },
     "t75": {
       "features": [
         "career_starts",
-        "recent_6_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_6_weight_kg"
       ]
     },
     "t76": {
       "features": [
         "career_starts",
-        "recent_6_distance_m"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_6_barrier"
       ]
     },
     "t77": {
       "features": [
         "career_starts",
-        "recent_6_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_6_track_status_value"
       ]
     },
     "t78": {
       "features": [
         "career_starts",
-        "recent_6_barrier"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_6_starting_price"
       ]
     },
     "t79": {
       "features": [
         "career_starts",
-        "recent_6_track_status_value"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_6_total_runners"
       ]
     },
     "t80": {
       "features": [
         "career_starts",
-        "recent_6_starting_price"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_runs_count"
       ]
     },
     "t81": {
       "features": [
         "career_starts",
-        "recent_6_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_wins"
       ]
     },
     "t82": {
       "features": [
         "career_starts",
-        "recent_6_total_runners"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_places"
       ]
     },
     "t83": {
       "features": [
         "career_starts",
-        "recent_runs_count"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_place"
       ]
     },
     "t84": {
       "features": [
         "career_starts",
-        "recent_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_best_place"
       ]
     },
     "t85": {
       "features": [
         "career_starts",
-        "recent_places"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_place_3"
       ]
     },
     "t86": {
       "features": [
         "career_starts",
-        "recent_avg_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_place_5"
       ]
     },
     "t87": {
       "features": [
         "career_starts",
-        "recent_best_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_win_rate_5"
       ]
     },
     "t88": {
       "features": [
         "career_starts",
-        "recent_avg_place_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_top3_rate_5"
       ]
     },
     "t89": {
       "features": [
         "career_starts",
-        "recent_avg_place_5"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_margin"
       ]
     },
     "t90": {
       "features": [
         "career_starts",
-        "recent_win_rate_5"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_best_margin"
       ]
     },
     "t91": {
       "features": [
         "career_starts",
-        "recent_top3_rate_5"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_margin_3"
       ]
     },
     "t92": {
       "features": [
         "career_starts",
-        "recent_avg_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_starting_price"
       ]
     },
     "t93": {
       "features": [
         "career_starts",
-        "recent_best_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_same_distance_runs"
       ]
     },
     "t94": {
       "features": [
         "career_starts",
-        "recent_avg_margin_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_same_track_runs"
       ]
     },
     "t95": {
       "features": [
         "career_starts",
-        "recent_avg_starting_price"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_same_condition_runs"
       ]
     },
     "t96": {
       "features": [
         "career_starts",
-        "recent_same_distance_runs"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_days_since_last_run"
       ]
     },
     "t97": {
       "features": [
         "career_starts",
-        "recent_same_track_runs"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "trackExpert"
       ]
     },
     "t98": {
       "features": [
         "career_starts",
-        "recent_same_condition_runs"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "goodGroundPro"
       ]
     },
     "t99": {
       "features": [
         "career_starts",
-        "recent_days_since_last_run"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "softGroundPro"
       ]
     },
     "t100": {
       "features": [
         "career_starts",
-        "trackExpert"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "heavyGroundPro"
       ]
     },
     "t101": {
       "features": [
         "career_starts",
-        "goodGroundPro"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "freshWinner"
       ]
     },
     "t102": {
       "features": [
         "career_starts",
-        "softGroundPro"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "secondUpWinner"
       ]
     },
     "t103": {
       "features": [
         "career_starts",
-        "heavyGroundPro"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "winningPartnership"
       ]
     },
     "t104": {
       "features": [
         "career_starts",
-        "freshWinner"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hotStreak"
       ]
     },
     "t105": {
       "features": [
         "career_starts",
-        "secondUpWinner"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recentPodium"
       ]
     },
     "t106": {
       "features": [
         "career_starts",
-        "winningPartnership"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "trackFamiliarity"
       ]
     },
     "t107": {
       "features": [
         "career_starts",
-        "hotStreak"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distanceFamiliarity"
       ]
     },
     "t108": {
       "features": [
         "career_starts",
-        "recentPodium"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_open_to_fluc1_move"
       ]
     },
     "t109": {
       "features": [
         "career_starts",
-        "trackFamiliarity"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_open_to_fluc2_move"
       ]
     },
     "t110": {
       "features": [
         "career_starts",
-        "distanceFamiliarity"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_fluc1_to_fluc2_move"
       ]
     },
     "t111": {
       "features": [
         "career_starts",
-        "market_open_to_fluc1_move"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_open_to_fluc1_move_pct"
       ]
     },
     "t112": {
       "features": [
         "career_starts",
-        "market_open_to_fluc2_move"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_open_to_fluc2_move_pct"
       ]
     },
     "t113": {
       "features": [
         "career_starts",
-        "market_fluc1_to_fluc2_move"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_fluc1_to_fluc2_move_pct"
       ]
     },
     "t114": {
       "features": [
         "career_starts",
-        "market_open_to_fluc1_move_pct"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_total_abs_movement"
       ]
     },
     "t115": {
       "features": [
         "career_starts",
-        "market_open_to_fluc2_move_pct"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_price_range_pct"
       ]
     },
     "t116": {
       "features": [
         "career_starts",
-        "market_fluc1_to_fluc2_move_pct"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_implied_prob_change_open_to_fluc2"
       ]
     },
     "t117": {
       "features": [
         "career_starts",
-        "market_total_abs_movement"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_implied_prob_change_fluc1_to_fluc2"
       ]
     },
     "t118": {
       "features": [
         "career_starts",
-        "market_price_range_pct"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_best_speed_mps"
       ]
     },
     "t119": {
       "features": [
         "career_starts",
-        "market_implied_prob_change_open_to_fluc2"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_speed_mps"
       ]
     },
     "t120": {
       "features": [
         "career_starts",
-        "market_implied_prob_change_fluc1_to_fluc2"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_best_similar_distance_speed_mps"
       ]
     },
     "t121": {
       "features": [
         "career_starts",
-        "recent_best_speed_mps"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_similar_distance_speed_mps"
       ]
     },
     "t122": {
       "features": [
         "career_starts",
-        "recent_avg_speed_mps"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_avg_place"
       ]
     },
     "t123": {
       "features": [
         "career_starts",
-        "recent_best_similar_distance_speed_mps"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_avg_margin"
       ]
     },
     "t124": {
       "features": [
         "career_starts",
-        "recent_avg_similar_distance_speed_mps"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_win_rate"
       ]
     },
     "t125": {
       "features": [
         "career_starts",
-        "recent_weighted_avg_place"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_top3_rate"
       ]
     },
     "t126": {
       "features": [
         "career_starts",
-        "recent_weighted_avg_margin"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted"
       ]
     },
     "t127": {
       "features": [
         "career_starts",
-        "recent_weighted_win_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_market_edge_weighted"
       ]
     },
     "t128": {
       "features": [
         "career_starts",
-        "recent_weighted_top3_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_avg_weight_kg"
       ]
     },
     "t129": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_avg_weight_kg"
       ]
     },
     "t130": {
       "features": [
         "career_starts",
-        "recent_market_edge_weighted"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_min_weight_kg"
       ]
     },
     "t131": {
       "features": [
         "career_starts",
-        "recent_avg_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_max_weight_kg"
       ]
     },
     "t132": {
       "features": [
         "career_starts",
-        "recent_weighted_avg_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weight_range_kg"
       ]
     },
     "t133": {
       "features": [
         "career_starts",
-        "recent_min_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "weight_change_from_last_run"
       ]
     },
     "t134": {
       "features": [
         "career_starts",
-        "recent_max_weight_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "weight_change_vs_recent_avg"
       ]
     },
     "t135": {
       "features": [
         "career_starts",
-        "recent_weight_range_kg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "weight_change_vs_recent_weighted_avg"
       ]
     },
     "t136": {
       "features": [
         "career_starts",
-        "weight_change_from_last_run"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "large_weight_drop_flag"
       ]
     },
     "t137": {
       "features": [
         "career_starts",
-        "weight_change_vs_recent_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "weight_drop_after_close_run_flag"
       ]
     },
     "t138": {
       "features": [
         "career_starts",
-        "weight_change_vs_recent_weighted_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "last3_win_percentage"
       ]
     },
     "t139": {
       "features": [
         "career_starts",
-        "large_weight_drop_flag"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "last3_place_percentage"
       ]
     },
     "t140": {
       "features": [
         "career_starts",
-        "weight_drop_after_close_run_flag"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "open_price_rank"
       ]
     },
     "t141": {
       "features": [
         "career_starts",
-        "last3_win_percentage"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "fluc1_price_rank"
       ]
     },
     "t142": {
       "features": [
         "career_starts",
-        "last3_place_percentage"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "fluc2_price_rank"
       ]
     },
     "t143": {
       "features": [
         "career_starts",
-        "open_price_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "market_steam_rank"
       ]
     },
     "t144": {
       "features": [
         "career_starts",
-        "fluc1_price_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "speed_rating_rank"
       ]
     },
     "t145": {
       "features": [
         "career_starts",
-        "fluc2_price_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "win_percentage_rank"
       ]
     },
     "t146": {
       "features": [
         "career_starts",
-        "market_steam_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "place_percentage_rank"
       ]
     },
     "t147": {
       "features": [
         "career_starts",
-        "speed_rating_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "last3_win_percentage_rank"
       ]
     },
     "t148": {
       "features": [
         "career_starts",
-        "win_percentage_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "last3_place_percentage_rank"
       ]
     },
     "t149": {
       "features": [
         "career_starts",
-        "place_percentage_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_best_speed_rank"
       ]
     },
     "t150": {
       "features": [
         "career_starts",
-        "last3_win_percentage_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_similar_distance_speed_rank"
       ]
     },
     "t151": {
       "features": [
         "career_starts",
-        "last3_place_percentage_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_avg_place_rank"
       ]
     },
     "t152": {
       "features": [
         "career_starts",
-        "recent_best_speed_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_avg_margin_rank"
       ]
     },
     "t153": {
       "features": [
         "career_starts",
-        "recent_similar_distance_speed_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_win_rate_rank"
       ]
     },
     "t154": {
       "features": [
         "career_starts",
-        "recent_weighted_avg_place_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_weighted_top3_rate_rank"
       ]
     },
     "t155": {
       "features": [
         "career_starts",
-        "recent_weighted_avg_margin_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_rank"
       ]
     },
     "t156": {
       "features": [
         "career_starts",
-        "recent_weighted_win_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_market_edge_rank"
       ]
     },
     "t157": {
       "features": [
         "career_starts",
-        "recent_weighted_top3_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_consensus_score"
       ]
     },
     "t158": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_consensus_rank"
       ]
     },
     "t159": {
       "features": [
         "career_starts",
-        "recent_market_edge_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "dry_rating_rank"
       ]
     },
     "t160": {
       "features": [
         "career_starts",
-        "race_consensus_score"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "wet_rating_rank"
       ]
     },
     "t161": {
       "features": [
         "career_starts",
-        "race_consensus_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "prize_money_rank"
       ]
     },
     "t162": {
       "features": [
         "career_starts",
-        "dry_rating_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "career_win_rate_rank"
       ]
     },
     "t163": {
       "features": [
         "career_starts",
-        "wet_rating_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "career_place_rate_rank"
       ]
     },
     "t164": {
       "features": [
         "career_starts",
-        "prize_money_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_win_rate_rank"
       ]
     },
     "t165": {
       "features": [
         "career_starts",
-        "career_win_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "track_win_rate_rank"
       ]
     },
     "t166": {
       "features": [
         "career_starts",
-        "career_place_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "first_up_win_rate_rank"
       ]
     },
     "t167": {
       "features": [
         "career_starts",
-        "distance_win_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "second_up_win_rate_rank"
       ]
     },
     "t168": {
       "features": [
         "career_starts",
-        "track_win_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "horse_jockey_win_rate_rank"
       ]
     },
     "t169": {
       "features": [
         "career_starts",
-        "first_up_win_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_overlay_score"
       ]
     },
     "t170": {
       "features": [
         "career_starts",
-        "second_up_win_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_overlay_rank"
       ]
     },
     "t171": {
       "features": [
         "career_starts",
-        "horse_jockey_win_rate_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_signal_agreement_score"
       ]
     },
     "t172": {
       "features": [
         "career_starts",
-        "race_overlay_score"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_signal_agreement_rank"
       ]
     },
     "t173": {
       "features": [
         "career_starts",
-        "race_overlay_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "form_barrier_percentile_weighted_6"
       ]
     },
     "t174": {
       "features": [
         "career_starts",
-        "race_signal_agreement_score"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_last600_seconds_weighted_3"
       ]
     },
     "t175": {
       "features": [
         "career_starts",
-        "race_signal_agreement_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_last600_seconds_weighted_6"
       ]
     },
     "t176": {
       "features": [
         "career_starts",
-        "form_barrier_percentile_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_last600_best_6"
       ]
     },
     "t177": {
       "features": [
         "career_starts",
-        "sectional_last600_seconds_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_last600_std_6"
       ]
     },
     "t178": {
       "features": [
         "career_starts",
-        "sectional_last600_seconds_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_last600_trend"
       ]
     },
     "t179": {
       "features": [
         "career_starts",
-        "sectional_last600_best_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_closing_speed_ratio_weighted_3"
       ]
     },
     "t180": {
       "features": [
         "career_starts",
-        "sectional_last600_std_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_closing_speed_ratio_weighted_6"
       ]
     },
     "t181": {
       "features": [
         "career_starts",
-        "sectional_last600_trend"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_class_level"
       ]
     },
     "t182": {
       "features": [
         "career_starts",
-        "sectional_closing_speed_ratio_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "form_class_level_weighted_3"
       ]
     },
     "t183": {
       "features": [
         "career_starts",
-        "sectional_closing_speed_ratio_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "form_class_level_weighted_6"
       ]
     },
     "t184": {
       "features": [
         "career_starts",
-        "current_class_level"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_change_vs_recent_3"
       ]
     },
     "t185": {
       "features": [
         "career_starts",
-        "form_class_level_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_drop_from_recent_best"
       ]
     },
     "t186": {
       "features": [
         "career_starts",
-        "form_class_level_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_history_starts"
       ]
     },
     "t187": {
       "features": [
         "career_starts",
-        "class_change_vs_recent_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_history_top3_excess"
       ]
     },
     "t188": {
       "features": [
         "career_starts",
-        "class_drop_from_recent_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_recent_top3_excess"
       ]
     },
     "t189": {
       "features": [
         "career_starts",
-        "jockey_history_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "trainer_history_starts"
       ]
     },
     "t190": {
       "features": [
         "career_starts",
-        "jockey_history_top3_excess"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "trainer_history_top3_excess"
       ]
     },
     "t191": {
       "features": [
         "career_starts",
-        "jockey_recent_top3_excess"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "trainer_recent_top3_excess"
       ]
     },
     "t192": {
       "features": [
         "career_starts",
-        "trainer_history_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_starts"
       ]
     },
     "t193": {
       "features": [
         "career_starts",
-        "trainer_history_top3_excess"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_top3_excess"
       ]
     },
     "t194": {
       "features": [
         "career_starts",
-        "trainer_recent_top3_excess"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_recent_top3_excess"
       ]
     },
     "t195": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_starts"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_last1"
       ]
     },
     "t196": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_top3_excess"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_avg_3"
       ]
     },
     "t197": {
       "features": [
         "career_starts",
-        "jockey_trainer_recent_top3_excess"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_avg_6"
       ]
     },
     "t198": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_last1"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_3"
       ]
     },
     "t199": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_6"
       ]
     },
     "t200": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_avg_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_best_3"
       ]
     },
     "t201": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_best_6"
       ]
     },
     "t202": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_std_6"
       ]
     },
     "t203": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_best_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_slope_3"
       ]
     },
     "t204": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_best_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_slope_6"
       ]
     },
     "t205": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_std_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_last_minus_avg3"
       ]
     },
     "t206": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_slope_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_avg3_minus_avg6"
       ]
     },
     "t207": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_slope_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_avg_3"
       ]
     },
     "t208": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_last_minus_avg3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_avg_6"
       ]
     },
     "t209": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_avg3_minus_avg6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_weighted_3"
       ]
     },
     "t210": {
       "features": [
         "career_starts",
-        "recent_margin_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_weighted_6"
       ]
     },
     "t211": {
       "features": [
         "career_starts",
-        "recent_margin_avg_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_best_3"
       ]
     },
     "t212": {
       "features": [
         "career_starts",
-        "recent_margin_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_best_6"
       ]
     },
     "t213": {
       "features": [
         "career_starts",
-        "recent_margin_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_std_6"
       ]
     },
     "t214": {
       "features": [
         "career_starts",
-        "recent_margin_best_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_slope_3"
       ]
     },
     "t215": {
       "features": [
         "career_starts",
-        "recent_margin_best_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_slope_6"
       ]
     },
     "t216": {
       "features": [
         "career_starts",
-        "recent_margin_std_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_last_minus_avg3"
       ]
     },
     "t217": {
       "features": [
         "career_starts",
-        "recent_margin_slope_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_last1"
       ]
     },
     "t218": {
       "features": [
         "career_starts",
-        "recent_margin_slope_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_avg_3"
       ]
     },
     "t219": {
       "features": [
         "career_starts",
-        "recent_margin_last_minus_avg3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_avg_6"
       ]
     },
     "t220": {
       "features": [
         "career_starts",
-        "recent_margin_quality_last1"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_weighted_3"
       ]
     },
     "t221": {
       "features": [
         "career_starts",
-        "recent_margin_quality_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_weighted_6"
       ]
     },
     "t222": {
       "features": [
         "career_starts",
-        "recent_margin_quality_avg_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_best_3"
       ]
     },
     "t223": {
       "features": [
         "career_starts",
-        "recent_margin_quality_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_slope_3"
       ]
     },
     "t224": {
       "features": [
         "career_starts",
-        "recent_margin_quality_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_last1"
       ]
     },
     "t225": {
       "features": [
         "career_starts",
-        "recent_margin_quality_best_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_avg_3"
       ]
     },
     "t226": {
       "features": [
         "career_starts",
-        "recent_margin_quality_slope_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_avg_6"
       ]
     },
     "t227": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_last1"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_weighted_3"
       ]
     },
     "t228": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_weighted_6"
       ]
     },
     "t229": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_avg_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_best_3"
       ]
     },
     "t230": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_slope_3"
       ]
     },
     "t231": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_implied_probability_weighted_3"
       ]
     },
     "t232": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_best_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_implied_probability_weighted_6"
       ]
     },
     "t233": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_slope_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_change_last_run"
       ]
     },
     "t234": {
       "features": [
         "career_starts",
-        "historical_implied_probability_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "abs_distance_change_last_run"
       ]
     },
     "t235": {
       "features": [
         "career_starts",
-        "historical_implied_probability_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_change_pct_last_run"
       ]
     },
     "t236": {
       "features": [
         "career_starts",
-        "distance_change_last_run"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_minus_recent_avg"
       ]
     },
     "t237": {
       "features": [
         "career_starts",
-        "abs_distance_change_last_run"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_minus_recent_weighted_avg"
       ]
     },
     "t238": {
       "features": [
         "career_starts",
-        "distance_change_pct_last_run"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "abs_distance_minus_recent_weighted_avg"
       ]
     },
     "t239": {
       "features": [
         "career_starts",
-        "distance_minus_recent_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_runs"
       ]
     },
     "t240": {
       "features": [
         "career_starts",
-        "distance_minus_recent_weighted_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_finish_percentile_avg"
       ]
     },
     "t241": {
       "features": [
         "career_starts",
-        "abs_distance_minus_recent_weighted_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_finish_percentile_weighted"
       ]
     },
     "t242": {
       "features": [
         "career_starts",
-        "similar_distance_runs"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_margin_quality_avg"
       ]
     },
     "t243": {
       "features": [
         "career_starts",
-        "similar_distance_finish_percentile_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_margin_quality_weighted"
       ]
     },
     "t244": {
       "features": [
         "career_starts",
-        "similar_distance_finish_percentile_weighted"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_top3_rate"
       ]
     },
     "t245": {
       "features": [
         "career_starts",
-        "similar_distance_margin_quality_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_step_up_m"
       ]
     },
     "t246": {
       "features": [
         "career_starts",
-        "similar_distance_margin_quality_weighted"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_step_down_m"
       ]
     },
     "t247": {
       "features": [
         "career_starts",
-        "similar_distance_top3_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_step_up_pct"
       ]
     },
     "t248": {
       "features": [
         "career_starts",
-        "distance_step_up_m"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_step_down_pct"
       ]
     },
     "t249": {
       "features": [
         "career_starts",
-        "distance_step_down_m"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_step_up_observations"
       ]
     },
     "t250": {
       "features": [
         "career_starts",
-        "distance_step_up_pct"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_step_down_finish_percentile"
       ]
     },
     "t251": {
       "features": [
         "career_starts",
-        "distance_step_down_pct"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_step_down_observations"
       ]
     },
     "t252": {
       "features": [
         "career_starts",
-        "historical_step_up_finish_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_barrier_percentile_last1"
       ]
     },
     "t253": {
       "features": [
         "career_starts",
-        "historical_step_up_observations"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_barrier_percentile_avg_3"
       ]
     },
     "t254": {
       "features": [
         "career_starts",
-        "historical_step_down_finish_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_barrier_percentile_weighted_6"
       ]
     },
     "t255": {
       "features": [
         "career_starts",
-        "historical_step_down_observations"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_barrier_percentile_std_6"
       ]
     },
     "t256": {
       "features": [
         "career_starts",
-        "recent_barrier_percentile_last1"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_barrier_percentile"
       ]
     },
     "t257": {
       "features": [
         "career_starts",
-        "recent_barrier_percentile_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_minus_recent_barrier_percentile"
       ]
     },
     "t258": {
       "features": [
         "career_starts",
-        "recent_barrier_percentile_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_weight_minus_last"
       ]
     },
     "t259": {
       "features": [
         "career_starts",
-        "recent_barrier_percentile_std_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_weight_minus_recent_avg"
       ]
     },
     "t260": {
       "features": [
         "career_starts",
-        "current_barrier_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_weight_minus_recent_weighted_avg"
       ]
     },
     "t261": {
       "features": [
         "career_starts",
-        "current_minus_recent_barrier_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_weight_change_pct"
       ]
     },
     "t262": {
       "features": [
         "career_starts",
-        "current_weight_minus_last"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "best_finish_percentile_at_equal_or_higher_weight"
       ]
     },
     "t263": {
       "features": [
         "career_starts",
-        "current_weight_minus_recent_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "best_margin_quality_at_equal_or_higher_weight"
       ]
     },
     "t264": {
       "features": [
         "career_starts",
-        "current_weight_minus_recent_weighted_avg"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "form_ceiling_finish_percentile_6"
       ]
     },
     "t265": {
       "features": [
         "career_starts",
-        "current_weight_change_pct"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "form_average_finish_percentile_6"
       ]
     },
     "t266": {
       "features": [
         "career_starts",
-        "best_finish_percentile_at_equal_or_higher_weight"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "form_consistency_finish_percentile_6"
       ]
     },
     "t267": {
       "features": [
         "career_starts",
-        "best_margin_quality_at_equal_or_higher_weight"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "form_ceiling_minus_average"
       ]
     },
     "t268": {
       "features": [
         "career_starts",
-        "form_ceiling_finish_percentile_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "margin_quality_ceiling_6"
       ]
     },
     "t269": {
       "features": [
         "career_starts",
-        "form_average_finish_percentile_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "margin_quality_average_6"
       ]
     },
     "t270": {
       "features": [
         "career_starts",
-        "form_consistency_finish_percentile_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "margin_quality_consistency_6"
       ]
     },
     "t271": {
       "features": [
         "career_starts",
-        "form_ceiling_minus_average"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "best_run_recency_index"
       ]
     },
     "t272": {
       "features": [
         "career_starts",
-        "margin_quality_ceiling_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "second_best_run_recency_index"
       ]
     },
     "t273": {
       "features": [
         "career_starts",
-        "margin_quality_average_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "best_run_is_last_start"
       ]
     },
     "t274": {
       "features": [
         "career_starts",
-        "margin_quality_consistency_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "best_run_within_last_2"
       ]
     },
     "t275": {
       "features": [
         "career_starts",
-        "best_run_recency_index"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "best_run_within_last_3"
       ]
     },
     "t276": {
       "features": [
         "career_starts",
-        "second_best_run_recency_index"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent3_vs_career_finish_percentile"
       ]
     },
     "t277": {
       "features": [
         "career_starts",
-        "best_run_is_last_start"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent6_vs_career_finish_percentile"
       ]
     },
     "t278": {
       "features": [
         "career_starts",
-        "best_run_within_last_2"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent3_vs_career_place_rate"
       ]
     },
     "t279": {
       "features": [
         "career_starts",
-        "best_run_within_last_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent6_vs_career_place_rate"
       ]
     },
     "t280": {
       "features": [
         "career_starts",
-        "recent3_vs_career_finish_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_form_vs_career_form"
       ]
     },
     "t281": {
       "features": [
         "career_starts",
-        "recent6_vs_career_finish_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "same_track_runs"
       ]
     },
     "t282": {
       "features": [
         "career_starts",
-        "recent3_vs_career_place_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "same_track_finish_percentile"
       ]
     },
     "t283": {
       "features": [
         "career_starts",
-        "recent6_vs_career_place_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "same_track_margin_quality"
       ]
     },
     "t284": {
       "features": [
         "career_starts",
-        "recent_form_vs_career_form"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "same_track_top3_rate"
       ]
     },
     "t285": {
       "features": [
         "career_starts",
-        "same_track_runs"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "same_track_distance_runs"
       ]
     },
     "t286": {
       "features": [
         "career_starts",
-        "same_track_finish_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "same_track_distance_finish_percentile"
       ]
     },
     "t287": {
       "features": [
         "career_starts",
-        "same_track_margin_quality"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "same_track_distance_margin_quality"
       ]
     },
     "t288": {
       "features": [
         "career_starts",
-        "same_track_top3_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "same_track_distance_top3_rate"
       ]
     },
     "t289": {
       "features": [
         "career_starts",
-        "same_track_distance_runs"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "condition_runs"
       ]
     },
     "t290": {
       "features": [
         "career_starts",
-        "same_track_distance_finish_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "condition_win_rate_smoothed"
       ]
     },
     "t291": {
       "features": [
         "career_starts",
-        "same_track_distance_margin_quality"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "condition_top3_rate_smoothed"
       ]
     },
     "t292": {
       "features": [
         "career_starts",
-        "same_track_distance_top3_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "condition_finish_percentile"
       ]
     },
     "t293": {
       "features": [
         "career_starts",
-        "condition_runs"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "condition_margin_quality"
       ]
     },
     "t294": {
       "features": [
         "career_starts",
-        "condition_win_rate_smoothed"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_avg_3"
       ]
     },
     "t295": {
       "features": [
         "career_starts",
-        "condition_top3_rate_smoothed"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_avg_6"
       ]
     },
     "t296": {
       "features": [
         "career_starts",
-        "condition_finish_percentile"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_weighted_3"
       ]
     },
     "t297": {
       "features": [
         "career_starts",
-        "condition_margin_quality"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_weighted_6"
       ]
     },
     "t298": {
       "features": [
         "career_starts",
-        "recent_last600_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_best_3"
       ]
     },
     "t299": {
       "features": [
         "career_starts",
-        "recent_last600_avg_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_best_6"
       ]
     },
     "t300": {
       "features": [
         "career_starts",
-        "recent_last600_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_std_6"
       ]
     },
     "t301": {
       "features": [
         "career_starts",
-        "recent_last600_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_slope_3"
       ]
     },
     "t302": {
       "features": [
         "career_starts",
-        "recent_last600_best_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_last600_slope_6"
       ]
     },
     "t303": {
       "features": [
         "career_starts",
-        "recent_last600_best_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_run_quality_last1"
       ]
     },
     "t304": {
       "features": [
         "career_starts",
-        "recent_last600_std_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_run_quality_avg_3"
       ]
     },
     "t305": {
       "features": [
         "career_starts",
-        "recent_last600_slope_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_run_quality_weighted_3"
       ]
     },
     "t306": {
       "features": [
         "career_starts",
-        "recent_last600_slope_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_run_quality_weighted_6"
       ]
     },
     "t307": {
       "features": [
         "career_starts",
-        "historical_run_quality_last1"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_run_quality_best_3"
       ]
     },
     "t308": {
       "features": [
         "career_starts",
-        "historical_run_quality_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_run_quality_slope_3"
       ]
     },
     "t309": {
       "features": [
         "career_starts",
-        "historical_run_quality_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_last1"
       ]
     },
     "t310": {
       "features": [
         "career_starts",
-        "historical_run_quality_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_avg_3"
       ]
     },
     "t311": {
       "features": [
         "career_starts",
-        "historical_run_quality_best_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_best_3"
       ]
     },
     "t312": {
       "features": [
         "career_starts",
-        "historical_run_quality_slope_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_ceiling_6"
       ]
     },
     "t313": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_last1"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_average_6"
       ]
     },
     "t314": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "sectional_consistency_6"
       ]
     },
     "t315": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_best_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_change_last_run"
       ]
     },
     "t316": {
       "features": [
         "career_starts",
-        "sectional_ceiling_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_step_down"
       ]
     },
     "t317": {
       "features": [
         "career_starts",
-        "sectional_average_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_class_avg_3"
       ]
     },
     "t318": {
       "features": [
         "career_starts",
-        "sectional_consistency_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_class_weighted_6"
       ]
     },
     "t319": {
       "features": [
         "career_starts",
-        "class_change_last_run"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_best_class"
       ]
     },
     "t320": {
       "features": [
         "career_starts",
-        "class_step_up"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "performance_at_current_or_stronger_class"
       ]
     },
     "t321": {
       "features": [
         "career_starts",
-        "class_step_down"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "best_finish_percentile_at_stronger_class"
       ]
     },
     "t322": {
       "features": [
         "career_starts",
-        "recent_class_avg_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "best_margin_quality_at_stronger_class"
       ]
     },
     "t323": {
       "features": [
         "career_starts",
-        "recent_class_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_last1"
       ]
     },
     "t324": {
       "features": [
         "career_starts",
-        "recent_best_class"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_weighted_3"
       ]
     },
     "t325": {
       "features": [
         "career_starts",
-        "performance_at_current_or_stronger_class"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_weighted_6"
       ]
     },
     "t326": {
       "features": [
         "career_starts",
-        "best_finish_percentile_at_stronger_class"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_margin_quality_weighted_3"
       ]
     },
     "t327": {
       "features": [
         "career_starts",
-        "best_margin_quality_at_stronger_class"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_margin_quality_weighted_6"
       ]
     },
     "t328": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_last1"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_runs"
       ]
     },
     "t329": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_wins"
       ]
     },
     "t330": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_top3"
       ]
     },
     "t331": {
       "features": [
         "career_starts",
-        "class_adjusted_margin_quality_weighted_3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_win_rate"
       ]
     },
     "t332": {
       "features": [
         "career_starts",
-        "class_adjusted_margin_quality_weighted_6"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_top3_rate"
       ]
     },
     "t333": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_runs"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_smoothed_win_rate"
       ]
     },
     "t334": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_wins"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate"
       ]
     },
     "t335": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_top3"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_win_excess"
       ]
     },
     "t336": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_win_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_synergy"
       ]
     },
     "t337": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_top3_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_form_strength"
       ]
     },
     "t338": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_smoothed_win_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_3_rank_in_race"
       ]
     },
     "t339": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_smoothed_top3_rate"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_3_pct_in_race"
       ]
     },
     "t340": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_win_excess"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_3_minus_race_mean"
       ]
     },
     "t341": {
       "features": [
         "career_starts",
-        "jockey_trainer_synergy"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_3_minus_race_median"
       ]
     },
     "t342": {
       "features": [
         "career_starts",
-        "current_form_strength"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_3_zscore_in_race"
       ]
     },
     "t343": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_3_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_3_gap_to_best"
       ]
     },
     "t344": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_3_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_6_rank_in_race"
       ]
     },
     "t345": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_3_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_6_pct_in_race"
       ]
     },
     "t346": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_3_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_6_minus_race_mean"
       ]
     },
     "t347": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_3_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_6_minus_race_median"
       ]
     },
     "t348": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_3_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_6_zscore_in_race"
       ]
     },
     "t349": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_6_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_finish_percentile_weighted_6_gap_to_best"
       ]
     },
     "t350": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_6_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_weighted_3_rank_in_race"
       ]
     },
     "t351": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_6_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_weighted_3_pct_in_race"
       ]
     },
     "t352": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_6_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_weighted_3_minus_race_mean"
       ]
     },
     "t353": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_6_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_weighted_3_minus_race_median"
       ]
     },
     "t354": {
       "features": [
         "career_starts",
-        "recent_finish_percentile_weighted_6_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_weighted_3_zscore_in_race"
       ]
     },
     "t355": {
       "features": [
         "career_starts",
-        "recent_margin_quality_weighted_3_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "recent_margin_quality_weighted_3_gap_to_best"
       ]
     },
     "t356": {
       "features": [
         "career_starts",
-        "recent_margin_quality_weighted_3_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_weighted_3_rank_in_race"
       ]
     },
     "t357": {
       "features": [
         "career_starts",
-        "recent_margin_quality_weighted_3_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_weighted_3_pct_in_race"
       ]
     },
     "t358": {
       "features": [
         "career_starts",
-        "recent_margin_quality_weighted_3_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_weighted_3_minus_race_mean"
       ]
     },
     "t359": {
       "features": [
         "career_starts",
-        "recent_margin_quality_weighted_3_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_weighted_3_minus_race_median"
       ]
     },
     "t360": {
       "features": [
         "career_starts",
-        "recent_margin_quality_weighted_3_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_weighted_3_zscore_in_race"
       ]
     },
     "t361": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_weighted_3_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "historical_market_overperformance_weighted_3_gap_to_best"
       ]
     },
     "t362": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_weighted_3_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_best_3_rank_in_race"
       ]
     },
     "t363": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_weighted_3_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_best_3_pct_in_race"
       ]
     },
     "t364": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_weighted_3_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_best_3_minus_race_mean"
       ]
     },
     "t365": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_weighted_3_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_best_3_minus_race_median"
       ]
     },
     "t366": {
       "features": [
         "career_starts",
-        "historical_market_overperformance_weighted_3_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_best_3_zscore_in_race"
       ]
     },
     "t367": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_best_3_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "hidden_sectional_run_best_3_gap_to_best"
       ]
     },
     "t368": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_best_3_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_finish_percentile_weighted_rank_in_race"
       ]
     },
     "t369": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_best_3_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_finish_percentile_weighted_pct_in_race"
       ]
     },
     "t370": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_best_3_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_finish_percentile_weighted_minus_race_mean"
       ]
     },
     "t371": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_best_3_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_finish_percentile_weighted_minus_race_median"
       ]
     },
     "t372": {
       "features": [
         "career_starts",
-        "hidden_sectional_run_best_3_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_finish_percentile_weighted_zscore_in_race"
       ]
     },
     "t373": {
       "features": [
         "career_starts",
-        "similar_distance_finish_percentile_weighted_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "similar_distance_finish_percentile_weighted_gap_to_best"
       ]
     },
     "t374": {
       "features": [
         "career_starts",
-        "similar_distance_finish_percentile_weighted_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_rank_in_race"
       ]
     },
     "t375": {
       "features": [
         "career_starts",
-        "similar_distance_finish_percentile_weighted_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_pct_in_race"
       ]
     },
     "t376": {
       "features": [
         "career_starts",
-        "similar_distance_finish_percentile_weighted_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_minus_race_mean"
       ]
     },
     "t377": {
       "features": [
         "career_starts",
-        "similar_distance_finish_percentile_weighted_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_minus_race_median"
       ]
     },
     "t378": {
       "features": [
         "career_starts",
-        "similar_distance_finish_percentile_weighted_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_zscore_in_race"
       ]
     },
     "t379": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_weighted_3_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "class_adjusted_finish_percentile_weighted_3_gap_to_best"
       ]
     },
     "t380": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_weighted_3_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_rank_in_race"
       ]
     },
     "t381": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_weighted_3_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_pct_in_race"
       ]
     },
     "t382": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_weighted_3_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_minus_race_mean"
       ]
     },
     "t383": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_weighted_3_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_minus_race_median"
       ]
     },
     "t384": {
       "features": [
         "career_starts",
-        "class_adjusted_finish_percentile_weighted_3_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_zscore_in_race"
       ]
     },
     "t385": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_smoothed_top3_rate_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_trainer_history_smoothed_top3_rate_gap_to_best"
       ]
     },
     "t386": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_smoothed_top3_rate_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_form_strength_rank_in_race"
       ]
     },
     "t387": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_smoothed_top3_rate_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_form_strength_pct_in_race"
       ]
     },
     "t388": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_smoothed_top3_rate_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_form_strength_minus_race_mean"
       ]
     },
     "t389": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_smoothed_top3_rate_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_form_strength_minus_race_median"
       ]
     },
     "t390": {
       "features": [
         "career_starts",
-        "jockey_trainer_history_smoothed_top3_rate_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_form_strength_zscore_in_race"
       ]
     },
     "t391": {
       "features": [
         "career_starts",
-        "current_form_strength_rank_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "current_form_strength_gap_to_best"
       ]
     },
     "t392": {
       "features": [
         "career_starts",
-        "current_form_strength_pct_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "margin_rank_minus_market_rank"
       ]
     },
     "t393": {
       "features": [
         "career_starts",
-        "current_form_strength_minus_race_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "margin_market_rank_abs_gap"
       ]
     },
     "t394": {
       "features": [
         "career_starts",
-        "current_form_strength_minus_race_median"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_speed_rank_minus_market_rank"
       ]
     },
     "t395": {
       "features": [
         "career_starts",
-        "current_form_strength_zscore_in_race"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "distance_speed_market_rank_abs_gap"
       ]
     },
     "t396": {
       "features": [
         "career_starts",
-        "current_form_strength_gap_to_best"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_rank_minus_market_rank"
       ]
     },
     "t397": {
       "features": [
         "career_starts",
-        "margin_rank_minus_market_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "jockey_market_rank_abs_gap"
       ]
     },
     "t398": {
       "features": [
         "career_starts",
-        "margin_market_rank_abs_gap"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "career_rank_minus_market_rank"
       ]
     },
     "t399": {
       "features": [
         "career_starts",
-        "distance_speed_rank_minus_market_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "career_market_rank_abs_gap"
       ]
     },
     "t400": {
       "features": [
         "career_starts",
-        "distance_speed_market_rank_abs_gap"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "prize_money_rank_minus_market_rank"
       ]
     },
     "t401": {
       "features": [
         "career_starts",
-        "jockey_rank_minus_market_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "prize_money_market_rank_abs_gap"
       ]
     },
     "t402": {
       "features": [
         "career_starts",
-        "jockey_market_rank_abs_gap"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "total_prize_money"
       ]
     },
     "t403": {
       "features": [
         "career_starts",
-        "career_rank_minus_market_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_field_avg_prize_money"
       ]
     },
     "t404": {
       "features": [
         "career_starts",
-        "career_market_rank_abs_gap"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_field_max_prize_money"
       ]
     },
     "t405": {
       "features": [
         "career_starts",
-        "prize_money_rank_minus_market_rank"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_field_avg_speed_rating"
       ]
     },
     "t406": {
       "features": [
         "career_starts",
-        "prize_money_market_rank_abs_gap"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "race_field_max_speed_rating"
       ]
     },
     "t407": {
       "features": [
         "career_starts",
-        "total_prize_money"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "weight_vs_field_mean"
       ]
     },
     "t408": {
       "features": [
         "career_starts",
-        "race_field_avg_prize_money"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "num_scratchings"
       ]
     },
     "t409": {
       "features": [
         "career_starts",
-        "race_field_max_prize_money"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "preparation_run_number"
       ]
     },
     "t410": {
       "features": [
         "career_starts",
-        "race_field_avg_speed_rating"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "runs_this_preparation_before_race"
       ]
     },
     "t411": {
       "features": [
         "career_starts",
-        "race_field_max_speed_rating"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "first_up_flag"
       ]
     },
     "t412": {
       "features": [
         "career_starts",
-        "weight_vs_field_mean"
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
+        "second_up_flag"
       ]
     },
     "t413": {
       "features": [
         "career_starts",
-        "num_scratchings"
-      ]
-    },
-    "t414": {
-      "features": [
-        "career_starts",
-        "preparation_run_number"
-      ]
-    },
-    "t415": {
-      "features": [
-        "career_starts",
-        "runs_this_preparation_before_race"
-      ]
-    },
-    "t416": {
-      "features": [
-        "career_starts",
-        "first_up_flag"
-      ]
-    },
-    "t417": {
-      "features": [
-        "career_starts",
-        "second_up_flag"
-      ]
-    },
-    "t418": {
-      "features": [
-        "career_starts",
+        "fluc2",
+        "recent_6_margin",
+        "historical_step_up_finish_percentile",
+        "class_step_up",
+        "weight_kg",
         "third_up_flag"
       ]
     }

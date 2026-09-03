@@ -13,7 +13,13 @@ from feature_population_report import NON_FEATURE_COLUMNS
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [
- "career_starts"
+ "career_starts",
+  "fluc2",
+  "recent_6_margin",
+  "historical_step_up_finish_percentile",
+  "class_step_up",
+  "weight_kg"
+
 
 
 ]
