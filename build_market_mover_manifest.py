@@ -13,13 +13,9 @@ from feature_population_report import NON_FEATURE_COLUMNS
 from src.config import DEFAULT_DB
 
 BASE_FEATURES = [
- "career_starts",
-  "fluc2",
-  "recent_6_margin",
-  "historical_step_up_finish_percentile",
-  "class_step_up",
-  "weight_kg"
-
+"class_change_last_run",
+    "class_step_up",
+    "class_step_down"
 
 
 ]
@@ -44,10 +40,10 @@ EXCLUDED_FEATURES: list[str] = [
     "hidden_sectional_run_best_3_minus_race_median",
     "fluc1_price_rank",
     "career_starts",
-    "condition_top3_rate_smoothed",
+    "condition_top3_rate_smoothed","current_form_strength_minus_race_mean"
 ]
 
-EXCLUDED_FEATURES: list[str] = []
+#EXCLUDED_FEATURES: list[str] = []
 
 
 def parse_feature_list(value: str) -> list[str]:

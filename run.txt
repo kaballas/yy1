@@ -1205,3 +1205,16 @@ python train_moe_winner_ranker_feature_map.py \
   --seed 42 \
   --device cpu \
   --output /home/theo/yy1/outputs/x2_v1.pt
+UPDATE race_runners
+SET competition_id = 000;
+
+UPDATE race_runners
+SET competition_id = 999 where race_number in (6,7,8,9,10,11);
+
+UPDATE race_runners
+SET competition_id = 999
+WHERE race_id IN (
+    SELECT race_id
+    FROM v_market_top3_complete_misses
+);
+

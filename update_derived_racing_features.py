@@ -8,6 +8,7 @@ import sqlite3
 import warnings
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from src.advanced_racing_features import (
@@ -56,6 +57,31 @@ RACE_RELATIVE_HISTORY_FEATURE_NAMES = (
     "recent_1_starting_price_rank_in_race",
     "recent_1_implied_probability_rank_in_race",
 )
+RACE_CONTEXT_FEATURE_NAMES = (
+    # Expected pace map and each runner's likely position in it.
+    "expected_settling_position_score",
+    "settling_position_rank_in_race",
+    "settling_position_vs_race_mean",
+    "race_settling_position_mean",
+    "race_settling_position_std",
+    "race_settling_position_known_share",
+    "race_front_pressure_count",
+    "race_front_pressure_share",
+    "race_backmarker_share",
+    # Absolute field strength allows relative form to mean different things in
+    # strong and weak races. These sources contain no current-market prices.
+    "race_field_form_strength_mean",
+    "race_field_form_strength_std",
+    "race_field_form_strength_max",
+    "race_field_class_adjusted_form_mean",
+    "race_field_class_adjusted_form_std",
+    # Demographic, experience, and handicap context.
+    "race_field_experience_mean",
+    "career_starts_vs_field_mean",
+    "age_vs_field_mean",
+    "weight_carried_rank_in_race",
+    "weight_carried_pct_in_race",
+)
 FEATURES_TO_STORE = (
     *DERIVED_FEATURE_NAMES,
     *ADVANCED_FEATURE_NAMES,
@@ -63,12 +89,13 @@ FEATURES_TO_STORE = (
     *RACE_AGGREGATE_FEATURE_NAMES,
     *PREPARATION_FEATURE_NAMES,
     *RACE_RELATIVE_HISTORY_FEATURE_NAMES,
+    *RACE_CONTEXT_FEATURE_NAMES,
 )
 CALCULATION_VERSION_COLUMN = "derived_racing_features_version"
 # Increment this whenever a formula or registry change requires existing rows to
 # be rebuilt. A version marker is reliable where feature NULLs are not: many
 # leakage-safe features are legitimately NULL because a horse has no history.
-CALCULATION_VERSION = "2026-09-04-1"
+CALCULATION_VERSION = "2026-09-04-2"
 
 
 def add_race_aggregate_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -163,6 +190,108 @@ def add_race_relative_history_features(
     return result
 
 
+def add_race_context_features(
+    df: pd.DataFrame,
+    derived: pd.DataFrame,
+    eligible_mask: pd.Series,
+) -> pd.DataFrame:
+    """Build leakage-safe field strength, pace-map, and runner context."""
+    result = pd.DataFrame(index=df.index)
+    race_id = df["race_id"]
+    eligible = pd.Series(eligible_mask, index=df.index).fillna(False).astype(bool)
+
+    def eligible_numeric(source: pd.Series) -> pd.Series:
+        return pd.to_numeric(source, errors="coerce").where(eligible)
+
+    def grouped(source: pd.Series):
+        return source.groupby(race_id, sort=False)
+
+    settling_text = (
+        df["expected_settling_position"]
+        .astype("string")
+        .str.strip()
+        .str.casefold()
+    )
+    settling_score = settling_text.map({
+        "backmarker": 0.0,
+        "off midfield": 0.2,
+        "midfield": 0.4,
+        "off pace": 0.6,
+        "pace": 0.8,
+        "leader": 1.0,
+    }).where(eligible)
+    score_grouped = grouped(settling_score)
+    eligible_count = grouped(eligible.astype(float)).transform("sum")
+    score_mean = score_grouped.transform("mean")
+    score_rank = score_grouped.rank(method="min", ascending=False)
+
+    known_style = settling_score.notna().astype(float)
+    front_style = (
+        settling_text.isin(["leader", "pace"]) & eligible
+    ).astype(float)
+    backmarker = (settling_text.eq("backmarker") & eligible).astype(float)
+    known_count = grouped(known_style).transform("sum")
+    front_count = grouped(front_style).transform("sum")
+    backmarker_count = grouped(backmarker).transform("sum")
+    valid_style_context = known_count.gt(0) & eligible_count.gt(0)
+
+    result["expected_settling_position_score"] = settling_score
+    result["settling_position_rank_in_race"] = score_rank
+    result["settling_position_vs_race_mean"] = settling_score - score_mean
+    result["race_settling_position_mean"] = score_mean
+    result["race_settling_position_std"] = score_grouped.transform("std")
+    result["race_settling_position_known_share"] = (
+        known_count / eligible_count
+    ).where(eligible_count.gt(0))
+    result["race_front_pressure_count"] = front_count.where(valid_style_context)
+    result["race_front_pressure_share"] = (
+        front_count / eligible_count
+    ).where(valid_style_context)
+    result["race_backmarker_share"] = (
+        backmarker_count / eligible_count
+    ).where(valid_style_context)
+
+    form_strength = eligible_numeric(derived["current_form_strength"])
+    class_adjusted_form = eligible_numeric(
+        derived["class_adjusted_finish_percentile_weighted_3"]
+    )
+    form_grouped = grouped(form_strength)
+    class_form_grouped = grouped(class_adjusted_form)
+    result["race_field_form_strength_mean"] = form_grouped.transform("mean")
+    result["race_field_form_strength_std"] = form_grouped.transform("std")
+    result["race_field_form_strength_max"] = form_grouped.transform("max")
+    result["race_field_class_adjusted_form_mean"] = (
+        class_form_grouped.transform("mean")
+    )
+    result["race_field_class_adjusted_form_std"] = (
+        class_form_grouped.transform("std")
+    )
+
+    career_starts = eligible_numeric(df["career_starts"])
+    age = eligible_numeric(df["age"])
+    weight = eligible_numeric(df["weight_kg"])
+    career_mean = grouped(career_starts).transform("mean")
+    age_mean = grouped(age).transform("mean")
+    weight_grouped = grouped(weight)
+    weight_count = weight_grouped.transform("count")
+    weight_rank = weight_grouped.rank(method="min", ascending=False)
+    result["race_field_experience_mean"] = career_mean
+    result["career_starts_vs_field_mean"] = career_starts - career_mean
+    result["age_vs_field_mean"] = age - age_mean
+    result["weight_carried_rank_in_race"] = weight_rank
+    result["weight_carried_pct_in_race"] = pd.Series(
+        np.where(
+            weight.notna() & weight_count.gt(1),
+            (weight_count - weight_rank) / (weight_count - 1),
+            np.where(weight.notna() & weight_count.eq(1), 1.0, np.nan),
+        ),
+        index=df.index,
+    )
+
+    valid_runner = eligible & race_id.notna()
+    return result.loc[:, RACE_CONTEXT_FEATURE_NAMES].where(valid_runner, axis=0)
+
+
 def add_market_disagreement_features(df: pd.DataFrame) -> pd.DataFrame:
     """Compare independent evidence ranks with the current fluc2 market rank."""
     df = df.copy()
@@ -227,6 +356,7 @@ def main() -> None:
     input_columns = list(dict.fromkeys([
         "rowid", "race_id", "competition_id", "competition_name", "distance_m",
         "race_name", "grade", "track_status", "start_time_iso", "draw_number", "weight_kg",
+        "age", "expected_settling_position",
         "status", "source_betting_status", "runner_mask", "top3_mask",
         "active_field_size", "field_size",
         "jockey", "trainer", "finish_place", "career_starts", "career_wins",
@@ -332,11 +462,15 @@ def main() -> None:
             race_relative_history = add_race_relative_history_features(
                 frame, context_eligible
             )
+            race_context = add_race_context_features(
+                frame, derived, context_eligible
+            )
             derived = pd.concat([
                 derived,
                 race_aggregates.loc[:, RACE_AGGREGATE_FEATURE_NAMES],
                 preparation.loc[:, PREPARATION_FEATURE_NAMES],
                 race_relative_history.loc[:, RACE_RELATIVE_HISTORY_FEATURE_NAMES],
+                race_context.loc[:, RACE_CONTEXT_FEATURE_NAMES],
             ], axis=1)
             disagreement_inputs = pd.concat([
                 derived,

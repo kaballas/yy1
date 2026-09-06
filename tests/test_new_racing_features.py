@@ -14,10 +14,12 @@ from update_derived_racing_features import (
     MARKET_DISAGREEMENT_FEATURE_NAMES,
     PREPARATION_FEATURE_NAMES,
     RACE_AGGREGATE_FEATURE_NAMES,
+    RACE_CONTEXT_FEATURE_NAMES,
     RACE_RELATIVE_HISTORY_FEATURE_NAMES,
     add_preparation_features,
     add_race_aggregate_features,
     add_market_disagreement_features,
+    add_race_context_features,
     add_race_relative_history_features,
 )
 
@@ -219,9 +221,16 @@ def test_feature_registry_exactly_matches_generated_outputs():
     race_relative_history = add_race_relative_history_features(
         frame, race_relative_runner_mask(frame)
     )
+    frame["expected_settling_position"] = "Midfield"
+    frame["age"] = 4.
+    race_context = add_race_context_features(
+        frame,
+        pd.concat([base, context], axis=1),
+        race_relative_runner_mask(frame),
+    )
     generated = (
         set(base) | set(context) | set(disagreement) | set(race_aggregates)
-        | set(preparation) | set(race_relative_history)
+        | set(preparation) | set(race_relative_history) | set(race_context)
         | set(ADVANCED_FEATURE_NAMES)
     )
     assert set(FEATURES_TO_STORE) == (
@@ -231,6 +240,7 @@ def test_feature_registry_exactly_matches_generated_outputs():
         | set(RACE_AGGREGATE_FEATURE_NAMES)
         | set(PREPARATION_FEATURE_NAMES)
         | set(RACE_RELATIVE_HISTORY_FEATURE_NAMES)
+        | set(RACE_CONTEXT_FEATURE_NAMES)
     )
     assert set(FEATURES_TO_STORE) <= generated
     assert "recent3_vs_career_finish_percentile" not in FEATURES_TO_STORE

@@ -5,6 +5,7 @@ import pandas as pd
 
 from update_derived_racing_features import (
     CALCULATION_VERSION,
+    add_race_context_features,
     add_race_relative_history_features,
     add_race_aggregate_features,
     add_preparation_features,
@@ -126,6 +127,44 @@ def test_race_relative_history_ranks_only_eligible_runners():
     assert result.iloc[2].isna().all()
     assert result.iloc[3].tolist() == [1.0, 1.0]
     assert result.iloc[4].isna().all()
+
+
+def test_race_context_uses_only_eligible_pre_race_field_information():
+    frame = pd.DataFrame({
+        "race_id": [1, 1, 1, 1, 2, None],
+        "expected_settling_position": [
+            "Leader", "Pace", "Backmarker", "Leader", None, "Midfield"
+        ],
+        "career_starts": [20, 10, 0, 100, 5, 8],
+        "age": [6, 4, 2, 10, 3, 4],
+        "weight_kg": [58, 56, 54, 60, 55, 57],
+    })
+    derived = pd.DataFrame({
+        "current_form_strength": [.9, .6, .3, 1., .4, .5],
+        "class_adjusted_finish_percentile_weighted_3": [
+            .8, .5, .2, 1., .3, .4
+        ],
+    })
+    eligible = pd.Series([True, True, True, False, True, True])
+
+    result = add_race_context_features(frame, derived, eligible)
+
+    assert result.loc[:2, "settling_position_rank_in_race"].tolist() == [1, 2, 3]
+    assert result.loc[:2, "race_front_pressure_count"].tolist() == [2, 2, 2]
+    assert np.allclose(result.loc[:2, "race_front_pressure_share"], 2 / 3)
+    assert np.allclose(result.loc[:2, "race_backmarker_share"], 1 / 3)
+    assert np.allclose(result.loc[:2, "race_field_form_strength_mean"], .6)
+    assert np.allclose(result.loc[:2, "race_field_form_strength_std"], .3)
+    assert np.allclose(result.loc[:2, "race_field_class_adjusted_form_mean"], .5)
+    assert result.loc[:2, "career_starts_vs_field_mean"].tolist() == [10, 0, -10]
+    assert result.loc[:2, "age_vs_field_mean"].tolist() == [2, 0, -2]
+    assert result.loc[:2, "weight_carried_rank_in_race"].tolist() == [1, 2, 3]
+    assert result.loc[:2, "weight_carried_pct_in_race"].tolist() == [1, .5, 0]
+    assert result.loc[3].isna().all()
+    assert result.loc[4, "race_settling_position_known_share"] == 0
+    assert np.isnan(result.loc[4, "race_front_pressure_share"])
+    assert result.loc[4, "weight_carried_pct_in_race"] == 1
+    assert result.loc[5].isna().all()
 
 
 def test_missing_version_column_makes_every_race_pending_for_dry_run_migration():

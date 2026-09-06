@@ -67,7 +67,7 @@ def market_blind_features(
 def load_finished_winner_rows(db: Path, features: Sequence[str]) -> pd.DataFrame:
     requested = list(dict.fromkeys([
         "race_id", "start_time_iso", "competition_id", "is_winner",
-        "finish_place", *DIAGNOSTIC_COLUMNS, *features,
+        "finish_place", "top3_mask", *DIAGNOSTIC_COLUMNS, *features,
     ]))
     connection = sqlite3.connect(f"file:{db.resolve()}?mode=ro", uri=True)
     try:

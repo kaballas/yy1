@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 import numpy as np
 import pandas as pd
@@ -16,7 +17,9 @@ from src.model.race_moe_feature_map import (
     load_feature_expert_map,
     load_router_feature_indices,
 )
-from src.race_moe_data import chronological_race_ids, market_blind_features
+from src.race_moe_data import (
+    chronological_race_ids, load_finished_winner_rows, market_blind_features,
+)
 from src.race_moe_evaluation import collapse_warnings, routing_diagnostics
 from src.race_moe_snapshot import (
     create_split_snapshot, load_split_snapshot, resolve_snapshot_manifest,
@@ -24,6 +27,8 @@ from src.race_moe_snapshot import (
 )
 from train_moe_winner_ranker_feature_map import (
     _competition_population,
+    _evaluate_top3_model,
+    _exclude_invalid_top3_races,
     _selection,
     available_trainable_components,
     fine_tune_command,
@@ -598,18 +603,117 @@ def test_competition_population_filter_preserves_row_order():
     assert _competition_population(frame, None).equals(frame)
 
 
-def test_feature_map_checkpoint_selection_prioritizes_logloss():
-    lower_logloss = {
-        "top1_hit_rate": 0.20,
-        "mrr": 0.40,
-        "race_logloss": 1.20,
+def test_feature_map_top3_target_keeps_all_runners():
+    frame = pd.DataFrame({
+        "race_id": [10, 10, 10, 10, 11, 11, 11, 11],
+        "runner_number": [1, 2, 3, 4, 1, 2, 3, 4],
+        "is_winner": [1, 0, 0, 0, 0, 1, 0, 0],
+        "top3_mask": [1, 1, 1, 0, 1, 1, 1, 0],
+    })
+
+    filtered, invalid_ids = _exclude_invalid_top3_races(frame)
+
+    assert invalid_ids == []
+    assert len(filtered) == 8
+    assert filtered["top3_mask"].tolist() == [1, 1, 1, 0, 1, 1, 1, 0]
+
+
+def test_finished_winner_rows_loads_top3_mask_for_validation(tmp_path):
+    database = tmp_path / "races.sqlite"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "CREATE TABLE race_runners (race_id INTEGER, start_time_iso TEXT, "
+            "competition_id INTEGER, runner_number INTEGER, status TEXT, "
+            "is_winner INTEGER, top3_mask INTEGER, speed REAL)"
+        )
+        connection.executemany(
+            "INSERT INTO race_runners VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (1, "2026-01-01", 7, runner, "finished", int(runner == 1),
+                 int(runner <= 3), float(runner))
+                for runner in range(1, 5)
+            ],
+        )
+
+    frame = load_finished_winner_rows(database, ["speed"])
+
+    assert frame["top3_mask"].tolist() == [1, 1, 1, 0]
+
+
+def test_feature_map_top3_target_skips_invalid_race():
+    frame = pd.DataFrame({
+        "race_id": [10, 10, 10, 10, 11, 11, 11, 11],
+        "is_winner": [0, 0, 0, 1, 1, 0, 0, 0],
+        "top3_mask": [1, 1, 1, 0, 1, 1, 1, 0],
+    })
+
+    filtered, invalid_ids = _exclude_invalid_top3_races(frame)
+
+    assert invalid_ids == [10]
+    assert filtered["race_id"].unique().tolist() == [11]
+
+
+def test_feature_map_top3_evaluation_compares_predicted_set_to_mask():
+    class FixedScores:
+        def eval(self):
+            return self
+
+        def __call__(self, x, valid, return_diagnostics=False):
+            del return_diagnostics
+            logits = x[..., 0]
+            weights = torch.full((*logits.shape, 2), 0.5, device=x.device)
+            return {
+                "logits": logits,
+                "router_weights": weights,
+                "dense_router_weights": weights,
+                "selected_experts": torch.ones_like(weights, dtype=torch.bool),
+                "expert_logits": torch.stack((logits, logits), dim=-1),
+            }
+
+    x = np.asarray([[5.0], [4.0], [3.0], [2.0], [1.0]], dtype=np.float32)
+    target = np.asarray([1, 0, 1, 0, 1], dtype=np.float32)
+    race_ids = np.asarray([10] * 5, dtype=np.int64)
+    frame = pd.DataFrame({
+        "race_id": race_ids,
+        "runner_number": range(1, 6),
+        "top3_mask": target,
+        "is_winner": [1, 0, 0, 0, 0],
+        "distance_m": [1200] * 5,
+        "active_field_size": [5] * 5,
+        "career_starts": [10] * 5,
+        "track_status": ["Good"] * 5,
+        "class_name": ["BM"] * 5,
+    })
+
+    metrics, _, predictions = _evaluate_top3_model(
+        FixedScores(), x, target, race_ids, {10: np.arange(5)}, frame, 1,
+        torch.device("cpu"),
+    )
+
+    assert metrics["top3_recall"] == pytest.approx(2 / 3)
+    assert metrics["exact_top3_set_rate"] == 0.0
+    assert predictions["predicted_top3"].tolist() == [1, 1, 1, 0, 0]
+
+
+def test_feature_map_checkpoint_selection_uses_only_exact_top3():
+    higher_exact = {
+        "top3_recall": 0.80,
+        "exact_top3_set_rate": 0.50,
+        "logloss": 1.20,
     }
-    higher_top1 = {
-        "top1_hit_rate": 0.30,
-        "mrr": 0.50,
-        "race_logloss": 1.30,
+    higher_recall = {
+        "top3_recall": 0.90,
+        "exact_top3_set_rate": 0.40,
+        "logloss": 0.30,
     }
-    assert _selection(lower_logloss) > _selection(higher_top1)
+    same_exact_better_secondary_metrics = {
+        "top3_recall": 0.99,
+        "exact_top3_set_rate": 0.50,
+        "logloss": 0.10,
+    }
+
+    assert _selection(higher_exact) > _selection(higher_recall)
+    assert _selection(higher_exact) == _selection(same_exact_better_secondary_metrics)
 
 
 def test_competition_cli_accepts_training_alias_and_validation_ids():

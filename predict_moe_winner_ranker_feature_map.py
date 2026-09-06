@@ -197,7 +197,10 @@ def predict_checkpoint(
         logits = output_logits[0].cpu().numpy()
         base_logits = output["base_logits"][0].cpu().numpy()
         judge_adjustment = output["judge_adjustment"][0].cpu().numpy()
-        probability = F.softmax(output_logits[0], dim=0).cpu().numpy()
+        if checkpoint.get("objective") == "top3_mask_ranking":
+            probability = torch.sigmoid(output_logits[0]).cpu().numpy()
+        else:
+            probability = F.softmax(output_logits[0], dim=0).cpu().numpy()
         weights = output["router_weights"][0].cpu().numpy()
         expert_logits = output["expert_logits"][0].cpu().numpy()
 
@@ -205,8 +208,13 @@ def predict_checkpoint(
         "runner_number", "runner_name", *DISPLAY_MARKET_FEATURES,
     ]].copy()
     result["ranking_logit"] = logits
-    result["winner_probability"] = probability
-    result["rank"] = result["winner_probability"].rank(method="first", ascending=False).astype(int)
+    probability_column = (
+        "top3_probability"
+        if checkpoint.get("objective") == "top3_mask_ranking"
+        else "winner_probability"
+    )
+    result[probability_column] = probability
+    result["rank"] = result[probability_column].rank(method="first", ascending=False).astype(int)
     if diagnostics:
         result["base_ranking_logit"] = base_logits
         result["judge_adjustment"] = judge_adjustment
